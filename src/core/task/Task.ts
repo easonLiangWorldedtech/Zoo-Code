@@ -4149,19 +4149,20 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			// Include tools whenever they are present.
 			...(shouldIncludeTools
 				? {
-						tools: allTools,
-						tool_choice: "auto",
-						parallelToolCalls: true,
-						// When mode restricts tools, provide allowedFunctionNames so providers
-						// like Gemini can see all tools in history but only call allowed ones
-						...(allowedFunctionNames ? { allowedFunctionNames } : {}),
-					}
+					tools: allTools,
+					tool_choice: "auto",
+					parallelToolCalls: true,
+					// When mode restricts tools, provide allowedFunctionNames so providers
+					// like Gemini can see all tools in history but only call allowed ones
+					...(allowedFunctionNames ? { allowedFunctionNames } : {}),
+				}
 				: {}),
 		}
 
 		// Create an AbortController to allow cancelling the request mid-stream
 		this.currentRequestAbortController = new AbortController()
 		const abortSignal = this.currentRequestAbortController.signal
+		metadata.abortSignal = abortSignal
 		// Reset the flag after using it
 		this.skipPrevResponseIdOnce = false
 
