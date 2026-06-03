@@ -10,6 +10,9 @@ const MESSAGE_PARAMETER_DESCRIPTION = `Initial user instructions or context for 
 
 const TODOS_PARAMETER_DESCRIPTION = `Optional initial todo list written as a markdown checklist; required when the workspace mandates todos`
 
+/** Task type for parallel task mode routing (optional — only used with background tasks) */
+const TASK_TYPE_PARAMETER_DESCRIPTION = `Task type category for parallel task mode: search, doc, commit, code, debug, or general. Determines which LLM model/provider to use for this background task.`
+
 export default {
 	type: "function",
 	function: {
@@ -30,6 +33,10 @@ export default {
 				todos: {
 					type: ["string", "null"],
 					description: TODOS_PARAMETER_DESCRIPTION,
+				},
+				task_type: {
+					type: ["string", "null"],
+					description: TASK_TYPE_PARAMETER_DESCRIPTION,
 				},
 			},
 			required: ["mode", "message", "todos"],

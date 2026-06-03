@@ -15,13 +15,14 @@ interface NewTaskParams {
 	mode: string
 	message: string
 	todos?: string
+	task_type?: string
 }
 
 export class NewTaskTool extends BaseTool<"new_task"> {
 	readonly name = "new_task" as const
 
 	async execute(params: NewTaskParams, task: Task, callbacks: ToolCallbacks): Promise<void> {
-		const { mode, message, todos } = params
+		const { mode, message, todos, task_type } = params
 		const { askApproval, handleError, pushToolResult } = callbacks
 
 		try {
@@ -101,6 +102,7 @@ export class NewTaskTool extends BaseTool<"new_task"> {
 				mode: targetMode.name,
 				content: message,
 				todos: todoItems,
+				task_type: task_type ?? null,
 			})
 
 			const didApprove = await askApproval("tool", toolMessage)
@@ -109,7 +111,26 @@ export class NewTaskTool extends BaseTool<"new_task"> {
 				return
 			}
 
-			// Delegate parent and open child as sole active task
+			// Phase 3: Route background tasks with taskType to BGWorkerManager
+			const validTaskTypes = ["search", "doc", "commit", "code", "debug", "general"] as const
+			const isBackgroundTask =
+				task_type !== undefined && validTaskTypes.includes(task_type as (typeof validTaskTypes)[number])
+
+			if (isBackgroundTask) {
+				// Spawn via BGWorkerManager for parallel execution
+				const workerId = await (provider as any).spawnBackgroundTask({
+					description: message.slice(0, 128), // Use first 128 chars as description
+					mode,
+					message,
+					todos: todos ?? null,
+					taskType: task_type as (typeof validTaskTypes)[number],
+				})
+
+				pushToolResult(`Background worker spawned with ID ${workerId}`)
+				return
+			}
+
+			// Delegate parent and open child as sole active task (existing flow)
 			const child = await (provider as any).delegateParentAndOpenChild({
 				parentTaskId: task.taskId,
 				message: unescapedMessage,
@@ -130,12 +151,14 @@ export class NewTaskTool extends BaseTool<"new_task"> {
 		const mode: string | undefined = block.params.mode
 		const message: string | undefined = block.params.message
 		const todos: string | undefined = block.params.todos
+		const taskTypeParam: string | undefined = block.params.task_type
 
 		const partialMessage = JSON.stringify({
 			tool: "newTask",
 			mode: mode ?? "",
 			content: message ?? "",
 			todos: todos,
+			task_type: taskTypeParam ?? null,
 		})
 
 		await task.ask("tool", partialMessage, block.partial).catch(() => {})

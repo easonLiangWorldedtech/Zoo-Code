@@ -237,6 +237,68 @@ export const globalSettingsSchema = z.object({
 	 * Tools in this list will be excluded from prompt generation and rejected at execution time.
 	 */
 	disabledTools: z.array(toolNamesSchema).optional(),
+
+	// ── Parallel Task Settings (flat fields for globalState serialization) ──
+
+	/** Whether parallel task mode is enabled */
+	parallelTaskEnabled: z.boolean().optional(),
+	/** Maximum concurrent background workers (1-16) */
+	parallelTaskMaxConcurrent: z.number().int().min(1).max(16).optional(),
+
+	// Task type → model mappings (flat format)
+	parallelTaskModeSearchProvider: z.string().optional(),
+	parallelTaskModeSearchModelId: z.string().optional(),
+	parallelTaskModeDocProvider: z.string().optional(),
+	parallelTaskModeDocModelId: z.string().optional(),
+	parallelTaskModeCommitProvider: z.string().optional(),
+	parallelTaskModeCommitModelId: z.string().optional(),
+
+	// Code/Debug can also override provider+model (v5 fix — was missing, users couldn't customize these)
+	parallelTaskModeCodeProvider: z.string().optional(),
+	parallelTaskModeCodeModelId: z.string().optional(),
+	parallelTaskModeDebugProvider: z.string().optional(),
+	parallelTaskModeDebugModelId: z.string().optional(),
+
+	// Auto-approve settings per task type (flat format)
+	parallelTaskAutoApproveSearchReadFiles: z.boolean().optional(),
+	parallelTaskAutoApproveSearchWriteFiles: z.boolean().optional(),
+	parallelTaskAutoApproveSearchExecuteCommands: z.boolean().optional(),
+	parallelTaskAutoApproveSearchBrowserActions: z.boolean().optional(),
+
+	parallelTaskAutoApproveDocReadFiles: z.boolean().optional(),
+	parallelTaskAutoApproveDocWriteFiles: z.boolean().optional(),
+	parallelTaskAutoApproveDocExecuteCommands: z.boolean().optional(),
+	parallelTaskAutoApproveDocBrowserActions: z.boolean().optional(),
+
+	parallelTaskAutoApproveCommitReadFiles: z.boolean().optional(),
+	parallelTaskAutoApproveCommitWriteFiles: z.boolean().optional(),
+	parallelTaskAutoApproveCommitExecuteCommands: z.boolean().optional(),
+	parallelTaskAutoApproveCommitBrowserActions: z.boolean().optional(),
+
+	// Max tool calls per task type (flat format)
+	parallelTaskMaxToolCallsSearch: z.number().int().positive().optional(),
+	parallelTaskMaxToolCallsDoc: z.number().int().positive().optional(),
+	parallelTaskMaxToolCallsCommit: z.number().int().positive().optional(),
+
+	// Cost limits per task type (flat format, USD)
+	parallelTaskMaxCostSearch: z.number().nonnegative().optional(),
+	parallelTaskMaxCostDoc: z.number().nonnegative().optional(),
+	parallelTaskMaxCostCommit: z.number().nonnegative().optional(),
+
+	// Token limits per task type
+	parallelTaskMaxTokensSearch: z.number().int().positive().optional(),
+	parallelTaskMaxTokensDoc: z.number().int().positive().optional(),
+	parallelTaskMaxTokensCommit: z.number().int().positive().optional(),
+
+	// Context retention per task type (stored as strings: "minimal" | "moderate" | "full")
+	parallelTaskContextRetentionSearch: z.enum(["minimal", "moderate", "full"]).optional(),
+	parallelTaskContextRetentionDoc: z.enum(["minimal", "moderate", "full"]).optional(),
+	parallelTaskContextRetentionCommit: z.enum(["minimal", "moderate", "full"]).optional(),
+
+	// Notification mode per task type (stored as strings: "all" | "errors_only" | "none")
+	parallelTaskNotificationModeSearch: z.enum(["all", "errors_only", "none"]).optional(),
+	parallelTaskNotificationModeDoc: z.enum(["all", "errors_only", "none"]).optional(),
+	parallelTaskNotificationModeCommit: z.enum(["all", "errors_only", "none"]).optional(),
 })
 
 export type GlobalSettings = z.infer<typeof globalSettingsSchema>

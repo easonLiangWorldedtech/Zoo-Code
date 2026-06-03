@@ -623,19 +623,35 @@ export const webviewMessageHandler = async (
 
 			provider.isViewLaunched = true
 			break
-		case "newTask":
+		case "newTask": {
 			// Initializing new instance of Cline will make sure that any
 			// agentically running promises in old instance don't affect our new
 			// task. This essentially creates a fresh slate for the new task.
 			try {
 				const resolved = await resolveIncomingImages({ text: message.text, images: message.images })
-				await provider.createTask(
-					resolved.text,
-					resolved.images,
-					undefined,
-					{ taskId: message.taskId },
-					message.taskConfiguration,
-				)
+
+				// Check if this is a parallel background task (has taskType)
+				const validTaskTypes = ["search", "doc", "commit", "code", "debug", "general"] as const
+				if (message.taskType && validTaskTypes.includes(message.taskType)) {
+					// Route through BGWorkerManager for parallel task mode
+					await provider.spawnBackgroundTask({
+						description: message.taskId ?? `task-${Date.now()}`,
+						mode: message.taskConfiguration ?? "code",
+						message: resolved.text,
+						todos: message.todos ?? null,
+						taskType: message.taskType as (typeof validTaskTypes)[number],
+					})
+				} else {
+					// Regular task — use existing flow
+					await provider.createTask(
+						resolved.text,
+						resolved.images,
+						undefined,
+						{ taskId: message.taskId },
+						message.taskConfiguration,
+					)
+				}
+
 				// Task created successfully - notify the UI to reset
 				await provider.postMessageToWebview({ type: "invoke", invoke: "newChat" })
 			} catch (error) {
@@ -647,6 +663,7 @@ export const webviewMessageHandler = async (
 				)
 			}
 			break
+		}
 		case "customInstructions":
 			await provider.updateCustomInstructions(message.text)
 			break

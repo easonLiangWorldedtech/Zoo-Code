@@ -98,6 +98,8 @@ import { Task } from "../task/Task"
 import { webviewMessageHandler } from "./webviewMessageHandler"
 import type { ClineMessage, TodoItem } from "@roo-code/types"
 import { readApiMessages, saveApiMessages, saveTaskMessages, TaskHistoryStore } from "../task-persistence"
+
+import { BGWorkerManager } from "../parallel/BGWorkerManager"
 import { readTaskMessages } from "../task-persistence/taskMessages"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
@@ -184,6 +186,17 @@ export class ClineProvider
 	private cloudOrganizationsCache: CloudOrganizationMembership[] | null = null
 	private cloudOrganizationsCacheTimestamp: number | null = null
 	private static readonly CLOUD_ORGANIZATIONS_CACHE_DURATION_MS = 5 * 1000 // 5 seconds
+
+	/** BGWorkerManager — manages parallel background task workers. Lazily initialized on first spawn. */
+	private _bgWorkerManager?: BGWorkerManager
+
+	/** Lazy getter for BGWorkerManager singleton (created on first access) */
+	get bgWorkerManager(): BGWorkerManager {
+		if (!this._bgWorkerManager) {
+			this._bgWorkerManager = new BGWorkerManager(this)
+		}
+		return this._bgWorkerManager
+	}
 
 	/**
 	 * Monotonically increasing sequence number for clineMessages state pushes.
@@ -641,6 +654,8 @@ export class ClineProvider
 		this.marketplaceManager?.cleanup()
 		this.customModesManager?.dispose()
 		this.taskHistoryStore.dispose()
+		this._bgWorkerManager?.dispose()
+		this._bgWorkerManager = undefined
 		this.flushGlobalStateWriteThrough()
 		this.log("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
@@ -2913,6 +2928,44 @@ export class ClineProvider
 		)
 
 		return task
+	}
+
+	/** Spawn a background worker via BGWorkerManager (Phase 3 integration). */
+	public async spawnBackgroundTask(config: {
+		description: string
+		mode: string
+		message: string
+		todos?: string | null
+		taskType?: "search" | "doc" | "commit" | "code" | "debug" | "general"
+		priority?: number
+	}): Promise<string> {
+		const state = await this.getState()
+
+		// Check if parallel tasks are enabled in settings
+		const proxy = (this as any).contextProxy
+		if (!proxy) {
+			this.log("[spawnBackgroundTask] contextProxy not available, falling back to createTask")
+			return this.createTask(config.message, undefined, undefined, { background: true }).then((t) => t.taskId)
+		}
+
+		const enabled = proxy.get("parallelTaskEnabled") ?? false
+		if (!enabled) {
+			this.log("[spawnBackgroundTask] parallel tasks not enabled, falling back to createTask")
+			return this.createTask(config.message, undefined, undefined, { background: true }).then((t) => t.taskId)
+		}
+
+		const workerId = await this.bgWorkerManager.spawn({
+			id: config.description, // Use description as ID for now; BGWorkerManager will generate one if needed
+			description: config.description,
+			mode: config.mode,
+			message: config.message,
+			todos: config.todos ?? null,
+			taskType: config.taskType,
+			priority: config.priority ?? 0,
+		})
+
+		this.log(`[spawnBackgroundTask] Spawned worker ${workerId} for "${config.description}"`)
+		return workerId
 	}
 
 	public async cancelTask(): Promise<void> {

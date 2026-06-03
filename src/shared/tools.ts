@@ -81,6 +81,8 @@ export const toolParamNames = [
 	// read_file legacy format parameter (backward compatibility)
 	"files",
 	"line_ranges",
+	// Phase 3: parallel task mode — new_task tool extension
+	"task_type",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]
@@ -102,7 +104,7 @@ export type NativeToolArgs = {
 	edit_file: { file_path: string; old_string: string; new_string: string; expected_replacements?: number }
 	apply_patch: { patch: string }
 	list_files: { path: string; recursive?: boolean }
-	new_task: { mode: string; message: string; todos?: string }
+	new_task: { mode: string; message: string; todos?: string; task_type?: string }
 	ask_followup_question: {
 		question: string
 		follow_up: Array<{ text: string; mode?: string }>
@@ -240,7 +242,7 @@ export interface SwitchModeToolUse extends ToolUse<"switch_mode"> {
 
 export interface NewTaskToolUse extends ToolUse<"new_task"> {
 	name: "new_task"
-	params: Partial<Pick<Record<ToolParamName, string>, "mode" | "message" | "todos">>
+	params: Partial<Pick<Record<ToolParamName, string>, "mode" | "message" | "todos" | "task_type">>
 }
 
 export interface RunSlashCommandToolUse extends ToolUse<"run_slash_command"> {
