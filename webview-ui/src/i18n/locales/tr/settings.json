@@ -1,322 +1,488 @@
 {
-	"back": "Görev görünümüne dön",
+	"back": "Back to tasks view",
 	"common": {
-		"save": "Kaydet",
-		"done": "Tamamlandı",
-		"cancel": "İptal",
-		"reset": "Sıfırla",
-		"select": "Seç",
-		"add": "Başlık Ekle",
-		"remove": "Kaldır"
-	},
-	"search": {
-		"placeholder": "Ayarları ara...",
-		"noResults": "Ayar bulunamadı"
+		"save": "Save",
+		"done": "Done",
+		"cancel": "Cancel",
+		"reset": "Reset",
+		"select": "Select",
+		"add": "Add Header",
+		"remove": "Remove"
 	},
 	"header": {
-		"title": "Ayarlar",
-		"saveButtonTooltip": "Değişiklikleri kaydet",
-		"nothingChangedTooltip": "Hiçbir şey değişmedi",
-		"doneButtonTooltip": "Kaydedilmemiş değişiklikleri at ve ayarlar panelini kapat"
+		"title": "Settings",
+		"saveButtonTooltip": "Save changes",
+		"nothingChangedTooltip": "Nothing changed",
+		"doneButtonTooltip": "Discard unsaved changes and go back to tasks view"
+	},
+	"search": {
+		"placeholder": "Search settings...",
+		"noResults": "No settings found"
 	},
 	"unsavedChangesDialog": {
-		"title": "Kaydedilmemiş Değişiklikler",
-		"description": "Değişiklikleri atmak ve devam etmek istiyor musunuz?",
-		"cancelButton": "İptal",
-		"discardButton": "Değişiklikleri At"
+		"title": "Unsaved Changes",
+		"description": "Do you want to discard changes and continue?",
+		"cancelButton": "Cancel",
+		"discardButton": "Discard changes"
 	},
 	"sections": {
-		"providers": "Sağlayıcılar",
-		"modes": "Modlar",
-		"mcp": "MCP Sunucuları",
+		"providers": "Providers",
+		"modes": "Modes",
+		"mcp": "MCP Servers",
 		"worktrees": "Worktrees",
-		"autoApprove": "Oto-Onay",
-		"checkpoints": "Kontrol Noktaları",
-		"notifications": "Bildirimler",
-		"contextManagement": "Bağlam",
+		"skills": "Skills",
+		"autoApprove": "Auto-Approve",
+		"checkpoints": "Checkpoints",
+		"notifications": "Notifications",
+		"contextManagement": "Context",
 		"terminal": "Terminal",
-		"slashCommands": "Eğik Çizgi Komutları",
-		"prompts": "Promptlar",
+		"slashCommands": "Slash Commands",
+		"prompts": "Prompts",
 		"ui": "UI",
-		"experimental": "Deneysel",
-		"language": "Dil",
-		"about": "Zoo Code Hakkında",
-		"skills": "Skills"
+		"experimental": "Experimental",
+		"language": "Language",
+		"about": "About Zoo Code",
+		"parallelTasks": "Parallel Tasks"
+	},
+	"parallelTasks": {
+		"description": "Configure background workers that run in parallel with your main task. Each worker can use a different model/provider to optimize cost and speed.",
+		"enabled": {
+			"label": "Enable parallel tasks",
+			"description": "When enabled, you can send background tasks that run alongside your main conversation."
+		},
+		"maxConcurrent": {
+			"label": "Maximum concurrent workers",
+			"description": "Number of background workers that can run simultaneously (1-16)."
+		},
+		"taskSelector": {
+			"label": "Task type for new tasks:",
+			"main": "Main task",
+			"activeWorkers": "{{count}} active · ",
+			"queued": "{{count}} queued"
+		},
+		"heartbeatSettings": {
+			"title": "Heartbeat Settings",
+			"description": "Control how background worker progress is displayed in the chat.",
+			"mode": {
+				"label": "Heartbeat mode",
+				"all": "Show all workers",
+				"errorsOnly": "Show errors only",
+				"none": "Hide heartbeats"
+			},
+			"interval": {
+				"label": "Update interval (seconds)",
+				"description": "How often worker progress updates appear in chat. Range: 10-60s."
+			}
+		},
+		"modeMapping": {
+			"title": "Task Type → Model Mapping",
+			"description": "Assign different models to different task types. Leave empty to inherit from main task settings.",
+			"inherit": "Inherit from main task",
+			"modelPlaceholder": "Model ID (e.g., gpt-4o-mini)"
+		},
+		"autoApprove": {
+			"title": "Auto-Approve Per Task Type",
+			"description": "Control which tools background workers can use without approval for each task type.",
+			"permissions": {
+				"readFiles": "Read files",
+				"writeFiles": "Write files",
+				"executeCommands": "Execute commands",
+				"browserActions": "Browser actions"
+			}
+		},
+		"limits": {
+			"title": "Limits Per Task Type",
+			"description": "Set maximum tool calls, cost ($), and tokens per task type. Leave empty to use defaults."
+		},
+		"contextRetention": {
+			"minimal": "Minimal (1 pair)",
+			"moderate": "Moderate (3 pairs)",
+			"full": "Full (8 pairs)"
+		},
+		"notificationMode": {
+			"all": "All",
+			"errorsOnly": "Errors only",
+			"none": "None"
+		},
+		"taskTypes": {
+			"search": "Search",
+			"doc": "Doc",
+			"commit": "Commit",
+			"code": "Code",
+			"debug": "Debug",
+			"general": "General"
+		},
+		"autoDetect": {
+			"label": "Auto-detect task type from message content (Phase 2+)",
+			"description": "Automatically classify background tasks by analyzing the message content."
+		},
+		"panel": {
+			"title": "Parallel Tasks",
+			"enabled": "{{maxConcurrent}} workers max · Background mode active",
+			"disabled": "Parallel tasks disabled — enable in Settings",
+			"activeWorkers": "{{count}} active",
+			"queuedTasks": "{{count}} queued",
+			"noWorkers": "No active background workers",
+			"startTaskHint": "Send a message with 'background' to start one",
+			"footer": "Background tasks run independently of your main conversation",
+			"cancel": "Cancel",
+			"viewResult": "View Result",
+			"toolCalls": "tool calls",
+			"unknown": "Unknown"
+		},
+		"dagViz": {
+			"title": "DAG Visualization Level",
+			"description": "Choose how workflow dependency graphs are visualized in the Task Flow panel.",
+			"level": {
+				"label": "Visualization level",
+				"simple": "Simple (text tree)",
+				"graph": "Graph (SVG diagram) — recommended",
+				"interactive": "Interactive (click-to-select nodes)"
+			}
+		}
 	},
 	"about": {
 		"bugReport": {
-			"label": "Bir hata mı buldunuz?",
-			"link": "GitHub'da bildirin"
+			"label": "Found a bug?",
+			"link": "Report on GitHub"
 		},
 		"featureRequest": {
-			"label": "Bir fikriniz mi var?",
-			"link": "Bizimle paylaşın"
+			"label": "Have an idea?",
+			"link": "Share it with us"
 		},
 		"securityIssue": {
-			"label": "Bir güvenlik açığı mı keşfettiniz?",
-			"link": "Açıklama sürecimizi takip edin"
+			"label": "Discovered a vulnerability?",
+			"link": "Follow our disclosure process"
 		},
-		"community": "İpuçları mı istiyorsunuz yoksa sadece diğer Zoo Code kullanıcılarıyla takılmak mı istiyorsunuz? <redditLink>reddit.com/r/ZooCode</redditLink> veya <discordLink>discord.gg/VxfP4Vx3gX</discordLink>'a katılın",
-		"contactAndCommunity": "İletişim ve Topluluk",
-		"manageSettings": "Ayarları Yönet",
+		"community": "Want tips or to just hang out with other Zoo Code users? Join <redditLink>reddit.com/r/ZooCode</redditLink> or <discordLink>discord.gg/VxfP4Vx3gX</discordLink>",
+		"contactAndCommunity": "Contact & Community",
+		"manageSettings": "Manage Settings",
 		"debugMode": {
-			"label": "Debug modunu etkinleştir",
-			"description": "Görev başlığında API konuşma geçmişini ve UI mesajlarını geçici dosyalarda biçimlendirilmiş JSON olarak görüntülemek için ek düğmeler göstermek üzere debug modunu etkinleştirin."
+			"label": "Enable debug mode",
+			"description": "Enable debug mode to show additional buttons in the task header for viewing API conversation history and UI messages as prettified JSON in temporary files."
 		}
 	},
 	"slashCommands": {
-		"description": "Özel iş akışlarını ve eylemleri hızlı bir şekilde yürütmek için eğik çizgi komutlarınızı yönetin. <DocsLink>Daha fazla bilgi edinin</DocsLink>",
-		"workspaceCommands": "Çalışma Alanı Komutları",
-		"globalCommands": "Genel Komutlar",
-		"noWorkspaceCommands": "Bu projede henüz komut yok.",
-		"noGlobalCommands": "Henüz genel komut yok.",
-		"addCommand": "Eğik Çizgi Komutu Ekle",
-		"editCommand": "Komutu düzenle",
-		"deleteCommand": "Komutu sil",
+		"description": "Slash commands are shortcuts for reusable workflows and actions to be used on demand (like creating a PR, running a set of tasks, etc). <DocsLink>Learn more</DocsLink>",
+		"workspaceCommands": "Workspace Commands",
+		"globalCommands": "Global Commands",
+		"noWorkspaceCommands": "No commands in this project yet.",
+		"noGlobalCommands": "No global commands yet.",
+		"addCommand": "Add Slash Command",
+		"editCommand": "Edit command",
+		"deleteCommand": "Delete command",
 		"deleteDialog": {
-			"title": "Komutu sil",
-			"description": "\"{{name}}\" komutunu silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.",
-			"confirm": "Sil",
-			"cancel": "İptal"
+			"title": "Delete Command",
+			"description": "Are you sure you want to delete the command \"{{name}}\"? This action cannot be undone.",
+			"confirm": "Delete",
+			"cancel": "Cancel"
 		},
 		"createDialog": {
-			"title": "Yeni Eğik Çizgi Komutu Oluştur",
-			"nameLabel": "Ad",
+			"title": "Create New Slash Command",
+			"nameLabel": "Name",
 			"namePlaceholder": "my-command-name",
-			"nameHint": "Yalnızca küçük harfler, sayılar, tireleme ve alt çizgi",
-			"sourceLabel": "Konum",
-			"create": "Oluştur",
-			"cancel": "İptal"
+			"nameHint": "Lowercase letters, numbers, hyphens and underscores only",
+			"sourceLabel": "Location",
+			"create": "Create",
+			"cancel": "Cancel"
 		},
 		"source": {
-			"global": "Genel (tüm çalışma alanlarında mevcut)",
-			"project": "Çalışma Alanı"
+			"global": "Global (available in all workspaces)",
+			"project": "Workspace"
 		},
 		"validation": {
-			"nameRequired": "Ad gereklidir",
-			"nameTooLong": "Ad en fazla 64 karakter olmalıdır",
-			"nameInvalid": "Ad yalnızca harfleri, sayıları, tirelemeyi ve alt çizgiyi içerebilir"
+			"nameRequired": "Name is required",
+			"nameTooLong": "Name must be 64 characters or less",
+			"nameInvalid": "Name must contain only letters, numbers, hyphens, and underscores"
 		},
-		"footer": "Sık kullanılan komutlara ve iş akışlarına hızlı erişim için eğik çizgi komutlarını kullanın."
+		"footer": "Use slash commands for quick access to frequently used prompts and workflows."
+	},
+	"skills": {
+		"description": "Skills encapsulate contextual instructions and workflows, which the agent can load on-demand. They can include general instructions, specific workflows and even scripts to be run as needed. <DocsLink>Learn more</DocsLink>",
+		"workspaceSkills": "Workspace Skills",
+		"globalSkills": "Global Skills",
+		"noWorkspaceSkills": "No skills in this project yet.",
+		"noGlobalSkills": "No global skills yet.",
+		"addSkill": "Add Skill",
+		"editSkill": "Edit skill",
+		"deleteSkill": "Delete skill",
+		"configureModes": "Mode availability",
+		"modeAny": "Any mode",
+		"modeCount": "{{count}} modes",
+		"deleteDialog": {
+			"title": "Delete Skill",
+			"description": "Are you sure you want to delete the skill \"{{name}}\"? This action cannot be undone.",
+			"confirm": "Delete",
+			"cancel": "Cancel"
+		},
+		"modeDialog": {
+			"title": "Configure Skill Modes",
+			"description": "Choose which modes can use this skill",
+			"intro": "To keep your context light, we recommend only making skills available for the modes that need them.",
+			"anyMode": "Any mode (available everywhere)",
+			"save": "Save",
+			"cancel": "Cancel"
+		},
+		"createDialog": {
+			"title": "Create New Skill",
+			"nameLabel": "Name",
+			"namePlaceholder": "my-skill-name (Lowercase letters, numbers, and hyphens only)",
+			"descriptionLabel": "Description",
+			"descriptionPlaceholder": "Describe when this skill should be used and its contents...",
+			"sourceLabel": "Location",
+			"modeLabel": "Mode (optional)",
+			"modePlaceholder": "Any mode",
+			"modeAny": "Any mode",
+			"modeHint": "Restrict this skill to a specific mode",
+			"create": "Create",
+			"cancel": "Cancel"
+		},
+		"source": {
+			"global": "Global (available in all projects)",
+			"project": "Project (this workspace only)"
+		},
+		"validation": {
+			"nameRequired": "Name is required",
+			"nameTooLong": "Name must be 64 characters or less",
+			"nameInvalid": "Name must be 1-64 lowercase letters, numbers, or hyphens",
+			"descriptionRequired": "Description is required",
+			"descriptionTooLong": "Description must be 1024 characters or less"
+		},
+		"footer": "Create your own skills with the Skill Writer mode, available in the <MarketplaceLink>Modes Marketplace</MarketplaceLink>."
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Collapse Thinking messages by default",
+			"description": "When enabled, thinking blocks will be collapsed by default until you interact with them"
+		},
+		"requireCtrlEnterToSend": {
+			"label": "Require {{primaryMod}}+Enter to send messages",
+			"description": "When enabled, you must press {{primaryMod}}+Enter to send messages instead of just Enter"
+		},
+		"chatFontSize": {
+			"label": "Chat font size",
+			"description": "Set the font size (in pixels) for the Zoo Code chat. Leave at the default to match VS Code's font size.",
+			"reset": "Use VS Code default"
+		}
 	},
 	"prompts": {
-		"description": "Prompt geliştirme, kod açıklama ve sorun çözme gibi hızlı eylemler için kullanılan destek promptlarını yapılandırın. Bu promptlar, Zoo'nun yaygın geliştirme görevleri için daha iyi destek sağlamasına yardımcı olur."
+		"description": "Configure support prompts that are used for quick actions like enhancing prompts, explaining code, and fixing issues. These prompts help Zoo provide better assistance for common development tasks."
 	},
 	"codeIndex": {
-		"title": "Kod Tabanı İndeksleme",
-		"enableLabel": "Kod Tabanı İndekslemeyi Etkinleştir",
-		"enableDescription": "Geliştirilmiş arama ve bağlam anlayışı için kod indekslemeyi etkinleştirin",
-		"providerLabel": "Gömme Sağlayıcısı",
-		"selectProviderPlaceholder": "Sağlayıcı seç",
+		"title": "Codebase Indexing",
+		"description": "Configure codebase indexing settings to enable semantic search of your project. <0>Learn more</0>",
+		"statusTitle": "Status",
+		"enableLabel": "Enable Codebase Indexing",
+		"enableDescription": "Enable code indexing for improved search and context understanding",
+		"settingsTitle": "Indexing Settings",
+		"disabledMessage": "Codebase indexing is currently disabled. Enable it in the global settings to configure indexing options.",
+		"providerLabel": "Embeddings Provider",
+		"embedderProviderLabel": "Embedder Provider",
+		"selectProviderPlaceholder": "Select provider",
 		"openaiProvider": "OpenAI",
 		"ollamaProvider": "Ollama",
 		"geminiProvider": "Gemini",
-		"geminiApiKeyLabel": "API Anahtarı:",
-		"geminiApiKeyPlaceholder": "Gemini API anahtarınızı girin",
+		"geminiApiKeyLabel": "API Key:",
+		"geminiApiKeyPlaceholder": "Enter your Gemini API key",
 		"mistralProvider": "Mistral",
-		"mistralApiKeyLabel": "API Anahtarı:",
-		"mistralApiKeyPlaceholder": "Mistral API anahtarınızı girin",
+		"mistralApiKeyLabel": "API Key:",
+		"mistralApiKeyPlaceholder": "Enter your Mistral API key",
 		"vercelAiGatewayProvider": "Vercel AI Gateway",
-		"vercelAiGatewayApiKeyLabel": "API Anahtarı",
-		"vercelAiGatewayApiKeyPlaceholder": "Vercel AI Gateway API anahtarınızı girin",
+		"vercelAiGatewayApiKeyLabel": "API Key",
+		"vercelAiGatewayApiKeyPlaceholder": "Enter your Vercel AI Gateway API key",
 		"bedrockProvider": "Amazon Bedrock",
-		"bedrockRegionLabel": "AWS Bölgesi",
+		"bedrockRegionLabel": "AWS Region",
 		"bedrockRegionPlaceholder": "us-east-1",
-		"bedrockProfileLabel": "AWS Profili",
+		"bedrockProfileLabel": "AWS Profile",
 		"bedrockProfilePlaceholder": "default",
-		"bedrockProfileDescription": "~/.aws/credentials dosyasından AWS profil adı (gerekli).",
+		"bedrockProfileDescription": "AWS profile name from ~/.aws/credentials (required).",
 		"openRouterProvider": "OpenRouter",
-		"openRouterApiKeyLabel": "OpenRouter API Anahtarı",
-		"openRouterApiKeyPlaceholder": "OpenRouter API anahtarınızı girin",
-		"openRouterProviderRoutingLabel": "OpenRouter Sağlayıcı Yönlendirmesi",
-		"openRouterProviderRoutingDescription": "OpenRouter, gömme modeliniz için mevcut en iyi sağlayıcılara istekleri yönlendirir. Varsayılan olarak, istekler çalışma süresini en üst düzeye çıkarmak için en iyi sağlayıcılar arasında dengelenir. Ancak, bu model için kullanılacak belirli bir sağlayıcı seçebilirsiniz.",
-		"openaiCompatibleProvider": "OpenAI Uyumlu",
-		"openAiKeyLabel": "OpenAI API Anahtarı",
-		"openAiKeyPlaceholder": "OpenAI API anahtarınızı girin",
-		"openAiCompatibleBaseUrlLabel": "Temel URL",
-		"openAiCompatibleApiKeyLabel": "API Anahtarı",
-		"openAiCompatibleApiKeyPlaceholder": "API anahtarınızı girin",
-		"openAiCompatibleModelDimensionLabel": "Gömme Boyutu:",
-		"modelDimensionLabel": "Model Boyutu",
-		"openAiCompatibleModelDimensionPlaceholder": "örn., 1536",
-		"openAiCompatibleModelDimensionDescription": "Modeliniz için gömme boyutu (çıktı boyutu). Bu değer için sağlayıcınızın belgelerine bakın. Yaygın değerler: 384, 768, 1536, 3072.",
+		"openRouterApiKeyLabel": "OpenRouter API Key",
+		"openRouterApiKeyPlaceholder": "Enter your OpenRouter API key",
+		"openRouterProviderRoutingLabel": "OpenRouter Provider Routing",
+		"openRouterProviderRoutingDescription": "OpenRouter routes requests to the best available providers for your embedding model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
+		"openaiCompatibleProvider": "OpenAI Compatible",
+		"openAiKeyLabel": "OpenAI API Key",
+		"openAiKeyPlaceholder": "Enter your OpenAI API key",
+		"openAiCompatibleBaseUrlLabel": "Base URL",
+		"openAiCompatibleApiKeyLabel": "API Key",
+		"openAiCompatibleApiKeyPlaceholder": "Enter your API key",
+		"openAiCompatibleModelDimensionLabel": "Embedding Dimension:",
+		"modelDimensionLabel": "Model Dimension",
+		"openAiCompatibleModelDimensionPlaceholder": "e.g., 1536",
+		"openAiCompatibleModelDimensionDescription": "The embedding dimension (output size) for your model. Check your provider's documentation for this value. Common values: 384, 768, 1536, 3072.",
 		"modelLabel": "Model",
-		"selectModelPlaceholder": "Model seç",
+		"modelPlaceholder": "Enter model name",
+		"selectModel": "Select a model",
+		"selectModelPlaceholder": "Select model",
 		"ollamaUrlLabel": "Ollama URL:",
+		"ollamaBaseUrlLabel": "Ollama Base URL",
 		"qdrantUrlLabel": "Qdrant URL",
-		"qdrantKeyLabel": "Qdrant Anahtarı:",
-		"startIndexingButton": "Başlat",
-		"clearIndexDataButton": "İndeks Temizle",
-		"unsavedSettingsMessage": "İndeksleme işlemini başlatmadan önce lütfen ayarlarını kaydet.",
+		"qdrantKeyLabel": "Qdrant Key:",
+		"qdrantApiKeyLabel": "Qdrant API Key",
+		"qdrantApiKeyPlaceholder": "Enter your Qdrant API key (optional)",
+		"setupConfigLabel": "Setup",
+		"advancedConfigLabel": "Advanced Configuration",
+		"searchMinScoreLabel": "Search Score Threshold",
+		"searchMinScoreDescription": "Minimum similarity score (0.0-1.0) required for search results. Lower values return more results but may be less relevant. Higher values return fewer but more relevant results.",
+		"searchMinScoreResetTooltip": "Reset to default value (0.4)",
+		"searchMaxResultsLabel": "Maximum Search Results",
+		"searchMaxResultsDescription": "Maximum number of search results to return when querying the codebase index. Higher values provide more context but may include less relevant results.",
+		"resetToDefault": "Reset to default",
+		"startIndexingButton": "Start Indexing",
+		"clearIndexDataButton": "Clear Index Data",
+		"unsavedSettingsMessage": "Please save your settings before starting the indexing process.",
 		"clearDataDialog": {
-			"title": "Emin misiniz?",
-			"description": "Bu işlem geri alınamaz. Bu, kod tabanı indeks verilerinizi kalıcı olarak silecektir.",
-			"cancelButton": "İptal",
-			"confirmButton": "Verileri Temizle"
+			"title": "Are you sure?",
+			"description": "This action cannot be undone. This will permanently delete your codebase index data.",
+			"cancelButton": "Cancel",
+			"confirmButton": "Clear Data"
 		},
-		"description": "Projenizin anlamsal aramasını etkinleştirmek için kod tabanı indeksleme ayarlarını yapılandırın. <0>Daha fazla bilgi</0>",
-		"statusTitle": "Durum",
-		"settingsTitle": "İndeksleme Ayarları",
-		"disabledMessage": "Kod tabanı indeksleme şu anda devre dışı. İndeksleme seçeneklerini yapılandırmak için genel ayarlarda etkinleştirin.",
-		"embedderProviderLabel": "Gömücü Sağlayıcı",
-		"modelPlaceholder": "Model adını girin",
-		"selectModel": "Bir model seçin",
-		"ollamaBaseUrlLabel": "Ollama Temel URL",
-		"qdrantApiKeyLabel": "Qdrant API Anahtarı",
-		"qdrantApiKeyPlaceholder": "Qdrant API anahtarınızı girin (isteğe bağlı)",
-		"setupConfigLabel": "Kurulum",
 		"ollamaUrlPlaceholder": "http://localhost:11434",
 		"openAiCompatibleBaseUrlPlaceholder": "https://api.example.com",
 		"modelDimensionPlaceholder": "1536",
 		"qdrantUrlPlaceholder": "http://localhost:6333",
-		"saveError": "Ayarlar kaydedilemedi",
-		"modelDimensions": "({{dimension}} boyut)",
-		"saveSuccess": "Ayarlar başarıyla kaydedildi",
-		"saving": "Kaydediliyor...",
-		"saveSettings": "Kaydet",
+		"saveError": "Failed to save settings",
+		"modelDimensions": "({{dimension}} dimensions)",
+		"saveSuccess": "Settings saved successfully",
+		"saving": "Saving...",
+		"saveSettings": "Save",
 		"indexingStatuses": {
-			"standby": "Bekleme",
-			"indexing": "İndeksleniyor",
-			"indexed": "İndekslendi",
-			"error": "Hata"
+			"standby": "Standby",
+			"indexing": "Indexing",
+			"indexed": "Indexed",
+			"error": "Error"
 		},
-		"close": "Kapat",
+		"close": "Close",
 		"validation": {
-			"invalidQdrantUrl": "Geçersiz Qdrant URL'si",
-			"invalidOllamaUrl": "Geçersiz Ollama URL'si",
-			"invalidBaseUrl": "Geçersiz temel URL'si",
-			"qdrantUrlRequired": "Qdrant URL'si gereklidir",
-			"openaiApiKeyRequired": "OpenAI API anahtarı gereklidir",
-			"modelSelectionRequired": "Model seçimi gereklidir",
-			"apiKeyRequired": "API anahtarı gereklidir",
-			"modelIdRequired": "Model kimliği gereklidir",
-			"modelDimensionRequired": "Model boyutu gereklidir",
-			"geminiApiKeyRequired": "Gemini API anahtarı gereklidir",
-			"mistralApiKeyRequired": "Mistral API anahtarı gereklidir",
-			"vercelAiGatewayApiKeyRequired": "Vercel AI Gateway API anahtarı gereklidir",
-			"bedrockRegionRequired": "AWS bölgesi gereklidir",
-			"bedrockProfileRequired": "AWS profili gereklidir",
-			"ollamaBaseUrlRequired": "Ollama temel URL'si gereklidir",
-			"baseUrlRequired": "Temel URL'si gereklidir",
-			"modelDimensionMinValue": "Model boyutu 0'dan büyük olmalıdır",
-			"openRouterApiKeyRequired": "OpenRouter API anahtarı gereklidir"
+			"qdrantUrlRequired": "Qdrant URL is required",
+			"invalidQdrantUrl": "Invalid Qdrant URL",
+			"invalidOllamaUrl": "Invalid Ollama URL",
+			"invalidBaseUrl": "Invalid base URL",
+			"openaiApiKeyRequired": "OpenAI API key is required",
+			"modelSelectionRequired": "Model selection is required",
+			"apiKeyRequired": "API key is required",
+			"modelIdRequired": "Model ID is required",
+			"modelDimensionRequired": "Model dimension is required",
+			"geminiApiKeyRequired": "Gemini API key is required",
+			"mistralApiKeyRequired": "Mistral API key is required",
+			"vercelAiGatewayApiKeyRequired": "Vercel AI Gateway API key is required",
+			"bedrockRegionRequired": "AWS region is required",
+			"bedrockProfileRequired": "AWS profile is required",
+			"openRouterApiKeyRequired": "OpenRouter API key is required",
+			"ollamaBaseUrlRequired": "Ollama base URL is required",
+			"baseUrlRequired": "Base URL is required",
+			"modelDimensionMinValue": "Model dimension must be greater than 0"
 		},
-		"optional": "isteğe bağlı",
-		"advancedConfigLabel": "Gelişmiş Yapılandırma",
-		"searchMinScoreLabel": "Arama Skoru Eşiği",
-		"searchMinScoreDescription": "Arama sonuçları için gereken minimum benzerlik puanı (0.0-1.0). Düşük değerler daha fazla sonuç döndürür ancak daha az alakalı olabilir. Yüksek değerler daha az ancak daha alakalı sonuçlar döndürür.",
-		"searchMinScoreResetTooltip": "Varsayılan değere sıfırla (0.4)",
-		"searchMaxResultsLabel": "Maksimum Arama Sonuçları",
-		"searchMaxResultsDescription": "Kod tabanı dizinini sorgularken döndürülecek maksimum arama sonucu sayısı. Daha yüksek değerler daha fazla bağlam sağlar ancak daha az alakalı sonuçlar içerebilir.",
-		"resetToDefault": "Varsayılana sıfırla",
-		"stopIndexingButton": "İndekslemeyi durdur",
-		"stoppingButton": "Durduruluyor...",
-		"workspaceToggleLabel": "Bu çalışma alanı için indekslemeyi etkinleştir",
-		"workspaceDisabledMessage": "İndeksleme yapılandırıldı ancak bu çalışma alanı için etkinleştirilmedi.",
-		"autoEnableDefaultLabel": "Yeni çalışma alanları için indekslemeyi otomatik etkinleştir"
+		"optional": "optional",
+		"stopIndexingButton": "Stop Indexing",
+		"stoppingButton": "Stopping...",
+		"workspaceToggleLabel": "Enable indexing for this workspace",
+		"workspaceDisabledMessage": "Indexing is configured but not enabled for this workspace.",
+		"autoEnableDefaultLabel": "Auto-enable indexing for new workspaces"
 	},
 	"autoApprove": {
-		"toggleShortcut": "<SettingsLink>IDE tercihlerinizde</SettingsLink> bu ayar için genel bir kısayol yapılandırabilirsiniz.",
-		"description": "Roo'nun onay gerektirmeden otomatik olarak işlemler gerçekleştirmesine izin verin. Bu ayarları yalnızca yapay zekaya tamamen güveniyorsanız ve ilgili güvenlik risklerini anlıyorsanız etkinleştirin.",
-		"enabled": "Oto-onay etkinleştirildi",
-		"toggleAriaLabel": "Otomatik onayı değiştir",
-		"disabledAriaLabel": "Otomatik onay devre dışı - önce seçenekleri belirleyin",
+		"description": "Run these actions without asking for permission. Only enable for actions you fully trust and if you understand the security risks.",
+		"toggleShortcut": "You can configure a keyboard shortcut for this setting <SettingsLink>in your IDE preferences</SettingsLink>.",
+		"enabled": "Auto-Approve Enabled",
 		"readOnly": {
-			"label": "Okuma",
-			"description": "Etkinleştirildiğinde, Zoo otomatik olarak dizin içeriğini görüntüleyecek ve Onayla düğmesine tıklamanıza gerek kalmadan dosyaları okuyacaktır.",
+			"label": "Read",
+			"description": "When enabled, Zoo will automatically view directory contents and read files without requiring you to click the Approve button.",
 			"outsideWorkspace": {
-				"label": "Çalışma alanı dışındaki dosyaları dahil et",
-				"description": "Zoo'nun onay gerektirmeden mevcut çalışma alanı dışındaki dosyaları okumasına izin ver."
+				"label": "Include files outside workspace",
+				"description": "Allow Zoo to read files outside the current workspace without requiring approval."
 			}
 		},
 		"write": {
-			"label": "Yazma",
-			"description": "Onay gerektirmeden otomatik olarak dosya oluştur ve düzenle",
-			"delayLabel": "Tanılamanın potansiyel sorunları tespit etmesine izin vermek için yazmalardan sonra gecikme",
+			"label": "Write",
+			"description": "Automatically create and edit files without requiring approval",
+			"delayLabel": "Delay after writes to allow diagnostics to detect potential problems",
 			"outsideWorkspace": {
-				"label": "Çalışma alanı dışındaki dosyaları dahil et",
-				"description": "Zoo'nun onay gerektirmeden mevcut çalışma alanı dışında dosya oluşturmasına ve düzenlemesine izin ver."
+				"label": "Include files outside workspace",
+				"description": "Allow Zoo to create and edit files outside the current workspace without requiring approval."
 			},
 			"protected": {
-				"label": "Korumalı dosyaları dahil et",
-				"description": "Zoo'nun korumalı dosyaları (.rooignore ve .roo/ yapılandırma dosyaları gibi) onay gerektirmeden oluşturmasına ve düzenlemesine izin ver."
+				"label": "Include protected files",
+				"description": "Allow Zoo to create and edit protected files (like .rooignore and .roo/ configuration files) without requiring approval."
 			}
 		},
 		"mcp": {
 			"label": "MCP",
-			"description": "MCP Sunucuları görünümünde bireysel MCP araçlarının otomatik onayını etkinleştir (hem bu ayar hem de aracın \"Her zaman izin ver\" onay kutusu gerekir)"
+			"description": "Enable auto-approval of individual MCP tools in the MCP Servers view (requires both this setting and the tool's individual \"Always allow\" checkbox)"
 		},
 		"modeSwitch": {
-			"label": "Mod",
-			"description": "Onay gerektirmeden otomatik olarak farklı modlar arasında geçiş yap"
+			"label": "Mode",
+			"description": "Automatically switch between different modes without requiring approval"
 		},
 		"subtasks": {
-			"label": "Alt Görevler",
-			"description": "Onay gerektirmeden alt görevlerin oluşturulmasına ve tamamlanmasına izin ver"
+			"label": "Subtasks",
+			"description": "Allow creation and completion of subtasks without requiring approval"
 		},
 		"followupQuestions": {
-			"label": "Soru",
-			"description": "Yapılandırılan zaman aşımından sonra takip sorularına ilişkin ilk önerilen yanıtı otomatik olarak seç",
-			"timeoutLabel": "İlk yanıtı otomatik olarak seçmeden önce beklenecek süre"
+			"label": "Question",
+			"description": "Automatically select the first suggested answer for follow-up questions after the configured timeout",
+			"timeoutLabel": "Time to wait before auto-selecting the first answer"
 		},
 		"execute": {
-			"label": "Yürüt",
-			"description": "Onay gerektirmeden otomatik olarak izin verilen terminal komutlarını yürüt",
-			"allowedCommands": "İzin Verilen Otomatik Yürütme Komutları",
-			"allowedCommandsDescription": "\"Yürütme işlemlerini her zaman onayla\" etkinleştirildiğinde otomatik olarak yürütülebilen komut önekleri. Tüm komutlara izin vermek için * ekleyin (dikkatli kullanın).",
-			"deniedCommands": "Reddedilen komutlar",
-			"deniedCommandsDescription": "Onay istenmeden otomatik olarak reddedilecek komut önekleri. İzin verilen komutlarla çakışma durumunda, en uzun önek eşleşmesi öncelik alır. Tüm komutları reddetmek için * ekleyin.",
-			"commandPlaceholder": "Komut öneki girin (örn. 'git ')",
-			"deniedCommandPlaceholder": "Reddetmek için komut öneki girin (örn. 'rm -rf')",
-			"addButton": "Ekle",
-			"autoDenied": "`{{prefix}}` önekli komutlar kullanıcı tarafından yasaklandı. Başka bir komut çalıştırarak bu kısıtlamayı aşma."
+			"label": "Execute",
+			"description": "Automatically execute allowed terminal commands without requiring approval",
+			"allowedCommands": "Allowed Auto-Execute Commands",
+			"allowedCommandsDescription": "Command prefixes that can be auto-executed when \"Always approve execute operations\" is enabled. Add * to allow all commands (use with caution).",
+			"deniedCommands": "Denied Commands",
+			"deniedCommandsDescription": "Command prefixes that will be automatically denied without asking for approval. In case of conflicts with allowed commands, the longest prefix match takes precedence. Add * to deny all commands.",
+			"commandPlaceholder": "Enter command prefix (e.g., 'git ')",
+			"deniedCommandPlaceholder": "Enter command prefix to deny (e.g., 'rm -rf')",
+			"addButton": "Add",
+			"autoDenied": "Commands with the prefix `{{prefix}}` have been forbidden by the user. Do not bypass this restriction by running another command."
 		},
 		"apiRequestLimit": {
-			"title": "Maksimum İstek",
-			"unlimited": "Sınırsız"
+			"title": "Max Count",
+			"unlimited": "Unlimited"
 		},
-		"selectOptionsFirst": "Otomatik onayı etkinleştirmek için aşağıdan en az bir seçenek seçin",
 		"apiCostLimit": {
-			"unlimited": "Sınırsız",
-			"title": "Maksimum Maliyet"
+			"title": "Max Cost",
+			"unlimited": "Unlimited"
 		},
 		"maxLimits": {
-			"description": "Bu sınırlara ulaşana kadar otomatik olarak istekleri yap, sonrasında devam etmek için onay iste."
-		}
+			"description": "Automatically make requests up to these limits before asking for approval to continue."
+		},
+		"toggleAriaLabel": "Toggle auto-approval",
+		"disabledAriaLabel": "Auto-approval disabled - select options first",
+		"selectOptionsFirst": "Select at least one option below to enable auto-approval"
 	},
 	"providers": {
-		"providerDocumentation": "{{provider}} Dokümantasyonu",
-		"configProfile": "Yapılandırma Profili",
-		"description": "Sağlayıcılar ve ayarlar arasında hızlıca geçiş yapmak için farklı API yapılandırmalarını kaydedin.",
-		"apiProvider": "API Sağlayıcı",
-		"apiProviderDocs": "Sağlayıcı Belgeleri",
+		"providerDocumentation": "{{provider}} documentation",
+		"configProfile": "Configuration Profile",
+		"description": "Save different API configurations to quickly switch between providers and settings.",
+		"apiProvider": "API Provider",
+		"apiProviderDocs": "Provider Docs",
 		"model": "Model",
-		"nameEmpty": "İsim boş olamaz",
-		"nameExists": "Bu isme sahip bir profil zaten mevcut",
-		"deleteProfile": "Profili sil",
-		"invalidArnFormat": "Geçersiz ARN formatı. Yukarıdaki örnekleri kontrol edin.",
-		"enterNewName": "Yeni ad girin",
-		"addProfile": "Profil ekle",
-		"renameProfile": "Profili yeniden adlandır",
-		"newProfile": "Yeni yapılandırma profili",
-		"enterProfileName": "Profil adını girin",
-		"createProfile": "Profil oluştur",
-		"cannotDeleteOnlyProfile": "Yalnızca tek profili silemezsiniz",
-		"searchPlaceholder": "Profilleri ara",
-		"searchProviderPlaceholder": "Sağlayıcıları ara",
-		"noProviderMatchFound": "Eşleşen sağlayıcı bulunamadı",
-		"noMatchFound": "Eşleşen profil bulunamadı",
-		"retiredProviderMessage": "Bu sağlayıcı artık kullanılamıyor. Devam etmek için desteklenen bir sağlayıcı seçin.",
-		"vscodeLmDescription": "VS Code Dil Modeli API'si, diğer VS Code uzantıları tarafından sağlanan modelleri çalıştırmanıza olanak tanır (GitHub Copilot dahil ancak bunlarla sınırlı değildir). Başlamanın en kolay yolu, VS Code Marketplace'ten Copilot ve Copilot Chat uzantılarını yüklemektir.",
-		"awsCustomArnUse": "Kullanmak istediğiniz model için geçerli bir Amazon Bedrock ARN'si girin. Format örnekleri:",
-		"awsCustomArnDesc": "ARN içindeki bölgenin yukarıda seçilen AWS Bölgesiyle eşleştiğinden emin olun.",
-		"openRouterApiKey": "OpenRouter API Anahtarı",
-		"getOpenRouterApiKey": "OpenRouter API Anahtarı Al",
-		"vercelAiGatewayApiKey": "Vercel AI Gateway API Anahtarı",
-		"getVercelAiGatewayApiKey": "Vercel AI Gateway API Anahtarı Al",
-		"opencodeGoApiKey": "Opencode Go API Anahtarı",
-		"getOpencodeGoApiKey": "Opencode Go API Anahtarı Al",
-		"apiKeyStorageNotice": "API anahtarları VSCode'un Gizli Depolamasında güvenli bir şekilde saklanır",
+		"nameEmpty": "Name cannot be empty",
+		"nameExists": "A profile with this name already exists",
+		"deleteProfile": "Delete Profile",
+		"invalidArnFormat": "Invalid ARN format. Please check the examples above.",
+		"enterNewName": "Enter new name",
+		"addProfile": "Add Profile",
+		"renameProfile": "Rename Profile",
+		"newProfile": "New Configuration Profile",
+		"enterProfileName": "Enter profile name",
+		"createProfile": "Create Profile",
+		"cannotDeleteOnlyProfile": "Cannot delete the only profile",
+		"searchPlaceholder": "Search profiles",
+		"searchProviderPlaceholder": "Search providers",
+		"noProviderMatchFound": "No providers found",
+		"noMatchFound": "No matching profiles found",
+		"retiredProviderMessage": "This provider is no longer available. Select a supported provider to continue.",
+		"vscodeLmDescription": " The VS Code Language Model API allows you to run models provided by other VS Code extensions (including but not limited to GitHub Copilot). The easiest way to get started is to install the Copilot and Copilot Chat extensions from the VS Code Marketplace.",
+		"awsCustomArnUse": "Enter a valid Amazon Bedrock ARN for the model you want to use. Format examples:",
+		"awsCustomArnDesc": "Make sure the region in the ARN matches your selected AWS Region above.",
+		"openRouterApiKey": "OpenRouter API Key",
+		"getOpenRouterApiKey": "Get OpenRouter API Key",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway API Key",
+		"getVercelAiGatewayApiKey": "Get Vercel AI Gateway API Key",
+		"opencodeGoApiKey": "Opencode Go API Key",
+		"getOpencodeGoApiKey": "Get Opencode Go API Key",
+		"apiKeyStorageNotice": "API keys are stored securely in VSCode's Secret Storage",
 		"openAiCodexRateLimits": {
 			"title": "Usage Limits for Codex{{planLabel}}",
 			"loading": "Loading usage limits...",
@@ -348,679 +514,611 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
-		"useCustomBaseUrl": "Özel temel URL kullan",
-		"useReasoning": "Akıl yürütmeyi etkinleştir",
-		"useHostHeader": "Özel Host başlığı kullan",
-		"customHeaders": "Özel Başlıklar",
-		"headerName": "Başlık adı",
-		"headerValue": "Başlık değeri",
-		"noCustomHeaders": "Tanımlanmış özel başlık yok. Eklemek için + düğmesine tıklayın.",
-		"unboundApiKey": "Unbound API Anahtarı",
-		"getUnboundApiKey": "Unbound API Anahtarı Al",
-		"requestyApiKey": "Requesty API Anahtarı",
+		"useCustomBaseUrl": "Use custom base URL",
+		"useReasoning": "Enable reasoning",
+		"useHostHeader": "Use custom Host header",
+		"customHeaders": "Custom Headers",
+		"headerName": "Header name",
+		"headerValue": "Header value",
+		"noCustomHeaders": "No custom headers defined. Click the + button to add one.",
+		"unboundApiKey": "Unbound API Key",
+		"getUnboundApiKey": "Get Unbound API Key",
+		"requestyApiKey": "Requesty API Key",
 		"refreshModels": {
-			"label": "Modelleri Yenile",
-			"hint": "En son modelleri görmek için lütfen ayarları yeniden açın.",
-			"loading": "Model listesi yenileniyor...",
-			"success": "Model listesi başarıyla yenilendi!",
-			"error": "Model listesi yenilenemedi. Lütfen tekrar deneyin."
+			"label": "Refresh Models",
+			"hint": "Please reopen the settings to see the latest models.",
+			"loading": "Refreshing models list...",
+			"success": "Models list refreshed successfully!",
+			"error": "Failed to refresh models list. Please try again."
 		},
-		"getRequestyApiKey": "Requesty API Anahtarı Al",
-		"getRequestyBaseUrl": "Temel URL",
-		"requestyUseCustomBaseUrl": "Özel temel URL kullan",
-		"anthropicApiKey": "Anthropic API Anahtarı",
-		"getAnthropicApiKey": "Anthropic API Anahtarı Al",
-		"anthropicUseAuthToken": "Anthropic API Anahtarını X-Api-Key yerine Authorization başlığı olarak geçir",
-		"anthropic1MContextBetaLabel": "1M bağlam penceresini etkinleştir (Beta)",
-		"anthropic1MContextBetaDescription": "Claude Sonnet 4.x / Claude Opus 4.6 için bağlam penceresini 1 milyon token'a genişletir",
-		"awsBedrock1MContextBetaLabel": "1M bağlam penceresini etkinleştir (Beta)",
-		"awsBedrock1MContextBetaDescription": "Claude Sonnet 4.x / Claude Opus 4.6 için bağlam penceresini 1 milyon token'a genişletir",
-		"vertex1MContextBetaLabel": "1M bağlam penceresini etkinleştir (Beta)",
-		"vertex1MContextBetaDescription": "Claude Sonnet 4.x / Claude Opus 4.6 için bağlam penceresini 1 milyon token'a genişletir",
-		"basetenApiKey": "Baseten API Anahtarı",
-		"getBasetenApiKey": "Baseten API Anahtarı Al",
-		"poeApiKey": "Poe API Anahtarı",
-		"getPoeApiKey": "Poe API Anahtarı Al",
-		"poeBaseUrl": "Poe Temel URL",
-		"fireworksApiKey": "Fireworks API Anahtarı",
-		"getFireworksApiKey": "Fireworks API Anahtarı Al",
-		"deepSeekApiKey": "DeepSeek API Anahtarı",
-		"getDeepSeekApiKey": "DeepSeek API Anahtarı Al",
-		"moonshotApiKey": "Moonshot API Anahtarı",
-		"getMoonshotApiKey": "Moonshot API Anahtarı Al",
-		"moonshotBaseUrl": "Moonshot Giriş Noktası",
-		"zaiApiKey": "Z AI API Anahtarı",
-		"getZaiApiKey": "Z AI API Anahtarı Al",
-		"zaiEntrypoint": "Z AI Giriş Noktası",
-		"zaiEntrypointDescription": "Konumunuza göre uygun API giriş noktasını seçin. Çin'de iseniz open.bigmodel.cn'yi seçin. Aksi takdirde api.z.ai'yi seçin.",
-		"minimaxApiKey": "MiniMax API Anahtarı",
-		"getMiniMaxApiKey": "MiniMax API Anahtarı Al",
-		"minimaxBaseUrl": "MiniMax Giriş Noktası",
-		"mimoApiKey": "MiMo API Anahtarı",
-		"getMimoApiKey": "MiMo API Anahtarını Al",
-		"mimoBaseUrl": "MiMo Giriş Noktası",
-		"mimoBaseUrlSingapore": "Token Planı - Singapur (Varsayılan)",
-		"mimoBaseUrlChina": "Token Planı - Çin",
-		"mimoBaseUrlEurope": "Token Planı - Avrupa (AMS)",
-		"mimoBaseUrlPayg": "Kullanım başına ödeme",
-		"geminiApiKey": "Gemini API Anahtarı",
-		"getSambaNovaApiKey": "SambaNova API Anahtarı Al",
-		"sambaNovaApiKey": "SambaNova API Anahtarı",
-		"getGeminiApiKey": "Gemini API Anahtarı Al",
-		"openAiApiKey": "OpenAI API Anahtarı",
-		"apiKey": "API Anahtarı",
-		"openAiBaseUrl": "Temel URL",
-		"getOpenAiApiKey": "OpenAI API Anahtarı Al",
-		"mistralApiKey": "Mistral API Anahtarı",
-		"getMistralApiKey": "Mistral / Codestral API Anahtarı Al",
-		"codestralBaseUrl": "Codestral Temel URL (İsteğe bağlı)",
-		"codestralBaseUrlDesc": "Codestral modeli için alternatif URL ayarlayın.",
-		"xaiApiKey": "xAI API Anahtarı",
-		"getXaiApiKey": "xAI API Anahtarı Al",
-		"litellmApiKey": "LiteLLM API Anahtarı",
-		"litellmBaseUrl": "LiteLLM Temel URL",
-		"awsCredentials": "AWS Kimlik Bilgileri",
-		"awsProfile": "AWS Profili",
-		"awsApiKey": "Amazon Bedrock API Anahtarı",
-		"awsProfileName": "AWS Profil Adı",
-		"awsAccessKey": "AWS Erişim Anahtarı",
-		"awsSecretKey": "AWS Gizli Anahtarı",
-		"awsSessionToken": "AWS Oturum Belirteci",
-		"awsRegion": "AWS Bölgesi",
-		"awsCrossRegion": "Bölgeler arası çıkarım kullan",
-		"awsGlobalInference": "Genel çıkarımı kullan (en uygun AWS Bölgesini otomatik seç)",
-		"awsServiceTier": "Hizmet seviyesi",
-		"awsServiceTierStandard": "Standart",
-		"awsServiceTierStandardDesc": "Dengeli performans ve maliyet",
-		"awsServiceTierFlex": "Esnek (%50 indirim)",
-		"awsServiceTierFlexDesc": "Daha düşük maliyet, kritik olmayan görevler için daha yüksek gecikme",
-		"awsServiceTierPriority": "Öncelik (%75 ek ücret)",
-		"awsServiceTierPriorityDesc": "İş açısından kritik uygulamalar için en hızlı performans",
-		"awsServiceTierNote": "Hizmet seviyeleri fiyatlandırmayı ve performansı etkiler. Esnek %50 indirim sunarken daha yüksek gecikmeye sahiptir, Öncelik %25 daha iyi performans sunarken %75 ek ücrete sahiptir.",
+		"getRequestyApiKey": "Create new Requesty API Key",
+		"getRequestyBaseUrl": "Base URL",
+		"requestyUseCustomBaseUrl": "Use custom base URL",
+		"anthropicApiKey": "Anthropic API Key",
+		"getAnthropicApiKey": "Get Anthropic API Key",
+		"anthropicUseAuthToken": "Pass Anthropic API Key as Authorization header instead of X-Api-Key",
+		"anthropic1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"anthropic1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"awsBedrock1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"awsBedrock1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"vertex1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"vertex1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"basetenApiKey": "Baseten API Key",
+		"getBasetenApiKey": "Get Baseten API Key",
+		"poeApiKey": "Poe API Key",
+		"getPoeApiKey": "Get Poe API Key",
+		"poeBaseUrl": "Poe Base URL",
+		"fireworksApiKey": "Fireworks API Key",
+		"getFireworksApiKey": "Get Fireworks API Key",
+		"deepSeekApiKey": "DeepSeek API Key",
+		"getDeepSeekApiKey": "Get DeepSeek API Key",
+		"moonshotApiKey": "Moonshot API Key",
+		"getMoonshotApiKey": "Get Moonshot API Key",
+		"moonshotBaseUrl": "Moonshot Entrypoint",
+		"minimaxApiKey": "MiniMax API Key",
+		"getMiniMaxApiKey": "Get MiniMax API Key",
+		"minimaxBaseUrl": "MiniMax Entrypoint",
+		"mimoApiKey": "MiMo API Key",
+		"getMimoApiKey": "Get MiMo API Key",
+		"mimoBaseUrl": "MiMo Entrypoint",
+		"mimoBaseUrlSingapore": "Token Plan - Singapore (Default)",
+		"mimoBaseUrlChina": "Token Plan - China",
+		"mimoBaseUrlEurope": "Token Plan - Europe (AMS)",
+		"mimoBaseUrlPayg": "Pay-as-you-go",
+		"zaiApiKey": "Z AI API Key",
+		"getZaiApiKey": "Get Z AI API Key",
+		"zaiEntrypoint": "Z AI Entrypoint",
+		"zaiEntrypointDescription": "Please select the appropriate API entrypoint based on your location. If you are in China, choose open.bigmodel.cn. Otherwise, choose api.z.ai.",
+		"geminiApiKey": "Gemini API Key",
+		"getSambaNovaApiKey": "Get SambaNova API Key",
+		"sambaNovaApiKey": "SambaNova API Key",
+		"getGeminiApiKey": "Get Gemini API Key",
+		"openAiApiKey": "OpenAI API Key",
+		"apiKey": "API Key",
+		"openAiBaseUrl": "Base URL",
+		"getOpenAiApiKey": "Get OpenAI API Key",
+		"mistralApiKey": "Mistral API Key",
+		"getMistralApiKey": "Get Mistral / Codestral API Key",
+		"codestralBaseUrl": "Codestral Base URL (Optional)",
+		"codestralBaseUrlDesc": "Set an alternative URL for the Codestral model.",
+		"xaiApiKey": "xAI API Key",
+		"getXaiApiKey": "Get xAI API Key",
+		"litellmApiKey": "LiteLLM API Key",
+		"litellmBaseUrl": "LiteLLM Base URL",
+		"awsCredentials": "AWS Credentials",
+		"awsProfile": "AWS Profile",
+		"awsApiKey": "Amazon Bedrock API Key",
+		"awsProfileName": "AWS Profile Name",
+		"awsAccessKey": "AWS Access Key",
+		"awsSecretKey": "AWS Secret Key",
+		"awsSessionToken": "AWS Session Token",
+		"awsRegion": "AWS Region",
+		"awsCrossRegion": "Use cross-region inference",
+		"awsGlobalInference": "Use Global inference (auto-select optimal AWS Region)",
+		"awsServiceTier": "Service Tier",
+		"awsServiceTierStandard": "Standard",
+		"awsServiceTierStandardDesc": "Balanced performance and cost",
+		"awsServiceTierFlex": "Flex (50% discount)",
+		"awsServiceTierFlexDesc": "Lower cost, higher latency for non-critical tasks",
+		"awsServiceTierPriority": "Priority (75% premium)",
+		"awsServiceTierPriorityDesc": "Fastest performance for mission-critical applications",
+		"awsServiceTierNote": "Service tiers affect pricing and performance. Flex offers 50% discount with higher latency, Priority offers 25% better performance with 75% premium.",
 		"awsBedrockVpc": {
-			"useCustomVpcEndpoint": "Özel VPC uç noktası kullan",
-			"vpcEndpointUrlPlaceholder": "VPC uç noktası URL'sini girin (isteğe bağlı)",
-			"examples": "Örnekler:"
+			"useCustomVpcEndpoint": "Use custom VPC endpoint",
+			"vpcEndpointUrlPlaceholder": "Enter VPC Endpoint URL (optional)",
+			"examples": "Examples:"
 		},
-		"enablePromptCaching": "İstem önbelleğini etkinleştir",
-		"enablePromptCachingTitle": "Desteklenen modeller için performansı artırmak ve maliyetleri azaltmak için istem önbelleğini etkinleştir.",
-		"cacheUsageNote": "Not: Önbellek kullanımını görmüyorsanız, farklı bir model seçip ardından istediğiniz modeli tekrar seçmeyi deneyin.",
-		"vscodeLmModel": "Dil Modeli",
-		"vscodeLmWarning": "Not: VS Code Language Model API üzerinden erişilen modeller sağlayıcı tarafından sarılmış veya ince ayarlanmış olabilir; bu nedenle davranış, aynı modelin tipik bir sağlayıcı ya da yönlendirici üzerinden doğrudan kullanılmasından farklı olabilir. «Language Model» açılır menüsünden bir model kullanmak için önce o modele geçin ve ardından Copilot Chat isteminde «Kabul Et»e tıklayın; aksi takdirde 400 «The requested model is not supported» gibi bir hata görebilirsiniz.",
+		"enablePromptCaching": "Enable prompt caching",
+		"enablePromptCachingTitle": "Enable prompt caching to improve performance and reduce costs for supported models.",
+		"cacheUsageNote": "Note: If you don't see cache usage, try selecting a different model and then selecting your desired model again.",
+		"vscodeLmModel": "Language Model",
+		"vscodeLmWarning": "Note: Models accessed via the VS Code Language Model API may be wrapped or fine-tuned by the provider, so behavior can differ from using the same model directly from a typical provider or router. To use a model from the Language Model dropdown, first switch to that model and then click Accept in the Copilot Chat prompt; otherwise you may see an error such as 400 \"The requested model is not supported\".",
 		"googleCloudSetup": {
-			"title": "Google Cloud Vertex AI'yi kullanmak için şunları yapmanız gerekir:",
-			"step1": "1. Google Cloud hesabı oluşturun, Vertex AI API'sini etkinleştirin ve istediğiniz Claude modellerini etkinleştirin.",
-			"step2": "2. Google Cloud CLI'yi yükleyin ve uygulama varsayılan kimlik bilgilerini yapılandırın.",
-			"step3": "3. Veya kimlik bilgileriyle bir hizmet hesabı oluşturun."
+			"title": "To use Google Cloud Vertex AI, you need to:",
+			"step1": "1. Create a Google Cloud account, enable the Vertex AI API & enable the desired Claude models.",
+			"step2": "2. Install the Google Cloud CLI & configure application default credentials.",
+			"step3": "3. Or create a service account with credentials."
 		},
-		"googleCloudCredentials": "Google Cloud Kimlik Bilgileri",
-		"googleCloudCredentialsPathWarning": "Bu alan, bir yol değil, bir hizmet hesabı anahtar dosyasının JSON içeriğini bekler. Bir yolunuz varsa, aşağıdaki <strong>Google Cloud Anahtar Dosyası Yolu</strong> alanına yapıştırın veya bu alanı temizleyin ve <code>GOOGLE_APPLICATION_CREDENTIALS</code> ortam değişkenini kullanın.",
-		"googleCloudKeyFile": "Google Cloud Anahtar Dosyası Yolu",
-		"googleCloudProjectId": "Google Cloud Proje Kimliği",
-		"googleCloudRegion": "Google Cloud Bölgesi",
+		"googleCloudCredentials": "Google Cloud Credentials",
+		"googleCloudCredentialsPathWarning": "This field expects the JSON contents of a service-account key file, not a path. If you have a path, paste it into the <strong>Google Cloud Key File Path</strong> field below, or clear this field and use the <code>GOOGLE_APPLICATION_CREDENTIALS</code> environment variable.",
+		"googleCloudKeyFile": "Google Cloud Key File Path",
+		"googleCloudProjectId": "Google Cloud Project ID",
+		"googleCloudRegion": "Google Cloud Region",
 		"lmStudio": {
-			"baseUrl": "Temel URL (İsteğe bağlı)",
-			"modelId": "Model Kimliği",
-			"speculativeDecoding": "Spekülatif Kod Çözmeyi Etkinleştir",
-			"draftModelId": "Taslak Model Kimliği",
-			"draftModelDesc": "Spekülatif kod çözmenin doğru çalışması için taslak model aynı model ailesinden olmalıdır.",
-			"selectDraftModel": "Taslak Model Seç",
-			"noModelsFound": "Taslak model bulunamadı. Lütfen LM Studio'nun Sunucu Modu etkinken çalıştığından emin olun.",
-			"description": "LM Studio, modelleri bilgisayarınızda yerel olarak çalıştırmanıza olanak tanır. Başlamak için <a>hızlı başlangıç kılavuzlarına</a> bakın. Bu uzantıyla kullanmak için LM Studio'nun <b>yerel sunucu</b> özelliğini de başlatmanız gerekecektir. <span>Not:</span> Zoo Code karmaşık istemler kullanır ve Claude modelleriyle en iyi şekilde çalışır. Daha az yetenekli modeller beklendiği gibi çalışmayabilir."
+			"baseUrl": "Base URL (optional)",
+			"modelId": "Model ID",
+			"speculativeDecoding": "Enable Speculative Decoding",
+			"draftModelId": "Draft Model ID",
+			"draftModelDesc": "Draft model must be from the same model family for speculative decoding to work correctly.",
+			"selectDraftModel": "Select Draft Model",
+			"noModelsFound": "No draft models found. Please ensure LM Studio is running with Server Mode enabled.",
+			"description": "LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their <a>quickstart guide</a>. You will also need to start LM Studio's <b>local server</b> feature to use it with this extension. <span>Note:</span> Zoo Code uses complex prompts and works best with Claude models. Less capable models may not work as expected."
 		},
 		"ollama": {
-			"baseUrl": "Temel URL (İsteğe bağlı)",
-			"modelId": "Model Kimliği",
-			"apiKey": "Ollama API Anahtarı",
-			"apiKeyHelp": "Kimlik doğrulamalı Ollama örnekleri veya bulut hizmetleri için isteğe bağlı API anahtarı. Yerel kurulumlar için boş bırakın.",
-			"numCtx": "Bağlam Penceresi Boyutu (num_ctx)",
-			"numCtxHelp": "Modelin varsayılan bağlam penceresi boyutunu geçersiz kılar. Modelin Modelfile yapılandırmasını kullanmak için boş bırakın. Minimum değer 128'dir.",
-			"description": "Ollama, modelleri bilgisayarınızda yerel olarak çalıştırmanıza olanak tanır. Başlamak için hızlı başlangıç kılavuzlarına bakın.",
-			"warning": "Not: Zoo Code karmaşık istemler kullanır ve Claude modelleriyle en iyi şekilde çalışır. Daha az yetenekli modeller beklendiği gibi çalışmayabilir."
+			"baseUrl": "Base URL (optional)",
+			"modelId": "Model ID",
+			"apiKey": "Ollama API Key",
+			"apiKeyHelp": "Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations.",
+			"numCtx": "Context Window Size (num_ctx)",
+			"numCtxHelp": "Override the model's default context window size. Leave empty to use the model's Modelfile configuration. Minimum value is 128.",
+			"description": "Ollama allows you to run models locally on your computer. For instructions on how to get started, see their quickstart guide.",
+			"warning": "Note: Zoo Code uses complex prompts and works best with Claude models. Less capable models may not work as expected."
 		},
 		"openRouter": {
 			"providerRouting": {
-				"title": "OpenRouter Sağlayıcı Yönlendirmesi",
-				"description": "OpenRouter, modeliniz için mevcut en iyi sağlayıcılara istekleri yönlendirir. Varsayılan olarak, istekler çalışma süresini en üst düzeye çıkarmak için en iyi sağlayıcılar arasında dengelenir. Ancak, bu model için kullanılacak belirli bir sağlayıcı seçebilirsiniz.",
-				"learnMore": "Sağlayıcı yönlendirmesi hakkında daha fazla bilgi edinin"
+				"title": "OpenRouter Provider Routing",
+				"description": "OpenRouter routes requests to the best available providers for your model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
+				"learnMore": "Learn more about provider routing"
 			}
 		},
 		"customModel": {
-			"capabilities": "Özel OpenAI uyumlu modelinizin yeteneklerini ve fiyatlandırmasını yapılandırın. Model yeteneklerini belirtirken dikkatli olun, çünkü bunlar Zoo Code'un performansını etkileyebilir.",
+			"capabilities": "Configure the capabilities and pricing for your custom OpenAI-compatible model. Be careful when specifying the model capabilities, as they can affect how Zoo Code performs.",
 			"maxTokens": {
-				"label": "Maksimum Çıktı Token'ları",
-				"description": "Modelin bir yanıtta üretebileceği maksimum token sayısı. (Sunucunun maksimum token'ları ayarlamasına izin vermek için -1 belirtin.)"
+				"label": "Max Output Tokens",
+				"description": "Maximum number of tokens the model can generate in a response. (Specify -1 to allow the server to set the max tokens.)"
 			},
 			"contextWindow": {
-				"label": "Bağlam Penceresi Boyutu",
-				"description": "Modelin işleyebileceği toplam token sayısı (giriş + çıkış)."
+				"label": "Context Window Size",
+				"description": "Total tokens (input + output) the model can process."
 			},
 			"imageSupport": {
-				"label": "Görüntü Desteği",
-				"description": "Bu model görüntüleri işleyip anlayabilir mi?"
+				"label": "Image Support",
+				"description": "Is this model capable of processing and understanding images?"
 			},
 			"computerUse": {
-				"label": "Bilgisayar Kullanımı",
-				"description": "Bu model bir tarayıcıyla etkileşim kurabilir mi?"
+				"label": "Computer Use",
+				"description": "Is this model capable of interacting with a browser?"
 			},
 			"promptCache": {
-				"label": "İstem Önbelleği",
-				"description": "Bu model istemleri önbelleğe alabilir mi?"
+				"label": "Prompt Caching",
+				"description": "Is this model capable of caching prompts?"
 			},
 			"pricing": {
 				"input": {
-					"label": "Giriş Fiyatı",
-					"description": "Giriş/istem başına milyon token maliyeti. Bu, modele bağlam ve talimatlar gönderme maliyetini etkiler."
+					"label": "Input Price",
+					"description": "Cost per million tokens in the input/prompt. This affects the cost of sending context and instructions to the model."
 				},
 				"output": {
-					"label": "Çıkış Fiyatı",
-					"description": "Model yanıtı başına milyon token maliyeti. Bu, oluşturulan içerik ve tamamlamaların maliyetini etkiler."
+					"label": "Output Price",
+					"description": "Cost per million tokens in the model's response. This affects the cost of generated content and completions."
 				},
 				"cacheReads": {
-					"label": "Önbellek Okuma Fiyatı",
-					"description": "Önbellekten okuma başına milyon token maliyeti. Bu, önbelleğe alınmış bir yanıt alındığında uygulanan fiyattır."
+					"label": "Cache Reads Price",
+					"description": "Cost per million tokens for reading from the cache. This is the price charged when a cached response is retrieved."
 				},
 				"cacheWrites": {
-					"label": "Önbellek Yazma Fiyatı",
-					"description": "Önbelleğe yazma başına milyon token maliyeti. Bu, bir istem ilk kez önbelleğe alındığında uygulanan fiyattır."
+					"label": "Cache Writes Price",
+					"description": "Cost per million tokens for writing to the cache. This is the price charged when a prompt is cached for the first time."
 				}
 			},
-			"resetDefaults": "Varsayılanlara Sıfırla"
+			"resetDefaults": "Reset to Defaults"
 		},
 		"rateLimitSeconds": {
-			"label": "Hız sınırı",
-			"description": "API istekleri arasındaki minimum süre."
+			"label": "Rate limit",
+			"description": "Minimum time between API requests."
 		},
 		"consecutiveMistakeLimit": {
-			"label": "Hata ve Tekrar Limiti",
-			"description": "'Zoo sorun yaşıyor' iletişim kutusunu göstermeden önceki ardışık hata veya tekrarlanan eylem sayısı. Bu güvenlik mekanizmasını devre dışı bırakmak için 0 olarak ayarlayın (asla tetiklenmez).",
-			"unlimitedDescription": "Sınırsız yeniden deneme etkin (otomatik devam et). Diyalog asla görünmeyecek.",
-			"warning": "⚠️ 0'a ayarlamak, önemli API kullanımına neden olabilecek sınırsız yeniden denemeye izin verir"
+			"label": "Error & Repetition Limit",
+			"description": "Number of consecutive errors or repeated actions before showing 'Zoo is having trouble' dialog. Set to 0 to disable this safety mechanism (it will never trigger).",
+			"unlimitedDescription": "Unlimited retries enabled (auto-proceed). The dialog will never appear.",
+			"warning": "⚠️ Setting to 0 allows unlimited retries which may consume significant API usage"
 		},
 		"reasoningEffort": {
-			"label": "Model Akıl Yürütme Çabası",
-			"none": "Yok",
-			"minimal": "Minimal (en hızlı)",
-			"high": "Yüksek",
-			"xhigh": "Çok yüksek",
-			"medium": "Orta",
-			"low": "Düşük"
+			"label": "Model Reasoning Effort",
+			"none": "None",
+			"minimal": "Minimal (Fastest)",
+			"low": "Low",
+			"medium": "Medium",
+			"high": "High",
+			"xhigh": "Extra High"
 		},
 		"verbosity": {
-			"label": "Çıktı Ayrıntı Düzeyi",
-			"high": "Yüksek",
-			"medium": "Orta",
-			"low": "Düşük",
-			"description": "Modelin yanıtlarının ne kadar ayrıntılı olduğunu kontrol eder. Düşük ayrıntı düzeyi kısa yanıtlar üretirken, yüksek ayrıntı düzeyi kapsamlı açıklamalar sunar."
+			"label": "Output Verbosity",
+			"high": "High",
+			"medium": "Medium",
+			"low": "Low",
+			"description": "Controls how detailed the model's responses are. Low verbosity produces concise answers, while high verbosity provides thorough explanations."
 		},
-		"setReasoningLevel": "Akıl Yürütme Çabasını Etkinleştir",
+		"setReasoningLevel": "Enable Reasoning Effort",
 		"claudeCode": {
-			"pathLabel": "Claude Code Yolu",
-			"description": "Claude Code CLI'nize isteğe bağlı yol. Ayarlanmazsa varsayılan olarak 'claude' kullanılır.",
-			"placeholder": "Varsayılan: claude",
-			"maxTokensLabel": "Maksimum Çıktı Token sayısı",
-			"maxTokensDescription": "Claude Code yanıtları için maksimum çıktı token sayısı. Varsayılan 8000'dir."
+			"pathLabel": "Claude Code Path",
+			"description": "Optional path to your Claude Code CLI. Defaults to 'claude' if not set.",
+			"placeholder": "Default: claude",
+			"maxTokensLabel": "Max Output Tokens",
+			"maxTokensDescription": "Maximum number of output tokens for Claude Code responses. Default is 8000."
 		}
 	},
 	"checkpoints": {
 		"timeout": {
-			"label": "Kontrol noktası başlatma zaman aşımı (saniye)",
-			"description": "Kontrol noktası servisini başlatmak için maksimum bekleme süresi. Varsayılan 15 saniye. Aralık: 10-60 saniye."
+			"label": "Checkpoint initialization timeout (seconds)",
+			"description": "Maximum time to wait for checkpoint service initialization. Default is 15 seconds. Range: 10-60 seconds."
 		},
 		"enable": {
-			"label": "Otomatik kontrol noktalarını etkinleştir",
-			"description": "Etkinleştirildiğinde, Zoo görev yürütme sırasında otomatik olarak kontrol noktaları oluşturarak değişiklikleri gözden geçirmeyi veya önceki durumlara dönmeyi kolaylaştırır. <0>Daha fazla bilgi</0>"
+			"label": "Enable automatic checkpoints",
+			"description": "When enabled, Zoo will automatically create checkpoints during task execution, making it easy to review changes or revert to earlier states. <0>Learn more</0>"
 		}
 	},
 	"notifications": {
 		"sound": {
-			"label": "Ses efektlerini etkinleştir",
-			"description": "Etkinleştirildiğinde, Zoo bildirimler ve olaylar için ses efektleri çalacaktır.",
-			"volumeLabel": "Ses Düzeyi"
+			"label": "Enable sound effects",
+			"description": "When enabled, Zoo will play sound effects for notifications and events.",
+			"volumeLabel": "Volume"
 		},
 		"tts": {
-			"label": "Metinden sese özelliğini etkinleştir",
-			"description": "Etkinleştirildiğinde, Zoo yanıtlarını metinden sese teknolojisi kullanarak sesli okuyacaktır.",
-			"speedLabel": "Hız"
+			"label": "Enable text-to-speech",
+			"description": "When enabled, Zoo will read aloud its responses using text-to-speech.",
+			"speedLabel": "Speed"
 		}
 	},
 	"contextManagement": {
-		"description": "Yapay zekanın bağlam penceresine hangi bilgilerin dahil edileceğini kontrol edin, token kullanımını ve yanıt kalitesini etkiler",
+		"description": "Control what information is included in the AI's context window, affecting token usage and response quality",
 		"autoCondenseContextPercent": {
-			"label": "Akıllı bağlam sıkıştırmayı tetikleyecek eşik",
-			"description": "Bağlam penceresi bu eşiğe ulaştığında, Zoo otomatik olarak sıkıştıracaktır."
+			"label": "Threshold to trigger intelligent context condensing",
+			"description": "When the context window reaches this threshold, Zoo will automatically condense it."
 		},
 		"condensingApiConfiguration": {
-			"label": "Bağlam Yoğunlaştırma için API Yapılandırması",
-			"description": "Bağlam yoğunlaştırma işlemleri için hangi API yapılandırmasının kullanılacağını seçin. Mevcut aktif yapılandırmayı kullanmak için seçimsiz bırakın.",
-			"useCurrentConfig": "Varsayılan"
+			"label": "API Configuration for Context Condensing",
+			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
+			"useCurrentConfig": "Default"
 		},
 		"customCondensingPrompt": {
-			"label": "Özel Bağlam Yoğunlaştırma İstemcisi",
-			"description": "Bağlam yoğunlaştırma için özel sistem istemcisi. Varsayılan istemciyi kullanmak için boş bırakın.",
-			"placeholder": "Özel yoğunlaştırma promptunuzu buraya girin...\n\nVarsayılan prompt ile aynı yapıyı kullanabilirsiniz:\n- Önceki Konuşma\n- Mevcut Çalışma\n- Temel Teknik Kavramlar\n- İlgili Dosyalar ve Kod\n- Problem Çözme\n- Bekleyen Görevler ve Sonraki Adımlar",
-			"reset": "Varsayılana Sıfırla",
-			"hint": "Boş = varsayılan promptu kullan"
+			"label": "Custom Context Condensing Prompt",
+			"description": "Customize the system prompt used for context condensing. Leave empty to use the default prompt.",
+			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
+			"reset": "Reset to Default",
+			"hint": "Empty = use default prompt"
 		},
 		"autoCondenseContext": {
-			"name": "Akıllı bağlam sıkıştırmayı otomatik olarak tetikle",
-			"description": "Etkinleştirildiğinde, Zoo eşiğe ulaşıldığında bağlamı otomatik olarak sıkıştırır. Devre dışı bırakıldığında, bağlam sıkıştırmayı hala manuel olarak tetikleyebilirsiniz."
+			"name": "Automatically trigger intelligent context condensing",
+			"description": "When enabled, Zoo will automatically condense the context when the threshold is reached. When disabled, you can still manually trigger context condensing."
 		},
 		"openTabs": {
-			"label": "Açık sekmeler bağlam sınırı",
-			"description": "Bağlama dahil edilecek maksimum VSCode açık sekme sayısı. Daha yüksek değerler daha fazla bağlam sağlar ancak token kullanımını artırır."
+			"label": "Open tabs context limit",
+			"description": "Maximum number of VSCode open tabs to include in context. Higher values provide more context but increase token usage."
 		},
 		"workspaceFiles": {
-			"label": "Çalışma alanı dosyaları bağlam sınırı",
-			"description": "Mevcut çalışma dizini ayrıntılarına dahil edilecek maksimum dosya sayısı. Daha yüksek değerler daha fazla bağlam sağlar ancak token kullanımını artırır."
+			"label": "Workspace files context limit",
+			"description": "Maximum number of files to include in current working directory details. Higher values provide more context but increase token usage."
 		},
 		"rooignore": {
-			"label": "Listelerde ve aramalarda .rooignore dosyalarını göster",
-			"description": "Etkinleştirildiğinde, .rooignore'daki desenlerle eşleşen dosyalar kilit sembolü ile listelerde gösterilecektir. Devre dışı bırakıldığında, bu dosyalar dosya listelerinden ve aramalardan tamamen gizlenecektir."
-		},
-		"maxReadFile": {
-			"label": "Dosya okuma otomatik kısaltma eşiği",
-			"description": "Model başlangıç/bitiş değerlerini belirtmediğinde Zoo bu sayıda satırı okur. Bu sayı dosyanın toplam satır sayısından azsa, Zoo kod tanımlamalarının satır numarası dizinini oluşturur. Özel durumlar: -1, Zoo'ya tüm dosyayı okumasını (dizinleme olmadan), 0 ise hiç satır okumamasını ve minimum bağlam için yalnızca satır dizinleri sağlamasını belirtir. Düşük değerler başlangıç bağlam kullanımını en aza indirir ve sonraki hassas satır aralığı okumalarına olanak tanır. Açık başlangıç/bitiş istekleri bu ayarla sınırlı değildir.",
-			"lines": "satır",
-			"always_full_read": "Her zaman tüm dosyayı oku"
+			"label": "Show .rooignore'd files in lists and searches",
+			"description": "When enabled, files matching patterns in .rooignore will be shown in lists with a lock symbol. When disabled, these files will be completely hidden from file lists and searches."
 		},
 		"maxConcurrentFileReads": {
-			"label": "Eşzamanlı dosya okuma sınırı",
-			"description": "'read_file' aracının aynı anda işleyebileceği maksimum dosya sayısı. Daha yüksek değerler birden çok küçük dosyanın okunmasını hızlandırabilir ancak bellek kullanımını artırır."
+			"label": "Concurrent file reads limit",
+			"description": "Maximum number of files the 'read_file' tool can process concurrently. Higher values may speed up reading multiple small files but increase memory usage."
+		},
+		"maxReadFile": {
+			"label": "File read auto-truncate threshold",
+			"description": "Zoo reads this number of lines when the model omits start/end values. If this number is less than the file's total, Zoo generates a line number index of code definitions. Special cases: -1 instructs Zoo to read the entire file (without indexing), and 0 instructs it to read no lines and provides line indexes only for minimal context. Lower values minimize initial context usage, enabling precise subsequent line-range reads. Explicit start/end requests are not limited by this setting.",
+			"lines": "lines",
+			"always_full_read": "Always read entire file"
+		},
+		"maxImageFileSize": {
+			"label": "Max image file size",
+			"mb": "MB",
+			"description": "Maximum size (in MB) for image files that can be processed by the read file tool."
+		},
+		"maxTotalImageSize": {
+			"label": "Max total image size",
+			"mb": "MB",
+			"description": "Maximum cumulative size limit (in MB) for all images processed in a single read_file operation. When reading multiple images, each image's size is added to the total. If including another image would exceed this limit, it will be skipped."
 		},
 		"diagnostics": {
 			"includeMessages": {
-				"label": "Tanı mesajlarını otomatik olarak bağlama dahil et",
-				"description": "Etkinleştirildiğinde, düzenlenen dosyalardan tanı mesajları (hatalar) otomatik olarak bağlama dahil edilecektir. @problems kullanarak tüm çalışma alanı tanı mesajlarını her zaman manuel olarak dahil edebilirsiniz."
+				"label": "Automatically include diagnostics in context",
+				"description": "When enabled, diagnostic messages (errors) from edited files will be automatically included in the context. You can always manually include all workspace diagnostics using @problems."
 			},
 			"maxMessages": {
-				"label": "Maksimum tanı mesajı",
-				"description": "Dosya başına dahil edilecek maksimum tanı mesajı sayısı. Bu sınır hem otomatik dahil etme (onay kutusu etkinleştirildiğinde) hem de manuel @problems bahisleri için geçerlidir. Daha yüksek değerler daha fazla bağlam sağlar ancak jeton kullanımını artırır.",
-				"resetTooltip": "Varsayılan değere sıfırla (50)",
-				"unlimitedLabel": "Sınırsız"
+				"label": "Maximum diagnostic messages",
+				"description": "Limits the number of diagnostic messages (errors, warnings) included in the context. When set, only this many diagnostics will be shown, prioritizing errors over warnings. Set to 0 for unlimited diagnostics.",
+				"resetTooltip": "Reset to default value (50)",
+				"unlimitedLabel": "Unlimited"
 			},
 			"delayAfterWrite": {
-				"label": "Potansiyel sorunları tespit etmek için tanılamaya izin vermek üzere yazmalardan sonra gecikme",
-				"description": "Devam etmeden önce dosya yazımlarından sonra beklenecek süre, tanılama araçlarının değişiklikleri işlemesine ve sorunları tespit etmesine olanak tanır."
+				"label": "Delay after writes to allow diagnostics to detect potential problems",
+				"description": "Time to wait after file writes before proceeding, allowing diagnostic tools to process changes and detect issues."
 			}
 		},
 		"condensingThreshold": {
-			"label": "Sıkıştırma Tetikleme Eşiği",
-			"selectProfile": "Profil için eşik yapılandır",
-			"defaultProfile": "Küresel Varsayılan (tüm profiller)",
-			"defaultDescription": "Bağlam bu yüzdeye ulaştığında, özel ayarları olmadıkça tüm profiller için otomatik olarak sıkıştırılacak",
-			"profileDescription": "Sadece bu profil için özel eşik (küresel varsayılanı geçersiz kılar)",
-			"inheritDescription": "Bu profil küresel varsayılan eşiği miras alır ({{threshold}}%)",
-			"usesGlobal": "(küresel {{threshold}}% kullanır)"
-		},
-		"maxImageFileSize": {
-			"label": "Maksimum görüntü dosyası boyutu",
-			"mb": "MB",
-			"description": "Dosya okuma aracı tarafından işlenebilecek görüntü dosyaları için maksimum boyut (MB cinsinden)."
-		},
-		"maxTotalImageSize": {
-			"label": "Maksimum toplam görüntü boyutu",
-			"mb": "MB",
-			"description": "Tek bir read_file işleminde işlenen tüm görüntüler için maksimum kümülatif boyut sınırı (MB cinsinden). Birden çok görüntü okurken, her görüntünün boyutu toplama eklenir. Başka bir görüntü eklemek bu sınırı aşacaksa, atlanacaktır."
+			"label": "Condensing Trigger Threshold",
+			"selectProfile": "Configure threshold for profile",
+			"defaultProfile": "Global Default (all profiles)",
+			"defaultDescription": "When context reaches this percentage, it will be automatically condensed for all profiles unless they have custom settings",
+			"profileDescription": "Custom threshold for this profile only (overrides global default)",
+			"inheritDescription": "This profile inherits the global default threshold ({{threshold}}%)",
+			"usesGlobal": "(uses global {{threshold}}%)"
 		},
 		"includeCurrentTime": {
-			"label": "Mevcut zamanı bağlama dahil et",
-			"description": "Etkinleştirildiğinde, mevcut zaman ve saat dilimi bilgileri sistem istemine dahil edilecektir. Modeller zaman endişeleri nedeniyle çalışmayı durdurursa bunu devre dışı bırakın."
+			"label": "Include current time in context",
+			"description": "When enabled, the current time and timezone information will be included in the system prompt. Disable this if models are stopping work due to time concerns."
 		},
 		"includeCurrentCost": {
-			"label": "Mevcut maliyeti bağlama dahil et",
-			"description": "Etkinleştirildiğinde, mevcut API kullanım maliyeti sistem istemine dahil edilecektir. Modeller maliyet endişeleri nedeniyle çalışmayı durdurursa bunu devre dışı bırakın."
+			"label": "Include current cost in context",
+			"description": "When enabled, the current API usage cost will be included in the system prompt. Disable this if models are stopping work due to cost concerns."
 		},
 		"maxGitStatusFiles": {
-			"label": "Git durumu maks. dosya",
-			"description": "Git durum bağlamına dahil edilecek maksimum dosya girişi sayısı. Devre dışı bırakmak için 0 olarak ayarlayın. Dal bilgisi ve commit'ler > 0 olduğunda her zaman gösterilir."
+			"label": "Git status max files",
+			"description": "Maximum number of file entries to include in git status context. Set to 0 to disable. Branch info is always shown when > 0."
 		},
 		"enableSubfolderRules": {
-			"label": "Alt klasör kurallarını etkinleştir",
-			"description": "Alt dizinlerden .roo/rules ve AGENTS.md dosyalarını yinelemeli olarak keşfet ve yükle. Paket başına kuralları olan monorepo'lar için kullanışlı."
+			"label": "Enable subfolder rules",
+			"description": "Recursively discover and load .roo/rules and AGENTS.md files from subdirectories. Useful for monorepos with per-package rules."
 		}
 	},
 	"terminal": {
 		"basic": {
-			"label": "Terminal Ayarları: Temel",
-			"description": "Temel terminal ayarları"
+			"label": "Terminal Settings: Basic",
+			"description": "Basic terminal settings"
 		},
 		"advanced": {
-			"label": "Terminal Ayarları: Gelişmiş",
-			"description": "Bu ayarlar yalnızca 'Satır İçi Terminal Kullan' devre dışı bırakıldığında geçerlidir. Sadece VS Code terminalini etkiler ve IDE'nin yeniden başlatılmasını gerektirebilir."
+			"label": "Terminal Settings: Advanced",
+			"description": "These settings apply only when 'Use Inline Terminal' is disabled. They affect the VS Code terminal only and may require restarting the IDE."
 		},
 		"outputLineLimit": {
-			"label": "Terminal çıktı sınırı",
-			"description": "Sınırın altında kalmak için ilk ve son satırları tutar ve ortadakileri atar. Jetonları kaydetmek için düşürün; Zoo'ya daha fazla orta ayrıntı vermek için yükseltin. Zoo, içeriğin atlandığı yerde bir yer tutucu görür.<0>Daha fazla bilgi edinin</0>"
+			"label": "Terminal output limit",
+			"description": "Keeps the first and last lines and drops the middle to stay under the limit. Lower to save tokens; raise to give Zoo more middle detail. Zoo sees a placeholder where the content is skipped.<0>Learn more</0>"
 		},
 		"outputCharacterLimit": {
-			"label": "Terminal karakter sınırı",
-			"description": "Çıktı boyutuna katı bir üst sınır uygulayarak bellek sorunlarını önlemek için satır sınırını geçersiz kılar. Aşılırsa, başlangıcı ve sonu tutar ve içeriğin atlandığı yerde Zoo'ya bir yer tutucu gösterir. <0>Daha fazla bilgi edinin</0>"
+			"label": "Terminal character limit",
+			"description": "Overrides the line limit to prevent memory issues by enforcing a hard cap on output size. If exceeded, keeps the beginning and end and shows a placeholder to Zoo where content is skipped. <0>Learn more</0>"
 		},
 		"outputPreviewSize": {
-			"label": "Komut çıktısı önizleme boyutu",
-			"description": "Zoo'nun doğrudan gördüğü komut çıktısı miktarını kontrol eder. Tam çıktı her zaman kaydedilir ve gerektiğinde erişilebilir.",
+			"label": "Command output preview size",
+			"description": "Controls how much command output Zoo sees directly. Full output is always saved and accessible when needed.",
 			"options": {
-				"small": "Küçük (5KB)",
-				"medium": "Orta (10KB)",
-				"large": "Büyük (20KB)"
+				"small": "Small (5KB)",
+				"medium": "Medium (10KB)",
+				"large": "Large (20KB)"
 			}
 		},
 		"shellIntegrationTimeout": {
-			"label": "Terminal shell entegrasyon timeout",
-			"description": "Komut çalıştırmadan önce VS Code shell entegrasyonunu bekleme süresi. Shell yavaş başlıyorsa veya 'Shell Integration Unavailable' hatası görüyorsanız artırın. <0>Daha fazla bilgi edinin</0>"
+			"label": "Terminal shell integration timeout",
+			"description": "How long to wait for VS Code shell integration before running commands. Raise if your shell starts slowly or you see 'Shell Integration Unavailable' errors. <0>Learn more</0>"
 		},
 		"shellIntegrationDisabled": {
-			"label": "Satır İçi Terminal Kullan (önerilir)",
-			"description": "Daha hızlı, daha güvenilir çalıştırmalar için kabuk profillerini/entegrasyonunu atlamak için Satır İçi Terminal'de (sohbet) komutları çalıştırın. Devre dışı bırakıldığında Zoo, kabuk profiliniz, istemleriniz ve eklentilerinizle VS Code terminalini kullanır. <0>Daha fazla bilgi edinin</0>"
+			"label": "Use Inline Terminal (recommended)",
+			"description": "Run commands in the Inline Terminal (chat) to bypass shell profiles/integration for faster, more reliable runs. When disabled Zoo uses the VS Code terminal with your shell profile, prompts, and plugins. <0>Learn more</0>"
 		},
 		"commandDelay": {
-			"label": "Terminal komut delay",
-			"description": "VS Code terminalin tüm outputu flush edebilmesi için her komuttan sonra kısa pause ekler (bash/zsh: PROMPT_COMMAND sleep; PowerShell: start-sleep). Sadece tail output eksikse kullan; yoksa 0'da bırak. <0>Daha fazla bilgi edinin</0>"
+			"label": "Terminal command delay",
+			"description": "Adds a short pause after each command so the VS Code terminal can flush all output (bash/zsh: PROMPT_COMMAND sleep; PowerShell: start-sleep). Use only if you see missing tail output; otherwise leave at 0. <0>Learn more</0>"
 		},
 		"powershellCounter": {
-			"label": "PowerShell sayaç geçici çözümünü etkinleştir",
-			"description": "PowerShell çıktısı eksik veya yineleniyorsa bunu açın; çıktıyı stabilize etmek için her komuta küçük bir sayaç ekler. Çıktı zaten doğru görünüyorsa bunu kapalı tutun. <0>Daha fazla bilgi edinin</0>"
+			"label": "Enable PowerShell counter workaround",
+			"description": "Turn this on when PowerShell output is missing or duplicated; it appends a tiny counter to each command to stabilize output. Keep this off if output already looks correct. <0>Learn more</0>"
 		},
 		"zshClearEolMark": {
-			"label": "ZSH EOL işaretini temizle",
-			"description": "Satırların sonunda başıboş % gördüğünüzde veya ayrıştırma yanlış göründüğünde bunu açın; Zsh'nin satır sonu işaretini (%) atlar. <0>Daha fazla bilgi edinin</0>"
+			"label": "Clear ZSH EOL mark",
+			"description": "Turn this on when you see stray % at the end of lines or parsing looks wrong; it omits Zsh’s end‑of‑line mark (%). <0>Learn more</0>"
 		},
 		"zshOhMy": {
-			"label": "Oh My Zsh entegrasyonunu etkinleştir",
-			"description": "Oh My Zsh temanız/eklentileriniz kabuk entegrasyonu beklediğinde bunu açın; ITERM_SHELL_INTEGRATION_INSTALLED=Yes ayarlar. Bu değişkeni ayarlamaktan kaçınmak için bunu kapatın. <0>Daha fazla bilgi edinin</0>"
+			"label": "Enable Oh My Zsh integration",
+			"description": "Turn this on when your Oh My Zsh theme/plugins expect shell integration; it sets ITERM_SHELL_INTEGRATION_INSTALLED=Yes. Turn this off to avoid setting that variable. <0>Learn more</0>"
 		},
 		"zshP10k": {
-			"label": "Powerlevel10k entegrasyonunu etkinleştir",
-			"description": "Powerlevel10k kabuk entegrasyonunu kullanırken bunu açın. <0>Daha fazla bilgi edinin</0>"
+			"label": "Enable Powerlevel10k integration",
+			"description": "Turn this on when using Powerlevel10k shell integration. <0>Learn more</0>"
 		},
 		"zdotdir": {
-			"label": "ZDOTDIR işlemeyi etkinleştir",
-			"description": "zsh kabuk entegrasyonu başarısız olduğunda veya dotfiles'larınızla çakıştığında bunu açın. <0>Daha fazla bilgi edinin</0>"
+			"label": "Enable ZDOTDIR handling",
+			"description": "Turn this on when zsh shell integration fails or conflicts with your dotfiles. <0>Learn more</0>"
 		},
 		"inheritEnv": {
-			"label": "Ortam değişkenlerini devral",
-			"description": "Ana VS Code işleminden ortam değişkenlerini devralmak için bunu açın. <0>Daha fazla bilgi edinin</0>"
+			"label": "Inherit environment variables",
+			"description": "Turn this on to inherit environment variables from the parent VS Code process. <0>Learn more</0>"
 		}
 	},
 	"advancedSettings": {
-		"title": "Gelişmiş ayarlar"
+		"title": "Advanced settings"
 	},
 	"advanced": {
 		"diff": {
-			"label": "Diff'ler aracılığıyla düzenlemeyi etkinleştir",
-			"description": "Etkinleştirildiğinde, Zoo dosyaları daha hızlı düzenleyebilecek ve kesik tam dosya yazımlarını otomatik olarak reddedecektir",
+			"label": "Enable editing through diffs",
+			"description": "When enabled, Zoo will be able to edit files more quickly and will automatically reject truncated full-file writes",
 			"strategy": {
-				"label": "Diff stratejisi",
+				"label": "Diff strategy",
 				"options": {
-					"standard": "Standart (Tek blok)",
-					"multiBlock": "Deneysel: Çoklu blok diff",
-					"unified": "Deneysel: Birleştirilmiş diff"
+					"standard": "Standard (Single block)",
+					"multiBlock": "Experimental: Multi-block diff",
+					"unified": "Experimental: Unified diff"
 				},
 				"descriptions": {
-					"standard": "Standart diff stratejisi, bir seferde tek bir kod bloğuna değişiklikler uygular.",
-					"unified": "Birleştirilmiş diff stratejisi, diff'leri uygulamak için birden çok yaklaşım benimser ve en iyi yaklaşımı seçer.",
-					"multiBlock": "Çoklu blok diff stratejisi, tek bir istekte bir dosyadaki birden çok kod bloğunu güncellemenize olanak tanır."
+					"standard": "Standard diff strategy applies changes to a single code block at a time.",
+					"unified": "Unified diff strategy takes multiple approaches to applying diffs and chooses the best approach.",
+					"multiBlock": "Multi-block diff strategy allows updating multiple code blocks in a file in one request."
 				}
 			}
 		},
 		"todoList": {
-			"label": "Yapılacaklar listesi aracını etkinleştir",
-			"description": "Etkinleştirildiğinde, Zoo görev ilerlemesini takip etmek için yapılacaklar listeleri oluşturabilir ve yönetebilir. Bu, karmaşık görevleri yönetilebilir adımlara organize etmeye yardımcı olur."
+			"label": "Enable todo list tool",
+			"description": "When enabled, Zoo can create and manage todo lists to track task progress. This helps organize complex tasks into manageable steps."
 		}
 	},
 	"experimental": {
 		"DIFF_STRATEGY_UNIFIED": {
-			"name": "Deneysel birleştirilmiş diff stratejisini kullan",
-			"description": "Deneysel birleştirilmiş diff stratejisini etkinleştir. Bu strateji, model hatalarından kaynaklanan yeniden deneme sayısını azaltabilir, ancak beklenmeyen davranışlara veya hatalı düzenlemelere neden olabilir. Yalnızca riskleri anlıyorsanız ve tüm değişiklikleri dikkatlice incelemeye istekliyseniz etkinleştirin."
+			"name": "Use experimental unified diff strategy",
+			"description": "Enable the experimental unified diff strategy. This strategy might reduce the number of retries caused by model errors but may cause unexpected behavior or incorrect edits. Only enable if you understand the risks and are willing to carefully review all changes."
 		},
 		"INSERT_BLOCK": {
-			"name": "Deneysel içerik ekleme aracını kullan",
-			"description": "Deneysel içerik ekleme aracını etkinleştir, Zoo'nun bir diff oluşturma gereği duymadan belirli satır numaralarına içerik eklemesine olanak tanır."
-		},
-		"MULTI_SEARCH_AND_REPLACE": {
-			"name": "Deneysel çoklu blok diff aracını kullan",
-			"description": "Etkinleştirildiğinde, Zoo çoklu blok diff aracını kullanacaktır. Bu, tek bir istekte dosyadaki birden fazla kod bloğunu güncellemeye çalışacaktır."
+			"name": "Use experimental insert content tool",
+			"description": "Enable the experimental insert content tool, allowing Zoo to insert content at specific line numbers without needing to create a diff."
 		},
 		"CONCURRENT_FILE_READS": {
-			"name": "Eşzamanlı dosya okumayı etkinleştir",
-			"description": "Etkinleştirildiğinde, Zoo tek bir istekte birden fazla dosya okuyabilir. Devre dışı bırakıldığında, Zoo dosyaları birer birer okumalıdır. Daha az yetenekli modellerle çalışırken veya dosya erişimi üzerinde daha fazla kontrol istediğinizde devre dışı bırakmak yardımcı olabilir."
+			"name": "Enable concurrent file reads",
+			"description": "When enabled, Zoo can read multiple files in a single request. When disabled, Zoo must read files one at a time. Disabling this can help when working with less capable models or when you want more control over file access."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Use experimental multi block diff tool",
+			"description": "When enabled, Zoo will use multi block diff tool. This will try to update multiple code blocks in the file in one request."
 		},
 		"MARKETPLACE": {
-			"name": "Marketplace'i Etkinleştir",
-			"description": "Etkinleştirildiğinde, Marketplace'ten MCP'leri ve özel modları yükleyebilirsiniz."
+			"name": "Enable Marketplace",
+			"description": "When enabled, you can install MCPs and custom modes from the Marketplace."
 		},
 		"PREVENT_FOCUS_DISRUPTION": {
-			"name": "Arka plan düzenleme",
-			"description": "Etkinleştirildiğinde editör odak kesintisini önler. Dosya düzenlemeleri diff görünümlerini açmadan veya odağı çalmadan arka planda gerçekleşir. Zoo değişiklikler yaparken kesintisiz çalışmaya devam edebilirsiniz. Dosyalar tanılamayı yakalamak için odaksız açılabilir veya tamamen kapalı kalabilir."
+			"name": "Background editing",
+			"description": "Prevent editor focus disruption when enabled. File edits happen in the background without opening diff views or stealing focus. You can continue working uninterrupted while Zoo makes changes. Files can be opened without focus to capture diagnostics or kept closed entirely."
 		},
 		"ASSISTANT_MESSAGE_PARSER": {
-			"name": "Yeni mesaj ayrıştırıcıyı kullan",
-			"description": "Uzun yanıtları daha verimli işleyerek hızlandıran deneysel akış mesaj ayrıştırıcısını etkinleştir."
+			"name": "Use new message parser",
+			"description": "Enable the experimental streaming message parser that provides significant performance improvements for long assistant responses by processing messages more efficiently."
 		},
 		"NEW_TASK_REQUIRE_TODOS": {
-			"name": "Yeni görevler için 'todos' listesi gerektir",
-			"description": "Etkinleştirildiğinde, new_task aracı bir todos parametresi sağlanmasını gerektirir. Bu, tüm yeni görevlerin net bir hedef listesiyle başlamasını sağlar. Devre dışı bırakıldığında (varsayılan), todos parametresi geriye dönük uyumluluk için isteğe bağlı kalır."
+			"name": "Require 'todos' list for new tasks",
+			"description": "When enabled, the new_task tool will require a todos parameter to be provided. This ensures all new tasks start with a clear list of objectives. When disabled (default), the todos parameter remains optional for backward compatibility."
 		},
 		"IMAGE_GENERATION": {
-			"providerLabel": "Sağlayıcı",
-			"providerDescription": "Görüntü oluşturma için kullanılacak sağlayıcıyı seçin.",
-			"name": "AI görüntü üretimini etkinleştir",
-			"description": "Etkinleştirildiğinde, Zoo OpenRouter'ın görüntü üretim modellerini kullanarak metin istemlerinden görüntüler üretebilir. Yapılandırılmış bir OpenRouter API anahtarı gerektirir.",
-			"openRouterApiKeyLabel": "OpenRouter API Anahtarı",
-			"openRouterApiKeyPlaceholder": "OpenRouter API anahtarınızı girin",
-			"getApiKeyText": "API anahtarınızı alın",
-			"modelSelectionLabel": "Görüntü Üretim Modeli",
-			"modelSelectionDescription": "Görüntü üretimi için kullanılacak modeli seçin",
-			"warningMissingKey": "⚠️ Görüntü üretimi için OpenRouter API anahtarı gereklidir. Lütfen yukarıda yapılandırın.",
-			"successConfigured": "✓ Görüntü üretimi yapılandırılmış ve kullanıma hazır"
+			"name": "Enable AI image generation",
+			"description": "When enabled, Zoo can generate images from text prompts using image generation models.",
+			"providerLabel": "Provider",
+			"providerDescription": "Select which provider to use for image generation.",
+			"openRouterApiKeyLabel": "OpenRouter API Key",
+			"openRouterApiKeyPlaceholder": "Enter your OpenRouter API key",
+			"getApiKeyText": "Get your API key from",
+			"modelSelectionLabel": "Image Generation Model",
+			"modelSelectionDescription": "Select the model to use for image generation",
+			"warningMissingKey": "⚠️ OpenRouter API key is required for OpenRouter image generation. Please configure it above.",
+			"successConfigured": "✓ Image generation is configured and ready to use"
 		},
 		"RUN_SLASH_COMMAND": {
-			"name": "Model tarafından başlatılan slash komutlarını etkinleştir",
-			"description": "Etkinleştirildiğinde, Zoo iş akışlarını yürütmek için slash komutlarınızı çalıştırabilir."
+			"name": "Enable model-initiated slash commands",
+			"description": "When enabled, Zoo can run your slash commands to execute workflows."
 		},
 		"CUSTOM_TOOLS": {
-			"name": "Özel araçları etkinleştir",
-			"description": "Etkinleştirildiğinde, Zoo projenizin .roo/tools dizininden veya global araçlar için ~/.roo/tools dizininden özel TypeScript/JavaScript araçlarını yükleyebilir ve kullanabilir. Not: Bu araçlar otomatik olarak onaylanacaktır.",
-			"toolsHeader": "Kullanılabilir Özel Araçlar",
-			"noTools": "Özel araç yüklenmedi. Projenizin .roo/tools dizinine veya global araçlar için ~/.roo/tools dizinine .ts veya .js dosyaları ekleyin.",
-			"refreshButton": "Yenile",
-			"refreshing": "Yenileniyor...",
-			"refreshSuccess": "Araçlar başarıyla yenilendi",
-			"refreshError": "Araçlar yenilenemedi",
-			"toolParameters": "Parametreler"
+			"name": "Enable custom tools",
+			"description": "When enabled, Zoo can load and use custom TypeScript/JavaScript tools from your project's .roo/tools directory or ~/.roo/tools for global tools. Note: these tools will automatically be auto-approved.",
+			"toolsHeader": "Available Custom Tools",
+			"noTools": "No custom tools loaded. Add .ts or .js files to your project's .roo/tools directory or ~/.roo/tools for global tools.",
+			"refreshButton": "Refresh",
+			"refreshing": "Refreshing...",
+			"refreshSuccess": "Tools refreshed successfully",
+			"refreshError": "Failed to refresh tools",
+			"toolParameters": "Parameters"
 		}
 	},
 	"promptCaching": {
-		"label": "Prompt önbelleğini devre dışı bırak",
-		"description": "İşaretlendiğinde, Zoo bu model için prompt önbelleğini kullanmayacaktır."
+		"label": "Disable prompt caching",
+		"description": "When checked, Zoo will not use prompt caching for this model."
 	},
 	"temperature": {
-		"useCustom": "Özel sıcaklık kullan",
-		"description": "Model yanıtlarındaki rastgeleliği kontrol eder.",
-		"rangeDescription": "Daha yüksek değerler çıktıyı daha rastgele yapar, daha düşük değerler daha deterministik hale getirir."
+		"useCustom": "Use custom temperature",
+		"description": "Controls randomness in the model's responses.",
+		"rangeDescription": "Higher values make output more random, lower values make it more deterministic."
 	},
 	"modelInfo": {
-		"supportsImages": "Görüntüleri destekler",
-		"noImages": "Görüntüleri desteklemez",
-		"supportsPromptCache": "İstem önbelleğini destekler",
-		"noPromptCache": "İstem önbelleğini desteklemez",
-		"contextWindow": "Bağlam Penceresi:",
-		"maxOutput": "Maksimum çıktı",
-		"inputPrice": "Giriş fiyatı",
-		"outputPrice": "Çıkış fiyatı",
-		"cacheReadsPrice": "Önbellek okuma fiyatı",
-		"cacheWritesPrice": "Önbellek yazma fiyatı",
-		"enableStreaming": "Akışı etkinleştir",
-		"enableR1Format": "R1 model parametrelerini etkinleştir",
-		"enableR1FormatTips": "QWQ gibi R1 modelleri kullanıldığında etkinleştirilmelidir, 400 hatası alınmaması için",
-		"useAzure": "Azure kullan",
-		"azureApiVersion": "Azure API sürümünü ayarla",
+		"supportsImages": "Supports images",
+		"noImages": "Does not support images",
+		"supportsPromptCache": "Supports prompt caching",
+		"noPromptCache": "Does not support prompt caching",
+		"contextWindow": "Context Window:",
+		"maxOutput": "Max output",
+		"inputPrice": "Input price",
+		"outputPrice": "Output price",
+		"cacheReadsPrice": "Cache reads price",
+		"cacheWritesPrice": "Cache writes price",
+		"enableStreaming": "Enable streaming",
+		"enableR1Format": "Enable R1 model parameters",
+		"enableR1FormatTips": "Must be enabled when using R1 models such as QWQ to prevent 400 errors",
+		"useAzure": "Use Azure",
+		"azureApiVersion": "Set Azure API version",
 		"gemini": {
-			"freeRequests": "* Dakikada {{count}} isteğe kadar ücretsiz. Bundan sonra, ücretlendirme istem boyutuna bağlıdır.",
-			"pricingDetails": "Daha fazla bilgi için fiyatlandırma ayrıntılarına bakın.",
-			"billingEstimate": "* Ücretlendirme bir tahmindir - kesin maliyet istem boyutuna bağlıdır."
+			"freeRequests": "* Free up to {{count}} requests per minute. After that, billing depends on prompt size.",
+			"pricingDetails": "For more info, see pricing details.",
+			"billingEstimate": "* Billing is an estimate - exact cost depends on prompt size."
 		}
 	},
 	"modelPicker": {
-		"automaticFetch": "Uzantı <serviceLink>{{serviceName}}</serviceLink> üzerinde bulunan mevcut modellerin en güncel listesini otomatik olarak alır. Hangi modeli seçeceğinizden emin değilseniz, Zoo Code <defaultModelLink>{{defaultModelId}}</defaultModelLink> ile en iyi şekilde çalışır. Şu anda mevcut olan ücretsiz seçenekleri bulmak için \"free\" araması da yapabilirsiniz.",
+		"automaticFetch": "The extension automatically fetches the latest list of models available on <serviceLink>{{serviceName}}</serviceLink>. If you're unsure which model to choose, Zoo Code works best with <defaultModelLink>{{defaultModelId}}</defaultModelLink>. You can also try searching \"free\" for no-cost options currently available.",
 		"label": "Model",
-		"searchPlaceholder": "Ara",
-		"noMatchFound": "Eşleşme bulunamadı",
-		"useCustomModel": "Özel kullan: {{modelId}}",
-		"simplifiedExplanation": "Ayrıntılı model ayarlarını daha sonra ayarlayabilirsiniz."
+		"searchPlaceholder": "Search",
+		"noMatchFound": "No match found",
+		"useCustomModel": "Use custom: {{modelId}}",
+		"simplifiedExplanation": "You can adjust detailed model settings later."
 	},
 	"footer": {
 		"telemetry": {
-			"label": "Anonim hata ve kullanım raporlamaya izin ver",
-			"description": "Anonim kullanım verileri ve hata raporları göndererek Zoo Code'u geliştirmeye yardım edin. Bu telemetri kod, prompt veya kişisel bilgi toplamaz. Daha fazla ayrıntı için <privacyLink>gizlilik politikamıza</privacyLink> bakın. Bunu istediğiniz zaman kapatabilirsiniz."
+			"label": "Allow anonymous error and usage reporting",
+			"description": "Help improve Zoo Code by sending anonymous usage data and error reports. This telemetry does not collect code, prompts or personal information. See our <privacyLink>privacy policy</privacyLink> for more details."
 		},
 		"settings": {
-			"import": "İçe Aktar",
-			"export": "Dışa Aktar",
-			"reset": "Sıfırla"
+			"import": "Import",
+			"export": "Export",
+			"reset": "Reset"
 		}
 	},
 	"thinkingBudget": {
-		"maxTokens": "Maksimum token",
-		"maxThinkingTokens": "Maksimum düşünme tokeni"
+		"maxTokens": "Max Tokens",
+		"maxThinkingTokens": "Max Thinking Tokens"
 	},
 	"validation": {
-		"apiKey": "Geçerli bir API anahtarı sağlamalısınız.",
-		"awsRegion": "Amazon Bedrock kullanmak için bir bölge seçmelisiniz.",
-		"googleCloud": "Geçerli bir Google Cloud proje kimliği ve bölge sağlamalısınız.",
-		"modelId": "Geçerli bir model kimliği sağlamalısınız.",
-		"modelSelector": "Geçerli bir model seçici sağlamalısınız.",
-		"openAi": "Geçerli bir temel URL, API anahtarı ve model kimliği sağlamalısınız.",
+		"apiKey": "You must provide a valid API key.",
+		"awsRegion": "You must choose a region to use with Amazon Bedrock.",
+		"googleCloud": "You must provide a valid Google Cloud Project ID and Region.",
+		"modelId": "You must provide a valid model ID.",
+		"modelSelector": "You must provide a valid model selector.",
+		"openAi": "You must provide a valid base URL, API key, and model ID.",
 		"arn": {
-			"invalidFormat": "Geçersiz ARN formatı. Lütfen format gereksinimlerini kontrol edin.",
-			"regionMismatch": "Uyarı: ARN'nizdeki bölge ({{arnRegion}}) seçtiğiniz bölge ({{region}}) ile eşleşmiyor. Bu erişim sorunlarına neden olabilir. Sağlayıcı, ARN'deki bölgeyi kullanacak."
+			"invalidFormat": "Invalid ARN format. Please check the format requirements.",
+			"regionMismatch": "Warning: The region in your ARN ({{arnRegion}}) does not match your selected region ({{region}}). This may cause access issues. The provider will use the region from the ARN."
 		},
-		"modelAvailability": "Sağladığınız model kimliği ({{modelId}}) kullanılamıyor. Lütfen başka bir model seçin.",
-		"modelDeprecated": "Bu model artık kullanılamıyor. Lütfen farklı bir model seçin.",
-		"providerNotAllowed": "Sağlayıcı '{{provider}}' kuruluşunuz tarafından izin verilmiyor",
-		"modelNotAllowed": "Model '{{model}}' sağlayıcı '{{provider}}' için kuruluşunuz tarafından izin verilmiyor",
-		"profileInvalid": "Bu profil, kuruluşunuz tarafından izin verilmeyen bir sağlayıcı veya model içeriyor",
-		"qwenCodeOauthPath": "Geçerli bir OAuth kimlik bilgileri yolu sağlamalısın"
+		"modelAvailability": "The model ID ({{modelId}}) you provided is not available. Please choose a different model.",
+		"modelDeprecated": "This model is no longer available. Please select a different model.",
+		"providerNotAllowed": "Provider '{{provider}}' is not allowed by your organization",
+		"modelNotAllowed": "Model '{{model}}' is not allowed for provider '{{provider}}' by your organization",
+		"profileInvalid": "This profile contains a provider or model that is not allowed by your organization",
+		"qwenCodeOauthPath": "You must provide a valid OAuth credentials path."
 	},
 	"placeholders": {
-		"apiKey": "API anahtarını girin...",
-		"profileName": "Profil adını girin",
-		"accessKey": "Erişim anahtarını girin...",
-		"secretKey": "Gizli anahtarı girin...",
-		"sessionToken": "Oturum belirtecini girin...",
-		"credentialsJson": "Kimlik bilgileri JSON'ını girin...",
-		"keyFilePath": "Anahtar dosyası yolunu girin...",
-		"projectId": "Proje ID'sini girin...",
-		"customArn": "ARN girin (örn. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
-		"baseUrl": "Temel URL'yi girin...",
+		"apiKey": "Enter API Key...",
+		"profileName": "Enter profile name",
+		"accessKey": "Enter Access Key...",
+		"secretKey": "Enter Secret Key...",
+		"sessionToken": "Enter Session Token...",
+		"credentialsJson": "Enter Credentials JSON...",
+		"keyFilePath": "Enter Key File Path...",
+		"projectId": "Enter Project ID...",
+		"customArn": "Enter ARN (e.g. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Enter base URL...",
 		"modelId": {
-			"lmStudio": "örn. meta-llama-3.1-8b-instruct",
-			"lmStudioDraft": "örn. lmstudio-community/llama-3.2-1b-instruct",
-			"ollama": "örn. llama3.1"
+			"lmStudio": "e.g. meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "e.g. lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "e.g. llama3.1"
 		},
 		"numbers": {
-			"maxTokens": "örn. 4096",
-			"contextWindow": "örn. 128000",
-			"inputPrice": "örn. 0.0001",
-			"outputPrice": "örn. 0.0002",
-			"cacheWritePrice": "örn. 0.00005"
+			"maxTokens": "e.g. 4096",
+			"contextWindow": "e.g. 128000",
+			"inputPrice": "e.g. 0.0001",
+			"outputPrice": "e.g. 0.0002",
+			"cacheWritePrice": "e.g. 0.00005"
 		}
 	},
 	"defaults": {
-		"ollamaUrl": "Varsayılan: http://localhost:11434",
-		"lmStudioUrl": "Varsayılan: http://localhost:1234",
-		"geminiUrl": "Varsayılan: https://generativelanguage.googleapis.com"
+		"ollamaUrl": "Default: http://localhost:11434",
+		"lmStudioUrl": "Default: http://localhost:1234",
+		"geminiUrl": "Default: https://generativelanguage.googleapis.com"
 	},
 	"labels": {
-		"customArn": "Özel ARN",
-		"useCustomArn": "Özel ARN kullan..."
+		"customArn": "Custom ARN",
+		"useCustomArn": "Use custom ARN..."
 	},
-	"includeMaxOutputTokens": "Maksimum çıktı tokenlerini dahil et",
-	"includeMaxOutputTokensDescription": "API isteklerinde maksimum çıktı token parametresini gönder. Bazı sağlayıcılar bunu desteklemeyebilir.",
-	"limitMaxTokensDescription": "Yanıttaki maksimum token sayısını sınırla",
-	"maxOutputTokensLabel": "Maksimum çıktı tokenları",
-	"maxTokensGenerateDescription": "Yanıtta oluşturulacak maksimum token sayısı",
+	"includeMaxOutputTokens": "Include max output tokens",
+	"includeMaxOutputTokensDescription": "Send max output tokens parameter in API requests. Some providers may not support this.",
+	"limitMaxTokensDescription": "Limit the maximum number of tokens in the response",
+	"maxOutputTokensLabel": "Max output tokens",
+	"maxTokensGenerateDescription": "Maximum tokens to generate in response",
 	"serviceTier": {
-		"label": "Hizmet seviyesi",
-		"tooltip": "Daha hızlı API isteği işleme için öncelikli işleme hizmeti seviyesini deneyin. Daha düşük gecikme süresiyle daha düşük fiyatlar için esnek işleme seviyesini deneyin.",
-		"standard": "Standart",
-		"flex": "Esnek",
-		"priority": "Öncelik",
-		"pricingTableTitle": "Hizmet seviyesine göre fiyatlandırma (1 milyon token başına fiyat)",
+		"label": "Service tier",
+		"tooltip": "For faster processing of API requests, try the priority processing service tier. For lower prices with higher latency, try the flex processing tier.",
+		"standard": "Standard",
+		"flex": "Flex",
+		"priority": "Priority",
+		"pricingTableTitle": "Pricing by service tier (price per 1M tokens)",
 		"columns": {
-			"tier": "Seviye",
-			"input": "Giriş",
-			"output": "Çıkış",
-			"cacheReads": "Önbellek okumaları"
+			"tier": "Tier",
+			"input": "Input",
+			"output": "Output",
+			"cacheReads": "Cache reads"
 		}
-	},
-	"ui": {
-		"collapseThinking": {
-			"label": "Düşünme mesajlarını varsayılan olarak daralt",
-			"description": "Etkinleştirildiğinde, düşünme blokları siz onlarla etkileşime girene kadar varsayılan olarak daraltılır"
-		},
-		"requireCtrlEnterToSend": {
-			"label": "Mesaj göndermek için {{primaryMod}}+Enter gerekli",
-			"description": "Etkinleştirildiğinde, sadece Enter yerine mesaj göndermek için {{primaryMod}}+Enter'a basmalısınız"
-		},
-		"chatFontSize": {
-			"label": "Sohbet yazı tipi boyutu",
-			"description": "Zoo Code sohbeti için yazı tipi boyutunu (piksel cinsinden) ayarlayın. VS Code yazı tipi boyutuyla eşleşmesi için varsayılan değerde bırakın.",
-			"reset": "VS Code varsayılanını kullan"
-		}
-	},
-	"skills": {
-		"description": "Ajana bağlamsal talimatlar sağlayan becerileri yönetin. Beceriler, görevlerinizle ilgili olduklarında otomatik olarak uygulanır. <DocsLink>Daha fazla bilgi</DocsLink>",
-		"workspaceSkills": "Çalışma Alanı Becerileri",
-		"globalSkills": "Genel Beceriler",
-		"noWorkspaceSkills": "Bu projede henüz beceri yok.",
-		"noGlobalSkills": "Yapılandırılmış genel beceri yok. Tüm projelerde kullanılabilir ajan yetenekleri eklemek için bir tane oluşturun.",
-		"addSkill": "Beceri Ekle",
-		"editSkill": "Beceriyi düzenle",
-		"deleteSkill": "Beceriyi sil",
-		"configureModes": "Mod Kullanılabilirliği",
-		"modeAny": "Herhangi bir mod",
-		"modeCount": "{{count}} mod",
-		"deleteDialog": {
-			"title": "Beceriyi Sil",
-			"description": "\"{{name}}\" becerisini silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.",
-			"confirm": "Sil",
-			"cancel": "İptal"
-		},
-		"modeDialog": {
-			"title": "Beceri Modlarını Yapılandır",
-			"description": "Bu beceriyi kullanabilecek modları seçin",
-			"intro": "Bağlamınızı hafif tutmak için, becerileri yalnızca onlara ihtiyaç duyan modlar için kullanılabilir hale getirilmesini öneririz.",
-			"anyMode": "Herhangi bir mod (her yerde mevcut)",
-			"save": "Kaydet",
-			"cancel": "İptal"
-		},
-		"createDialog": {
-			"title": "Yeni Beceri Oluştur",
-			"nameLabel": "Ad",
-			"namePlaceholder": "benim-beceri-adim",
-			"descriptionLabel": "Açıklama",
-			"descriptionPlaceholder": "Bu becerinin ne zaman kullanılması gerektiğini açıklayın...",
-			"sourceLabel": "Konum",
-			"modeLabel": "Mod (isteğe bağlı)",
-			"modePlaceholder": "Herhangi bir mod",
-			"modeHint": "Bu beceriyi belirli bir modla sınırlayın",
-			"modeAny": "Herhangi bir mod",
-			"create": "Oluştur",
-			"cancel": "İptal"
-		},
-		"source": {
-			"global": "Genel (tüm projelerde kullanılabilir)",
-			"project": "Proje (yalnızca bu çalışma alanı)"
-		},
-		"validation": {
-			"nameRequired": "Ad gereklidir",
-			"nameTooLong": "Ad en fazla 64 karakter olmalıdır",
-			"nameInvalid": "Ad 1-64 küçük harf, rakam veya kısa çizgi olmalıdır",
-			"descriptionRequired": "Açıklama gereklidir",
-			"descriptionTooLong": "Açıklama en fazla 1024 karakter olmalıdır"
-		},
-		"footer": "Skill Writer modu ile kendi becerilerinizi oluşturun. <MarketplaceLink>Modes Marketplace</MarketplaceLink>'de mevcut."
 	}
 }

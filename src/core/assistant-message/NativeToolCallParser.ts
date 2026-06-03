@@ -637,6 +637,26 @@ export class NativeToolCallParser {
 				}
 				break
 
+			case "create_workflow":
+				if (partialArgs.name !== undefined || partialArgs.nodes !== undefined) {
+					nativeArgs = {
+						name: partialArgs.name,
+						nodes: Array.isArray(partialArgs.nodes) ? partialArgs.nodes : undefined,
+					}
+				}
+				break
+
+			case "conditional_task":
+				if (partialArgs.action !== undefined || partialArgs.target_id !== undefined || partialArgs.reason !== undefined) {
+					nativeArgs = {
+						action: partialArgs.action as "restart" | "continue" | "user_input",
+						target_id: partialArgs.target_id,
+						reason: partialArgs.reason,
+						additional_prompt: partialArgs.additional_prompt,
+					}
+				}
+				break
+
 			default:
 				break
 		}
@@ -982,6 +1002,26 @@ export class NativeToolCallParser {
 							mode: args.mode,
 							message: args.message,
 							todos: args.todos,
+						} as NativeArgsFor<TName>
+					}
+					break
+
+				case "create_workflow":
+					if (args.name !== undefined && Array.isArray(args.nodes)) {
+						nativeArgs = {
+							name: args.name,
+							nodes: args.nodes,
+						} as NativeArgsFor<TName>
+					}
+					break
+
+				case "conditional_task":
+					if (args.action !== undefined && args.target_id !== undefined && args.reason !== undefined) {
+						nativeArgs = {
+							action: args.action as "restart" | "continue" | "user_input",
+							target_id: args.target_id,
+							reason: args.reason,
+							additional_prompt: args.additional_prompt,
 						} as NativeArgsFor<TName>
 					}
 					break

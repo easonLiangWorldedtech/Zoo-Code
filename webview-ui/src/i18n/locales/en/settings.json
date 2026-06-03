@@ -41,7 +41,105 @@
 		"ui": "UI",
 		"experimental": "Experimental",
 		"language": "Language",
-		"about": "About Zoo Code"
+		"about": "About Zoo Code",
+		"parallelTasks": "Parallel Tasks"
+	},
+	"parallelTasks": {
+		"description": "Configure background workers that run in parallel with your main task. Each worker can use a different model/provider to optimize cost and speed.",
+		"enabled": {
+			"label": "Enable parallel tasks",
+			"description": "When enabled, you can send background tasks that run alongside your main conversation."
+		},
+		"maxConcurrent": {
+			"label": "Maximum concurrent workers",
+			"description": "Number of background workers that can run simultaneously (1-16)."
+		},
+		"taskSelector": {
+			"label": "Task type for new tasks:",
+			"main": "Main task",
+			"activeWorkers": "{{count}} active · ",
+			"queued": "{{count}} queued"
+		},
+		"heartbeatSettings": {
+			"title": "Heartbeat Settings",
+			"description": "Control how background worker progress is displayed in the chat.",
+			"mode": {
+				"label": "Heartbeat mode",
+				"all": "Show all workers",
+				"errorsOnly": "Show errors only",
+				"none": "Hide heartbeats"
+			},
+			"interval": {
+				"label": "Update interval (seconds)",
+				"description": "How often worker progress updates appear in chat. Range: 10-60s."
+			}
+		},
+		"modeMapping": {
+			"title": "Task Type → Model Mapping",
+			"description": "Assign different models to different task types. Leave empty to inherit from main task settings.",
+			"inherit": "Inherit from main task",
+			"modelPlaceholder": "Model ID (e.g., gpt-4o-mini)"
+		},
+		"autoApprove": {
+			"title": "Auto-Approve Per Task Type",
+			"description": "Control which tools background workers can use without approval for each task type.",
+			"permissions": {
+				"readFiles": "Read files",
+				"writeFiles": "Write files",
+				"executeCommands": "Execute commands",
+				"browserActions": "Browser actions"
+			}
+		},
+		"limits": {
+			"title": "Limits Per Task Type",
+			"description": "Set maximum tool calls, cost ($), and tokens per task type. Leave empty to use defaults."
+		},
+		"contextRetention": {
+			"minimal": "Minimal (1 pair)",
+			"moderate": "Moderate (3 pairs)",
+			"full": "Full (8 pairs)"
+		},
+		"notificationMode": {
+			"all": "All",
+			"errorsOnly": "Errors only",
+			"none": "None"
+		},
+		"taskTypes": {
+			"search": "Search",
+			"doc": "Doc",
+			"commit": "Commit",
+			"code": "Code",
+			"debug": "Debug",
+			"general": "General"
+		},
+		"autoDetect": {
+			"label": "Auto-detect task type from message content (Phase 2+)",
+			"description": "Automatically classify background tasks by analyzing the message content."
+		},
+		"dagViz": {
+			"title": "DAG Visualization Level",
+			"description": "Choose how workflow dependency graphs are visualized in the Task Flow panel.",
+			"level": {
+				"label": "Visualization level",
+				"simple": "Simple (text tree)",
+				"graph": "Graph (SVG diagram) — recommended",
+				"interactive": "Interactive (click-to-select nodes)"
+			}
+		},
+		"panel": {
+				"title": "Parallel Tasks",
+				"enabled": "{{maxConcurrent}} workers max · Background mode active",
+				"disabled": "Parallel tasks disabled — enable in Settings",
+				"activeWorkers": "{{count}} active",
+				"queuedTasks": "{{count}} queued",
+				"noWorkers": "No active background workers",
+				"startTaskHint": "Send a message with 'background' to start one",
+				"footer": "Background tasks run independently of your main conversation",
+				"cancel": "Cancel",
+				"viewResult": "View Result",
+				"toolCalls": "tool calls",
+				"unknown": "Unknown"
+			}
 	},
 	"about": {
 		"bugReport": {

@@ -1,322 +1,488 @@
 {
-	"back": "Назад к списку задач",
+	"back": "Back to tasks view",
 	"common": {
-		"save": "Сохранить",
-		"done": "Готово",
-		"cancel": "Отмена",
-		"reset": "Сбросить",
-		"select": "Выбрать",
-		"add": "Добавить заголовок",
-		"remove": "Удалить"
-	},
-	"search": {
-		"placeholder": "Поиск параметров...",
-		"noResults": "Параметры не найдены"
+		"save": "Save",
+		"done": "Done",
+		"cancel": "Cancel",
+		"reset": "Reset",
+		"select": "Select",
+		"add": "Add Header",
+		"remove": "Remove"
 	},
 	"header": {
-		"title": "Настройки",
-		"saveButtonTooltip": "Сохранить изменения",
-		"nothingChangedTooltip": "Изменений нет",
-		"doneButtonTooltip": "Отменить несохранённые изменения и закрыть панель настроек"
+		"title": "Settings",
+		"saveButtonTooltip": "Save changes",
+		"nothingChangedTooltip": "Nothing changed",
+		"doneButtonTooltip": "Discard unsaved changes and go back to tasks view"
+	},
+	"search": {
+		"placeholder": "Search settings...",
+		"noResults": "No settings found"
 	},
 	"unsavedChangesDialog": {
-		"title": "Несохранённые изменения",
-		"description": "Вы хотите отменить изменения и продолжить?",
-		"cancelButton": "Отмена",
-		"discardButton": "Отменить изменения"
+		"title": "Unsaved Changes",
+		"description": "Do you want to discard changes and continue?",
+		"cancelButton": "Cancel",
+		"discardButton": "Discard changes"
 	},
 	"sections": {
-		"providers": "Провайдеры",
-		"modes": "Режимы",
-		"mcp": "Серверы MCP",
+		"providers": "Providers",
+		"modes": "Modes",
+		"mcp": "MCP Servers",
 		"worktrees": "Worktrees",
-		"autoApprove": "Автоодобрение",
-		"checkpoints": "Контрольные точки",
-		"notifications": "Уведомления",
-		"contextManagement": "Контекст",
-		"terminal": "Терминал",
-		"slashCommands": "Слэш-команды",
-		"prompts": "Промпты",
+		"skills": "Skills",
+		"autoApprove": "Auto-Approve",
+		"checkpoints": "Checkpoints",
+		"notifications": "Notifications",
+		"contextManagement": "Context",
+		"terminal": "Terminal",
+		"slashCommands": "Slash Commands",
+		"prompts": "Prompts",
 		"ui": "UI",
-		"experimental": "Экспериментальное",
-		"language": "Язык",
-		"about": "О Zoo Code",
-		"skills": "Skills"
+		"experimental": "Experimental",
+		"language": "Language",
+		"about": "About Zoo Code",
+		"parallelTasks": "Parallel Tasks"
+	},
+	"parallelTasks": {
+		"description": "Configure background workers that run in parallel with your main task. Each worker can use a different model/provider to optimize cost and speed.",
+		"enabled": {
+			"label": "Enable parallel tasks",
+			"description": "When enabled, you can send background tasks that run alongside your main conversation."
+		},
+		"maxConcurrent": {
+			"label": "Maximum concurrent workers",
+			"description": "Number of background workers that can run simultaneously (1-16)."
+		},
+		"taskSelector": {
+			"label": "Task type for new tasks:",
+			"main": "Main task",
+			"activeWorkers": "{{count}} active · ",
+			"queued": "{{count}} queued"
+		},
+		"heartbeatSettings": {
+			"title": "Heartbeat Settings",
+			"description": "Control how background worker progress is displayed in the chat.",
+			"mode": {
+				"label": "Heartbeat mode",
+				"all": "Show all workers",
+				"errorsOnly": "Show errors only",
+				"none": "Hide heartbeats"
+			},
+			"interval": {
+				"label": "Update interval (seconds)",
+				"description": "How often worker progress updates appear in chat. Range: 10-60s."
+			}
+		},
+		"modeMapping": {
+			"title": "Task Type → Model Mapping",
+			"description": "Assign different models to different task types. Leave empty to inherit from main task settings.",
+			"inherit": "Inherit from main task",
+			"modelPlaceholder": "Model ID (e.g., gpt-4o-mini)"
+		},
+		"autoApprove": {
+			"title": "Auto-Approve Per Task Type",
+			"description": "Control which tools background workers can use without approval for each task type.",
+			"permissions": {
+				"readFiles": "Read files",
+				"writeFiles": "Write files",
+				"executeCommands": "Execute commands",
+				"browserActions": "Browser actions"
+			}
+		},
+		"limits": {
+			"title": "Limits Per Task Type",
+			"description": "Set maximum tool calls, cost ($), and tokens per task type. Leave empty to use defaults."
+		},
+		"contextRetention": {
+			"minimal": "Minimal (1 pair)",
+			"moderate": "Moderate (3 pairs)",
+			"full": "Full (8 pairs)"
+		},
+		"notificationMode": {
+			"all": "All",
+			"errorsOnly": "Errors only",
+			"none": "None"
+		},
+		"taskTypes": {
+			"search": "Search",
+			"doc": "Doc",
+			"commit": "Commit",
+			"code": "Code",
+			"debug": "Debug",
+			"general": "General"
+		},
+		"autoDetect": {
+			"label": "Auto-detect task type from message content (Phase 2+)",
+			"description": "Automatically classify background tasks by analyzing the message content."
+		},
+		"panel": {
+			"title": "Parallel Tasks",
+			"enabled": "{{maxConcurrent}} workers max · Background mode active",
+			"disabled": "Parallel tasks disabled — enable in Settings",
+			"activeWorkers": "{{count}} active",
+			"queuedTasks": "{{count}} queued",
+			"noWorkers": "No active background workers",
+			"startTaskHint": "Send a message with 'background' to start one",
+			"footer": "Background tasks run independently of your main conversation",
+			"cancel": "Cancel",
+			"viewResult": "View Result",
+			"toolCalls": "tool calls",
+			"unknown": "Unknown"
+		},
+		"dagViz": {
+			"title": "DAG Visualization Level",
+			"description": "Choose how workflow dependency graphs are visualized in the Task Flow panel.",
+			"level": {
+				"label": "Visualization level",
+				"simple": "Simple (text tree)",
+				"graph": "Graph (SVG diagram) — recommended",
+				"interactive": "Interactive (click-to-select nodes)"
+			}
+		}
 	},
 	"about": {
 		"bugReport": {
-			"label": "Нашли ошибку?",
-			"link": "Сообщить на GitHub"
+			"label": "Found a bug?",
+			"link": "Report on GitHub"
 		},
 		"featureRequest": {
-			"label": "Есть идея?",
-			"link": "Поделитесь с нами"
+			"label": "Have an idea?",
+			"link": "Share it with us"
 		},
 		"securityIssue": {
-			"label": "Обнаружили уязвимость?",
-			"link": "Следуйте нашему процессу раскрытия"
+			"label": "Discovered a vulnerability?",
+			"link": "Follow our disclosure process"
 		},
-		"community": "Хотите получить советы или просто пообщаться с другими пользователями Zoo Code? Присоединяйтесь к <redditLink>reddit.com/r/ZooCode</redditLink> или <discordLink>discord.gg/VxfP4Vx3gX</discordLink>",
-		"contactAndCommunity": "Контакты и Сообщество",
-		"manageSettings": "Управление Настройками",
+		"community": "Want tips or to just hang out with other Zoo Code users? Join <redditLink>reddit.com/r/ZooCode</redditLink> or <discordLink>discord.gg/VxfP4Vx3gX</discordLink>",
+		"contactAndCommunity": "Contact & Community",
+		"manageSettings": "Manage Settings",
 		"debugMode": {
-			"label": "Включить режим отладки",
-			"description": "Включите режим отладки для отображения дополнительных кнопок в заголовке задачи для просмотра истории разговоров API и сообщений UI в виде форматированного JSON во временных файлах."
+			"label": "Enable debug mode",
+			"description": "Enable debug mode to show additional buttons in the task header for viewing API conversation history and UI messages as prettified JSON in temporary files."
 		}
 	},
 	"slashCommands": {
-		"description": "Управляйте своими слэш-командами для быстрого выполнения пользовательских рабочих процессов и действий. <DocsLink>Узнать больше</DocsLink>",
-		"workspaceCommands": "Команды рабочего пространства",
-		"globalCommands": "Глобальные команды",
-		"noWorkspaceCommands": "Команды в этом проекте еще не добавлены.",
-		"noGlobalCommands": "Глобальные команды еще не добавлены.",
-		"addCommand": "Добавить слэш-команду",
-		"editCommand": "Редактировать команду",
-		"deleteCommand": "Удалить команду",
+		"description": "Slash commands are shortcuts for reusable workflows and actions to be used on demand (like creating a PR, running a set of tasks, etc). <DocsLink>Learn more</DocsLink>",
+		"workspaceCommands": "Workspace Commands",
+		"globalCommands": "Global Commands",
+		"noWorkspaceCommands": "No commands in this project yet.",
+		"noGlobalCommands": "No global commands yet.",
+		"addCommand": "Add Slash Command",
+		"editCommand": "Edit command",
+		"deleteCommand": "Delete command",
 		"deleteDialog": {
-			"title": "Удалить команду",
-			"description": "Вы уверены, что хотите удалить команду \"{{name}}\"? Это действие невозможно отменить.",
-			"confirm": "Удалить",
-			"cancel": "Отмена"
+			"title": "Delete Command",
+			"description": "Are you sure you want to delete the command \"{{name}}\"? This action cannot be undone.",
+			"confirm": "Delete",
+			"cancel": "Cancel"
 		},
 		"createDialog": {
-			"title": "Создать новую слэш-команду",
-			"nameLabel": "Имя",
+			"title": "Create New Slash Command",
+			"nameLabel": "Name",
 			"namePlaceholder": "my-command-name",
-			"nameHint": "Только строчные буквы, цифры, дефисы и подчеркивания",
-			"sourceLabel": "Место",
-			"create": "Создать",
-			"cancel": "Отмена"
+			"nameHint": "Lowercase letters, numbers, hyphens and underscores only",
+			"sourceLabel": "Location",
+			"create": "Create",
+			"cancel": "Cancel"
 		},
 		"source": {
-			"global": "Глобальное (доступно во всех рабочих пространствах)",
-			"project": "Рабочее пространство"
+			"global": "Global (available in all workspaces)",
+			"project": "Workspace"
 		},
 		"validation": {
-			"nameRequired": "Имя обязательно",
-			"nameTooLong": "Имя должно быть не более 64 символов",
-			"nameInvalid": "Имя может содержать только буквы, цифры, дефисы и подчеркивания"
+			"nameRequired": "Name is required",
+			"nameTooLong": "Name must be 64 characters or less",
+			"nameInvalid": "Name must contain only letters, numbers, hyphens, and underscores"
 		},
-		"footer": "Используйте слэш-команды для быстрого доступа к часто используемым подсказкам и рабочим процессам."
+		"footer": "Use slash commands for quick access to frequently used prompts and workflows."
+	},
+	"skills": {
+		"description": "Skills encapsulate contextual instructions and workflows, which the agent can load on-demand. They can include general instructions, specific workflows and even scripts to be run as needed. <DocsLink>Learn more</DocsLink>",
+		"workspaceSkills": "Workspace Skills",
+		"globalSkills": "Global Skills",
+		"noWorkspaceSkills": "No skills in this project yet.",
+		"noGlobalSkills": "No global skills yet.",
+		"addSkill": "Add Skill",
+		"editSkill": "Edit skill",
+		"deleteSkill": "Delete skill",
+		"configureModes": "Mode availability",
+		"modeAny": "Any mode",
+		"modeCount": "{{count}} modes",
+		"deleteDialog": {
+			"title": "Delete Skill",
+			"description": "Are you sure you want to delete the skill \"{{name}}\"? This action cannot be undone.",
+			"confirm": "Delete",
+			"cancel": "Cancel"
+		},
+		"modeDialog": {
+			"title": "Configure Skill Modes",
+			"description": "Choose which modes can use this skill",
+			"intro": "To keep your context light, we recommend only making skills available for the modes that need them.",
+			"anyMode": "Any mode (available everywhere)",
+			"save": "Save",
+			"cancel": "Cancel"
+		},
+		"createDialog": {
+			"title": "Create New Skill",
+			"nameLabel": "Name",
+			"namePlaceholder": "my-skill-name (Lowercase letters, numbers, and hyphens only)",
+			"descriptionLabel": "Description",
+			"descriptionPlaceholder": "Describe when this skill should be used and its contents...",
+			"sourceLabel": "Location",
+			"modeLabel": "Mode (optional)",
+			"modePlaceholder": "Any mode",
+			"modeAny": "Any mode",
+			"modeHint": "Restrict this skill to a specific mode",
+			"create": "Create",
+			"cancel": "Cancel"
+		},
+		"source": {
+			"global": "Global (available in all projects)",
+			"project": "Project (this workspace only)"
+		},
+		"validation": {
+			"nameRequired": "Name is required",
+			"nameTooLong": "Name must be 64 characters or less",
+			"nameInvalid": "Name must be 1-64 lowercase letters, numbers, or hyphens",
+			"descriptionRequired": "Description is required",
+			"descriptionTooLong": "Description must be 1024 characters or less"
+		},
+		"footer": "Create your own skills with the Skill Writer mode, available in the <MarketplaceLink>Modes Marketplace</MarketplaceLink>."
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Collapse Thinking messages by default",
+			"description": "When enabled, thinking blocks will be collapsed by default until you interact with them"
+		},
+		"requireCtrlEnterToSend": {
+			"label": "Require {{primaryMod}}+Enter to send messages",
+			"description": "When enabled, you must press {{primaryMod}}+Enter to send messages instead of just Enter"
+		},
+		"chatFontSize": {
+			"label": "Chat font size",
+			"description": "Set the font size (in pixels) for the Zoo Code chat. Leave at the default to match VS Code's font size.",
+			"reset": "Use VS Code default"
+		}
 	},
 	"prompts": {
-		"description": "Настройте промпты поддержки, используемые для быстрых действий, таких как улучшение промптов, объяснение кода и исправление проблем. Эти промпты помогают Zoo обеспечить лучшую поддержку для общих задач разработки."
+		"description": "Configure support prompts that are used for quick actions like enhancing prompts, explaining code, and fixing issues. These prompts help Zoo provide better assistance for common development tasks."
 	},
 	"codeIndex": {
-		"title": "Индексация кодовой базы",
-		"enableLabel": "Включить индексацию кодовой базы",
-		"enableDescription": "Включите индексацию кода для улучшения поиска и понимания контекста",
-		"providerLabel": "Провайдер эмбеддингов",
-		"selectProviderPlaceholder": "Выберите провайдера",
+		"title": "Codebase Indexing",
+		"description": "Configure codebase indexing settings to enable semantic search of your project. <0>Learn more</0>",
+		"statusTitle": "Status",
+		"enableLabel": "Enable Codebase Indexing",
+		"enableDescription": "Enable code indexing for improved search and context understanding",
+		"settingsTitle": "Indexing Settings",
+		"disabledMessage": "Codebase indexing is currently disabled. Enable it in the global settings to configure indexing options.",
+		"providerLabel": "Embeddings Provider",
+		"embedderProviderLabel": "Embedder Provider",
+		"selectProviderPlaceholder": "Select provider",
 		"openaiProvider": "OpenAI",
 		"ollamaProvider": "Ollama",
 		"geminiProvider": "Gemini",
-		"geminiApiKeyLabel": "Ключ API:",
-		"geminiApiKeyPlaceholder": "Введите свой API-ключ Gemini",
-		"vercelAiGatewayProvider": "Vercel AI Gateway",
-		"vercelAiGatewayApiKeyLabel": "Ключ API",
-		"vercelAiGatewayApiKeyPlaceholder": "Введите свой API-ключ Vercel AI Gateway",
-		"bedrockProvider": "Amazon Bedrock",
-		"bedrockRegionLabel": "Регион AWS",
-		"bedrockRegionPlaceholder": "us-east-1",
-		"bedrockProfileLabel": "Профиль AWS",
-		"bedrockProfilePlaceholder": "default",
-		"bedrockProfileDescription": "Имя профиля AWS из ~/.aws/credentials (обязательно).",
-		"openRouterProvider": "OpenRouter",
-		"openRouterApiKeyLabel": "Ключ API OpenRouter",
-		"openRouterApiKeyPlaceholder": "Введите свой ключ API OpenRouter",
-		"openRouterProviderRoutingLabel": "Маршрутизация провайдера OpenRouter",
-		"openRouterProviderRoutingDescription": "OpenRouter направляет запросы к лучшим доступным провайдерам для вашей модели эмбеддинга. По умолчанию запросы балансируются между топовыми провайдерами для максимальной доступности. Однако вы можете выбрать конкретного провайдера для этой модели.",
+		"geminiApiKeyLabel": "API Key:",
+		"geminiApiKeyPlaceholder": "Enter your Gemini API key",
 		"mistralProvider": "Mistral",
-		"mistralApiKeyLabel": "Ключ API:",
-		"mistralApiKeyPlaceholder": "Введите свой API-ключ Mistral",
-		"openaiCompatibleProvider": "OpenAI-совместимый",
-		"openAiKeyLabel": "Ключ API OpenAI",
-		"openAiKeyPlaceholder": "Введите ваш ключ API OpenAI",
-		"openAiCompatibleBaseUrlLabel": "Базовый URL",
-		"openAiCompatibleApiKeyLabel": "Ключ API",
-		"openAiCompatibleApiKeyPlaceholder": "Введите ваш ключ API",
-		"openAiCompatibleModelDimensionLabel": "Размерность эмбеддинга:",
-		"modelDimensionLabel": "Размерность модели",
-		"openAiCompatibleModelDimensionPlaceholder": "напр., 1536",
-		"openAiCompatibleModelDimensionDescription": "Размерность эмбеддинга (размер выходных данных) для вашей модели. Проверьте документацию вашего провайдера для этого значения. Распространенные значения: 384, 768, 1536, 3072.",
-		"modelLabel": "Модель",
-		"selectModelPlaceholder": "Выберите модель",
-		"ollamaUrlLabel": "URL Ollama:",
-		"qdrantUrlLabel": "URL Qdrant",
-		"qdrantKeyLabel": "Ключ Qdrant:",
-		"startIndexingButton": "Начать",
-		"clearIndexDataButton": "Очистить индекс",
-		"unsavedSettingsMessage": "Пожалуйста, сохрани настройки перед запуском процесса индексации.",
+		"mistralApiKeyLabel": "API Key:",
+		"mistralApiKeyPlaceholder": "Enter your Mistral API key",
+		"vercelAiGatewayProvider": "Vercel AI Gateway",
+		"vercelAiGatewayApiKeyLabel": "API Key",
+		"vercelAiGatewayApiKeyPlaceholder": "Enter your Vercel AI Gateway API key",
+		"bedrockProvider": "Amazon Bedrock",
+		"bedrockRegionLabel": "AWS Region",
+		"bedrockRegionPlaceholder": "us-east-1",
+		"bedrockProfileLabel": "AWS Profile",
+		"bedrockProfilePlaceholder": "default",
+		"bedrockProfileDescription": "AWS profile name from ~/.aws/credentials (required).",
+		"openRouterProvider": "OpenRouter",
+		"openRouterApiKeyLabel": "OpenRouter API Key",
+		"openRouterApiKeyPlaceholder": "Enter your OpenRouter API key",
+		"openRouterProviderRoutingLabel": "OpenRouter Provider Routing",
+		"openRouterProviderRoutingDescription": "OpenRouter routes requests to the best available providers for your embedding model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
+		"openaiCompatibleProvider": "OpenAI Compatible",
+		"openAiKeyLabel": "OpenAI API Key",
+		"openAiKeyPlaceholder": "Enter your OpenAI API key",
+		"openAiCompatibleBaseUrlLabel": "Base URL",
+		"openAiCompatibleApiKeyLabel": "API Key",
+		"openAiCompatibleApiKeyPlaceholder": "Enter your API key",
+		"openAiCompatibleModelDimensionLabel": "Embedding Dimension:",
+		"modelDimensionLabel": "Model Dimension",
+		"openAiCompatibleModelDimensionPlaceholder": "e.g., 1536",
+		"openAiCompatibleModelDimensionDescription": "The embedding dimension (output size) for your model. Check your provider's documentation for this value. Common values: 384, 768, 1536, 3072.",
+		"modelLabel": "Model",
+		"modelPlaceholder": "Enter model name",
+		"selectModel": "Select a model",
+		"selectModelPlaceholder": "Select model",
+		"ollamaUrlLabel": "Ollama URL:",
+		"ollamaBaseUrlLabel": "Ollama Base URL",
+		"qdrantUrlLabel": "Qdrant URL",
+		"qdrantKeyLabel": "Qdrant Key:",
+		"qdrantApiKeyLabel": "Qdrant API Key",
+		"qdrantApiKeyPlaceholder": "Enter your Qdrant API key (optional)",
+		"setupConfigLabel": "Setup",
+		"advancedConfigLabel": "Advanced Configuration",
+		"searchMinScoreLabel": "Search Score Threshold",
+		"searchMinScoreDescription": "Minimum similarity score (0.0-1.0) required for search results. Lower values return more results but may be less relevant. Higher values return fewer but more relevant results.",
+		"searchMinScoreResetTooltip": "Reset to default value (0.4)",
+		"searchMaxResultsLabel": "Maximum Search Results",
+		"searchMaxResultsDescription": "Maximum number of search results to return when querying the codebase index. Higher values provide more context but may include less relevant results.",
+		"resetToDefault": "Reset to default",
+		"startIndexingButton": "Start Indexing",
+		"clearIndexDataButton": "Clear Index Data",
+		"unsavedSettingsMessage": "Please save your settings before starting the indexing process.",
 		"clearDataDialog": {
-			"title": "Вы уверены?",
-			"description": "Это действие нельзя отменить. Оно навсегда удалит данные индекса вашей кодовой базы.",
-			"cancelButton": "Отмена",
-			"confirmButton": "Очистить данные"
+			"title": "Are you sure?",
+			"description": "This action cannot be undone. This will permanently delete your codebase index data.",
+			"cancelButton": "Cancel",
+			"confirmButton": "Clear Data"
 		},
-		"description": "Настройте параметры индексации кодовой базы для включения семантического поиска в вашем проекте. <0>Узнать больше</0>",
-		"statusTitle": "Статус",
-		"settingsTitle": "Настройки индексации",
-		"disabledMessage": "Индексация кодовой базы в настоящее время отключена. Включите ее в глобальных настройках для настройки параметров индексации.",
-		"embedderProviderLabel": "Провайдер эмбеддера",
-		"modelPlaceholder": "Введите название модели",
-		"selectModel": "Выберите модель",
-		"ollamaBaseUrlLabel": "Базовый URL Ollama",
-		"qdrantApiKeyLabel": "API-ключ Qdrant",
-		"qdrantApiKeyPlaceholder": "Введите ваш API-ключ Qdrant (необязательно)",
-		"setupConfigLabel": "Настройка",
 		"ollamaUrlPlaceholder": "http://localhost:11434",
 		"openAiCompatibleBaseUrlPlaceholder": "https://api.example.com",
 		"modelDimensionPlaceholder": "1536",
 		"qdrantUrlPlaceholder": "http://localhost:6333",
-		"saveError": "Не удалось сохранить настройки",
-		"modelDimensions": "({{dimension}} измерений)",
-		"saveSuccess": "Настройки успешно сохранены",
-		"saving": "Сохранение...",
-		"saveSettings": "Сохранить",
+		"saveError": "Failed to save settings",
+		"modelDimensions": "({{dimension}} dimensions)",
+		"saveSuccess": "Settings saved successfully",
+		"saving": "Saving...",
+		"saveSettings": "Save",
 		"indexingStatuses": {
-			"standby": "Ожидание",
-			"indexing": "Индексация",
-			"indexed": "Проиндексировано",
-			"error": "Ошибка"
+			"standby": "Standby",
+			"indexing": "Indexing",
+			"indexed": "Indexed",
+			"error": "Error"
 		},
-		"close": "Закрыть",
+		"close": "Close",
 		"validation": {
-			"invalidQdrantUrl": "Неверный URL Qdrant",
-			"invalidOllamaUrl": "Неверный URL Ollama",
-			"invalidBaseUrl": "Неверный базовый URL",
-			"qdrantUrlRequired": "Требуется URL Qdrant",
-			"openaiApiKeyRequired": "Требуется ключ API OpenAI",
-			"modelSelectionRequired": "Требуется выбор модели",
-			"apiKeyRequired": "Требуется ключ API",
-			"modelIdRequired": "Требуется идентификатор модели",
-			"modelDimensionRequired": "Требуется размерность модели",
-			"geminiApiKeyRequired": "Требуется ключ API Gemini",
-			"mistralApiKeyRequired": "Требуется API-ключ Mistral",
-			"vercelAiGatewayApiKeyRequired": "Требуется API-ключ Vercel AI Gateway",
-			"bedrockRegionRequired": "Требуется регион AWS",
-			"bedrockProfileRequired": "Требуется профиль AWS",
-			"ollamaBaseUrlRequired": "Требуется базовый URL Ollama",
-			"baseUrlRequired": "Требуется базовый URL",
-			"modelDimensionMinValue": "Размерность модели должна быть больше 0",
-			"openRouterApiKeyRequired": "Требуется ключ API OpenRouter"
+			"qdrantUrlRequired": "Qdrant URL is required",
+			"invalidQdrantUrl": "Invalid Qdrant URL",
+			"invalidOllamaUrl": "Invalid Ollama URL",
+			"invalidBaseUrl": "Invalid base URL",
+			"openaiApiKeyRequired": "OpenAI API key is required",
+			"modelSelectionRequired": "Model selection is required",
+			"apiKeyRequired": "API key is required",
+			"modelIdRequired": "Model ID is required",
+			"modelDimensionRequired": "Model dimension is required",
+			"geminiApiKeyRequired": "Gemini API key is required",
+			"mistralApiKeyRequired": "Mistral API key is required",
+			"vercelAiGatewayApiKeyRequired": "Vercel AI Gateway API key is required",
+			"bedrockRegionRequired": "AWS region is required",
+			"bedrockProfileRequired": "AWS profile is required",
+			"openRouterApiKeyRequired": "OpenRouter API key is required",
+			"ollamaBaseUrlRequired": "Ollama base URL is required",
+			"baseUrlRequired": "Base URL is required",
+			"modelDimensionMinValue": "Model dimension must be greater than 0"
 		},
-		"optional": "необязательно",
-		"advancedConfigLabel": "Расширенная конфигурация",
-		"searchMinScoreLabel": "Порог оценки поиска",
-		"searchMinScoreDescription": "Минимальный балл сходства (0.0-1.0), необходимый для результатов поиска. Более низкие значения возвращают больше результатов, но они могут быть менее релевантными. Более высокие значения возвращают меньше результатов, но более релевантных.",
-		"searchMinScoreResetTooltip": "Сбросить к значению по умолчанию (0.4)",
-		"searchMaxResultsLabel": "Максимальное количество результатов поиска",
-		"searchMaxResultsDescription": "Максимальное количество результатов поиска, возвращаемых при запросе индекса кодовой базы. Более высокие значения предоставляют больше контекста, но могут включать менее релевантные результаты.",
-		"resetToDefault": "Сбросить к значению по умолчанию",
-		"stopIndexingButton": "Остановить индексацию",
-		"stoppingButton": "Остановка...",
-		"workspaceToggleLabel": "Включить индексацию для этого рабочего пространства",
-		"workspaceDisabledMessage": "Индексация настроена, но не включена для этого рабочего пространства.",
-		"autoEnableDefaultLabel": "Автоматически включать индексацию для новых рабочих пространств"
+		"optional": "optional",
+		"stopIndexingButton": "Stop Indexing",
+		"stoppingButton": "Stopping...",
+		"workspaceToggleLabel": "Enable indexing for this workspace",
+		"workspaceDisabledMessage": "Indexing is configured but not enabled for this workspace.",
+		"autoEnableDefaultLabel": "Auto-enable indexing for new workspaces"
 	},
 	"autoApprove": {
-		"toggleShortcut": "Вы можете настроить глобальное сочетание клавиш для этого параметра <SettingsLink>в настройках вашей IDE</SettingsLink>.",
-		"description": "Разрешить Roo автоматически выполнять операции без необходимости одобрения. Включайте эти параметры только если полностью доверяете ИИ и понимаете связанные с этим риски безопасности.",
-		"enabled": "Автоодобрение включено",
-		"toggleAriaLabel": "Переключить автоодобрение",
-		"disabledAriaLabel": "Автоодобрение отключено - сначала выберите опции",
+		"description": "Run these actions without asking for permission. Only enable for actions you fully trust and if you understand the security risks.",
+		"toggleShortcut": "You can configure a keyboard shortcut for this setting <SettingsLink>in your IDE preferences</SettingsLink>.",
+		"enabled": "Auto-Approve Enabled",
 		"readOnly": {
-			"label": "Чтение",
-			"description": "Если включено, Zoo будет автоматически просматривать содержимое каталогов и читать файлы без необходимости нажимать кнопку \"Одобрить\".",
+			"label": "Read",
+			"description": "When enabled, Zoo will automatically view directory contents and read files without requiring you to click the Approve button.",
 			"outsideWorkspace": {
-				"label": "Включая файлы вне рабочей области",
-				"description": "Разрешить Zoo читать файлы вне текущей рабочей области без необходимости одобрения."
+				"label": "Include files outside workspace",
+				"description": "Allow Zoo to read files outside the current workspace without requiring approval."
 			}
 		},
 		"write": {
-			"label": "Запись",
-			"description": "Автоматически создавать и редактировать файлы без необходимости одобрения",
-			"delayLabel": "Задержка после записи для диагностики возможных проблем",
+			"label": "Write",
+			"description": "Automatically create and edit files without requiring approval",
+			"delayLabel": "Delay after writes to allow diagnostics to detect potential problems",
 			"outsideWorkspace": {
-				"label": "Включая файлы вне рабочей области",
-				"description": "Разрешить Zoo создавать и редактировать файлы вне текущей рабочей области без необходимости одобрения."
+				"label": "Include files outside workspace",
+				"description": "Allow Zoo to create and edit files outside the current workspace without requiring approval."
 			},
 			"protected": {
-				"label": "Включить защищенные файлы",
-				"description": "Разрешить Zoo создавать и редактировать защищенные файлы (такие как .rooignore и файлы конфигурации .roo/) без необходимости одобрения."
+				"label": "Include protected files",
+				"description": "Allow Zoo to create and edit protected files (like .rooignore and .roo/ configuration files) without requiring approval."
 			}
 		},
 		"mcp": {
 			"label": "MCP",
-			"description": "Включить автоодобрение отдельных инструментов MCP в представлении MCP Servers (требуется включить как этот параметр, так и индивидуальный чекбокс инструмента \"Всегда разрешать\")"
+			"description": "Enable auto-approval of individual MCP tools in the MCP Servers view (requires both this setting and the tool's individual \"Always allow\" checkbox)"
 		},
 		"modeSwitch": {
-			"label": "Режим",
-			"description": "Автоматически переключаться между разными режимами без необходимости одобрения"
+			"label": "Mode",
+			"description": "Automatically switch between different modes without requiring approval"
 		},
 		"subtasks": {
-			"label": "Подзадачи",
-			"description": "Разрешить создание и выполнение подзадач без необходимости одобрения"
+			"label": "Subtasks",
+			"description": "Allow creation and completion of subtasks without requiring approval"
 		},
 		"followupQuestions": {
-			"label": "Вопрос",
-			"description": "Автоматически выбирать первый предложенный ответ на дополнительные вопросы после настроенного тайм-аута",
-			"timeoutLabel": "Время ожидания перед автоматическим выбором первого ответа"
+			"label": "Question",
+			"description": "Automatically select the first suggested answer for follow-up questions after the configured timeout",
+			"timeoutLabel": "Time to wait before auto-selecting the first answer"
 		},
 		"execute": {
-			"label": "Выполнение",
-			"description": "Автоматически выполнять разрешённые команды терминала без необходимости одобрения",
-			"allowedCommands": "Разрешённые авто-выполняемые команды",
-			"allowedCommandsDescription": "Префиксы команд, которые могут быть автоматически выполнены при включённом параметре \"Всегда одобрять выполнение операций\". Добавьте * для разрешения всех команд (используйте с осторожностью).",
-			"deniedCommands": "Запрещенные команды",
-			"deniedCommandsDescription": "Префиксы команд, которые будут автоматически отклонены без запроса одобрения. В случае конфликтов с разрешенными командами, приоритет имеет самое длинное совпадение префикса. Добавьте * чтобы запретить все команды.",
-			"commandPlaceholder": "Введите префикс команды (например, 'git ')",
-			"deniedCommandPlaceholder": "Введите префикс команды для запрета (например, 'rm -rf')",
-			"addButton": "Добавить",
-			"autoDenied": "Команды с префиксом `{{prefix}}` были запрещены пользователем. Не обходи это ограничение, выполняя другую команду."
+			"label": "Execute",
+			"description": "Automatically execute allowed terminal commands without requiring approval",
+			"allowedCommands": "Allowed Auto-Execute Commands",
+			"allowedCommandsDescription": "Command prefixes that can be auto-executed when \"Always approve execute operations\" is enabled. Add * to allow all commands (use with caution).",
+			"deniedCommands": "Denied Commands",
+			"deniedCommandsDescription": "Command prefixes that will be automatically denied without asking for approval. In case of conflicts with allowed commands, the longest prefix match takes precedence. Add * to deny all commands.",
+			"commandPlaceholder": "Enter command prefix (e.g., 'git ')",
+			"deniedCommandPlaceholder": "Enter command prefix to deny (e.g., 'rm -rf')",
+			"addButton": "Add",
+			"autoDenied": "Commands with the prefix `{{prefix}}` have been forbidden by the user. Do not bypass this restriction by running another command."
 		},
 		"apiRequestLimit": {
-			"title": "Максимум запросов",
-			"unlimited": "Без ограничений"
+			"title": "Max Count",
+			"unlimited": "Unlimited"
 		},
-		"selectOptionsFirst": "Выберите хотя бы один вариант ниже, чтобы включить автоодобрение",
 		"apiCostLimit": {
-			"title": "Максимальная стоимость",
-			"unlimited": "Безлимитный"
+			"title": "Max Cost",
+			"unlimited": "Unlimited"
 		},
 		"maxLimits": {
-			"description": "Автоматически выполнять запросы до указанных лимитов, прежде чем запрашивать разрешение на продолжение."
-		}
+			"description": "Automatically make requests up to these limits before asking for approval to continue."
+		},
+		"toggleAriaLabel": "Toggle auto-approval",
+		"disabledAriaLabel": "Auto-approval disabled - select options first",
+		"selectOptionsFirst": "Select at least one option below to enable auto-approval"
 	},
 	"providers": {
-		"providerDocumentation": "Документация {{provider}}",
-		"configProfile": "Профиль конфигурации",
-		"description": "Сохраняйте различные конфигурации API для быстрого переключения между провайдерами и настройками.",
-		"apiProvider": "Провайдер API",
-		"apiProviderDocs": "Документация провайдера",
-		"model": "Модель",
-		"nameEmpty": "Имя не может быть пустым",
-		"nameExists": "Профиль с таким именем уже существует",
-		"deleteProfile": "Удалить профиль",
-		"invalidArnFormat": "Неверный формат ARN. Пожалуйста, проверьте примеры выше.",
-		"enterNewName": "Введите новое имя",
-		"addProfile": "Добавить профиль",
-		"renameProfile": "Переименовать профиль",
-		"newProfile": "Новый профиль конфигурации",
-		"enterProfileName": "Введите имя профиля",
-		"createProfile": "Создать профиль",
-		"cannotDeleteOnlyProfile": "Нельзя удалить единственный профиль",
-		"searchPlaceholder": "Поиск профилей",
-		"searchProviderPlaceholder": "Поиск провайдеров",
-		"noProviderMatchFound": "Провайдеры не найдены",
-		"noMatchFound": "Совпадений не найдено",
-		"retiredProviderMessage": "Этот провайдер больше недоступен. Выберите поддерживаемого провайдера, чтобы продолжить.",
-		"vscodeLmDescription": "API языковой модели VS Code позволяет запускать модели, предоставляемые другими расширениями VS Code (включая, но не ограничиваясь GitHub Copilot). Для начала установите расширения Copilot и Copilot Chat из VS Code Marketplace.",
-		"awsCustomArnUse": "Введите действительный Amazon Bedrock ARN для используемой модели. Примеры формата:",
-		"awsCustomArnDesc": "Убедитесь, что регион в ARN совпадает с выбранным выше регионом AWS.",
-		"openRouterApiKey": "OpenRouter API-ключ",
-		"getOpenRouterApiKey": "Получить OpenRouter API-ключ",
-		"vercelAiGatewayApiKey": "Ключ API Vercel AI Gateway",
-		"getVercelAiGatewayApiKey": "Получить ключ API Vercel AI Gateway",
-		"opencodeGoApiKey": "Ключ API Opencode Go",
-		"getOpencodeGoApiKey": "Получить ключ API Opencode Go",
-		"apiKeyStorageNotice": "API-ключи хранятся безопасно в Secret Storage VSCode",
+		"providerDocumentation": "{{provider}} documentation",
+		"configProfile": "Configuration Profile",
+		"description": "Save different API configurations to quickly switch between providers and settings.",
+		"apiProvider": "API Provider",
+		"apiProviderDocs": "Provider Docs",
+		"model": "Model",
+		"nameEmpty": "Name cannot be empty",
+		"nameExists": "A profile with this name already exists",
+		"deleteProfile": "Delete Profile",
+		"invalidArnFormat": "Invalid ARN format. Please check the examples above.",
+		"enterNewName": "Enter new name",
+		"addProfile": "Add Profile",
+		"renameProfile": "Rename Profile",
+		"newProfile": "New Configuration Profile",
+		"enterProfileName": "Enter profile name",
+		"createProfile": "Create Profile",
+		"cannotDeleteOnlyProfile": "Cannot delete the only profile",
+		"searchPlaceholder": "Search profiles",
+		"searchProviderPlaceholder": "Search providers",
+		"noProviderMatchFound": "No providers found",
+		"noMatchFound": "No matching profiles found",
+		"retiredProviderMessage": "This provider is no longer available. Select a supported provider to continue.",
+		"vscodeLmDescription": " The VS Code Language Model API allows you to run models provided by other VS Code extensions (including but not limited to GitHub Copilot). The easiest way to get started is to install the Copilot and Copilot Chat extensions from the VS Code Marketplace.",
+		"awsCustomArnUse": "Enter a valid Amazon Bedrock ARN for the model you want to use. Format examples:",
+		"awsCustomArnDesc": "Make sure the region in the ARN matches your selected AWS Region above.",
+		"openRouterApiKey": "OpenRouter API Key",
+		"getOpenRouterApiKey": "Get OpenRouter API Key",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway API Key",
+		"getVercelAiGatewayApiKey": "Get Vercel AI Gateway API Key",
+		"opencodeGoApiKey": "Opencode Go API Key",
+		"getOpencodeGoApiKey": "Get Opencode Go API Key",
+		"apiKeyStorageNotice": "API keys are stored securely in VSCode's Secret Storage",
 		"openAiCodexRateLimits": {
 			"title": "Usage Limits for Codex{{planLabel}}",
 			"loading": "Loading usage limits...",
@@ -348,679 +514,611 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
-		"useCustomBaseUrl": "Использовать пользовательский базовый URL",
-		"useReasoning": "Включить рассуждения",
-		"useHostHeader": "Использовать пользовательский Host-заголовок",
-		"customHeaders": "Пользовательские заголовки",
-		"headerName": "Имя заголовка",
-		"headerValue": "Значение заголовка",
-		"noCustomHeaders": "Пользовательские заголовки не определены. Нажмите кнопку +, чтобы добавить.",
-		"unboundApiKey": "Unbound API-ключ",
-		"getUnboundApiKey": "Получить Unbound API-ключ",
-		"requestyApiKey": "Requesty API-ключ",
+		"useCustomBaseUrl": "Use custom base URL",
+		"useReasoning": "Enable reasoning",
+		"useHostHeader": "Use custom Host header",
+		"customHeaders": "Custom Headers",
+		"headerName": "Header name",
+		"headerValue": "Header value",
+		"noCustomHeaders": "No custom headers defined. Click the + button to add one.",
+		"unboundApiKey": "Unbound API Key",
+		"getUnboundApiKey": "Get Unbound API Key",
+		"requestyApiKey": "Requesty API Key",
 		"refreshModels": {
-			"label": "Обновить модели",
-			"hint": "Пожалуйста, откройте настройки заново, чтобы увидеть последние модели.",
-			"loading": "Обновление списка моделей...",
-			"success": "Список моделей успешно обновлен!",
-			"error": "Не удалось обновить список моделей. Пожалуйста, попробуйте снова."
+			"label": "Refresh Models",
+			"hint": "Please reopen the settings to see the latest models.",
+			"loading": "Refreshing models list...",
+			"success": "Models list refreshed successfully!",
+			"error": "Failed to refresh models list. Please try again."
 		},
-		"getRequestyApiKey": "Получить Requesty API-ключ",
-		"getRequestyBaseUrl": "Базовый URL",
-		"requestyUseCustomBaseUrl": "Использовать пользовательский базовый URL",
-		"anthropicApiKey": "Anthropic API-ключ",
-		"getAnthropicApiKey": "Получить Anthropic API-ключ",
-		"anthropicUseAuthToken": "Передавать Anthropic API-ключ как Authorization-заголовок вместо X-Api-Key",
-		"anthropic1MContextBetaLabel": "Включить контекстное окно 1M (бета)",
-		"anthropic1MContextBetaDescription": "Расширяет контекстное окно до 1 миллиона токенов для Claude Sonnet 4.x / Claude Opus 4.6",
-		"awsBedrock1MContextBetaLabel": "Включить контекстное окно 1M (бета)",
-		"awsBedrock1MContextBetaDescription": "Расширяет контекстное окно до 1 миллиона токенов для Claude Sonnet 4.x / Claude Opus 4.6",
-		"vertex1MContextBetaLabel": "Включить контекстное окно 1M (бета)",
-		"vertex1MContextBetaDescription": "Расширяет контекстное окно до 1 миллиона токенов для Claude Sonnet 4.x / Claude Opus 4.6",
-		"basetenApiKey": "Baseten API-ключ",
-		"getBasetenApiKey": "Получить Baseten API-ключ",
-		"poeApiKey": "API-ключ Poe",
-		"getPoeApiKey": "Получить API-ключ Poe",
-		"poeBaseUrl": "Базовый URL Poe",
-		"fireworksApiKey": "Fireworks API-ключ",
-		"getFireworksApiKey": "Получить Fireworks API-ключ",
-		"deepSeekApiKey": "DeepSeek API-ключ",
-		"getDeepSeekApiKey": "Получить DeepSeek API-ключ",
-		"moonshotApiKey": "Moonshot API-ключ",
-		"getMoonshotApiKey": "Получить Moonshot API-ключ",
-		"moonshotBaseUrl": "Точка входа Moonshot",
-		"zaiApiKey": "Z AI API-ключ",
-		"getZaiApiKey": "Получить Z AI API-ключ",
-		"zaiEntrypoint": "Точка входа Z AI",
-		"zaiEntrypointDescription": "Пожалуйста, выберите подходящую точку входа API в зависимости от вашего местоположения. Если вы находитесь в Китае, выберите open.bigmodel.cn. В противном случае выберите api.z.ai.",
-		"minimaxApiKey": "MiniMax API-ключ",
-		"getMiniMaxApiKey": "Получить MiniMax API-ключ",
-		"minimaxBaseUrl": "Точка входа MiniMax",
-		"mimoApiKey": "API-ключ MiMo",
-		"getMimoApiKey": "Получить API-ключ MiMo",
-		"mimoBaseUrl": "Точка входа MiMo",
-		"mimoBaseUrlSingapore": "Токен-план - Сингапур (По умолчанию)",
-		"mimoBaseUrlChina": "Токен-план - Китай",
-		"mimoBaseUrlEurope": "Токен-план - Европа (AMS)",
-		"mimoBaseUrlPayg": "Поминутная оплата",
-		"geminiApiKey": "Gemini API-ключ",
-		"getSambaNovaApiKey": "Получить SambaNova API-ключ",
-		"sambaNovaApiKey": "SambaNova API-ключ",
-		"getGeminiApiKey": "Получить Gemini API-ключ",
-		"apiKey": "API-ключ",
-		"openAiApiKey": "OpenAI API-ключ",
-		"openAiBaseUrl": "Базовый URL",
-		"getOpenAiApiKey": "Получить OpenAI API-ключ",
-		"mistralApiKey": "Mistral API-ключ",
-		"getMistralApiKey": "Получить Mistral / Codestral API-ключ",
-		"codestralBaseUrl": "Базовый URL Codestral (опционально)",
-		"codestralBaseUrlDesc": "Укажите альтернативный URL для модели Codestral.",
-		"xaiApiKey": "xAI API-ключ",
-		"getXaiApiKey": "Получить xAI API-ключ",
-		"litellmApiKey": "API-ключ LiteLLM",
-		"litellmBaseUrl": "Базовый URL LiteLLM",
-		"awsCredentials": "AWS-учётные данные",
-		"awsProfile": "Профиль AWS",
-		"awsApiKey": "Ключ API Amazon Bedrock",
-		"awsProfileName": "Имя профиля AWS",
+		"getRequestyApiKey": "Create new Requesty API Key",
+		"getRequestyBaseUrl": "Base URL",
+		"requestyUseCustomBaseUrl": "Use custom base URL",
+		"anthropicApiKey": "Anthropic API Key",
+		"getAnthropicApiKey": "Get Anthropic API Key",
+		"anthropicUseAuthToken": "Pass Anthropic API Key as Authorization header instead of X-Api-Key",
+		"anthropic1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"anthropic1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"awsBedrock1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"awsBedrock1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"vertex1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"vertex1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"basetenApiKey": "Baseten API Key",
+		"getBasetenApiKey": "Get Baseten API Key",
+		"poeApiKey": "Poe API Key",
+		"getPoeApiKey": "Get Poe API Key",
+		"poeBaseUrl": "Poe Base URL",
+		"fireworksApiKey": "Fireworks API Key",
+		"getFireworksApiKey": "Get Fireworks API Key",
+		"deepSeekApiKey": "DeepSeek API Key",
+		"getDeepSeekApiKey": "Get DeepSeek API Key",
+		"moonshotApiKey": "Moonshot API Key",
+		"getMoonshotApiKey": "Get Moonshot API Key",
+		"moonshotBaseUrl": "Moonshot Entrypoint",
+		"minimaxApiKey": "MiniMax API Key",
+		"getMiniMaxApiKey": "Get MiniMax API Key",
+		"minimaxBaseUrl": "MiniMax Entrypoint",
+		"mimoApiKey": "MiMo API Key",
+		"getMimoApiKey": "Get MiMo API Key",
+		"mimoBaseUrl": "MiMo Entrypoint",
+		"mimoBaseUrlSingapore": "Token Plan - Singapore (Default)",
+		"mimoBaseUrlChina": "Token Plan - China",
+		"mimoBaseUrlEurope": "Token Plan - Europe (AMS)",
+		"mimoBaseUrlPayg": "Pay-as-you-go",
+		"zaiApiKey": "Z AI API Key",
+		"getZaiApiKey": "Get Z AI API Key",
+		"zaiEntrypoint": "Z AI Entrypoint",
+		"zaiEntrypointDescription": "Please select the appropriate API entrypoint based on your location. If you are in China, choose open.bigmodel.cn. Otherwise, choose api.z.ai.",
+		"geminiApiKey": "Gemini API Key",
+		"getSambaNovaApiKey": "Get SambaNova API Key",
+		"sambaNovaApiKey": "SambaNova API Key",
+		"getGeminiApiKey": "Get Gemini API Key",
+		"openAiApiKey": "OpenAI API Key",
+		"apiKey": "API Key",
+		"openAiBaseUrl": "Base URL",
+		"getOpenAiApiKey": "Get OpenAI API Key",
+		"mistralApiKey": "Mistral API Key",
+		"getMistralApiKey": "Get Mistral / Codestral API Key",
+		"codestralBaseUrl": "Codestral Base URL (Optional)",
+		"codestralBaseUrlDesc": "Set an alternative URL for the Codestral model.",
+		"xaiApiKey": "xAI API Key",
+		"getXaiApiKey": "Get xAI API Key",
+		"litellmApiKey": "LiteLLM API Key",
+		"litellmBaseUrl": "LiteLLM Base URL",
+		"awsCredentials": "AWS Credentials",
+		"awsProfile": "AWS Profile",
+		"awsApiKey": "Amazon Bedrock API Key",
+		"awsProfileName": "AWS Profile Name",
 		"awsAccessKey": "AWS Access Key",
 		"awsSecretKey": "AWS Secret Key",
 		"awsSessionToken": "AWS Session Token",
-		"awsRegion": "Регион AWS",
-		"awsCrossRegion": "Использовать кросс-региональный вывод",
-		"awsGlobalInference": "Использовать глобальный вывод (автоматический выбор оптимального региона AWS)",
-		"awsServiceTier": "Уровень обслуживания",
-		"awsServiceTierStandard": "Стандартный",
-		"awsServiceTierStandardDesc": "Сбалансированная производительность и стоимость",
-		"awsServiceTierFlex": "Гибкий (50% скидка)",
-		"awsServiceTierFlexDesc": "Более низкая стоимость, более высокая задержка для некритичных задач",
-		"awsServiceTierPriority": "Приоритетный (75% надбавка)",
-		"awsServiceTierPriorityDesc": "Максимальная производительность для критичных приложений",
-		"awsServiceTierNote": "Уровни обслуживания влияют на цены и производительность. Гибкий предлагает 50% скидку с более высокой задержкой, Приоритетный предлагает 25% лучшую производительность с 75% надбавкой.",
+		"awsRegion": "AWS Region",
+		"awsCrossRegion": "Use cross-region inference",
+		"awsGlobalInference": "Use Global inference (auto-select optimal AWS Region)",
+		"awsServiceTier": "Service Tier",
+		"awsServiceTierStandard": "Standard",
+		"awsServiceTierStandardDesc": "Balanced performance and cost",
+		"awsServiceTierFlex": "Flex (50% discount)",
+		"awsServiceTierFlexDesc": "Lower cost, higher latency for non-critical tasks",
+		"awsServiceTierPriority": "Priority (75% premium)",
+		"awsServiceTierPriorityDesc": "Fastest performance for mission-critical applications",
+		"awsServiceTierNote": "Service tiers affect pricing and performance. Flex offers 50% discount with higher latency, Priority offers 25% better performance with 75% premium.",
 		"awsBedrockVpc": {
-			"useCustomVpcEndpoint": "Использовать пользовательскую конечную точку VPC",
-			"vpcEndpointUrlPlaceholder": "Введите URL конечной точки VPC (опционально)",
-			"examples": "Примеры:"
+			"useCustomVpcEndpoint": "Use custom VPC endpoint",
+			"vpcEndpointUrlPlaceholder": "Enter VPC Endpoint URL (optional)",
+			"examples": "Examples:"
 		},
-		"enablePromptCaching": "Включить кэширование подсказок",
-		"enablePromptCachingTitle": "Включить кэширование подсказок для повышения производительности и снижения затрат для поддерживаемых моделей.",
-		"cacheUsageNote": "Примечание: если вы не видите использование кэша, попробуйте выбрать другую модель, а затем вернуться к нужной.",
-		"vscodeLmModel": "Языковая модель",
-		"vscodeLmWarning": "Внимание: Модели, доступные через API VS Code Language Model, могут быть обёрнуты или дополнительно дообучены поставщиком, поэтому их поведение может отличаться от прямого использования той же модели у типичного провайдера или роутера. Чтобы использовать модель из выпадающего списка «Language Model», сначала переключитесь на эту модель, затем нажмите «Принять» в запросе Copilot Chat; в противном случае возможна ошибка, например 400 «The requested model is not supported».",
+		"enablePromptCaching": "Enable prompt caching",
+		"enablePromptCachingTitle": "Enable prompt caching to improve performance and reduce costs for supported models.",
+		"cacheUsageNote": "Note: If you don't see cache usage, try selecting a different model and then selecting your desired model again.",
+		"vscodeLmModel": "Language Model",
+		"vscodeLmWarning": "Note: Models accessed via the VS Code Language Model API may be wrapped or fine-tuned by the provider, so behavior can differ from using the same model directly from a typical provider or router. To use a model from the Language Model dropdown, first switch to that model and then click Accept in the Copilot Chat prompt; otherwise you may see an error such as 400 \"The requested model is not supported\".",
 		"googleCloudSetup": {
-			"title": "Для использования Google Cloud Vertex AI необходимо:",
-			"step1": "1. Создайте аккаунт Google Cloud, включите Vertex AI API и нужные модели Claude.",
-			"step2": "2. Установите Google Cloud CLI и настройте учетные данные по умолчанию.",
-			"step3": "3. Или создайте сервисный аккаунт с ключом."
+			"title": "To use Google Cloud Vertex AI, you need to:",
+			"step1": "1. Create a Google Cloud account, enable the Vertex AI API & enable the desired Claude models.",
+			"step2": "2. Install the Google Cloud CLI & configure application default credentials.",
+			"step3": "3. Or create a service account with credentials."
 		},
-		"googleCloudCredentials": "Учётные данные Google Cloud",
-		"googleCloudCredentialsPathWarning": "Это поле ожидает JSON-содержимое файла ключа сервисного аккаунта, а не путь. Если у вас есть путь, вставьте его в поле <strong>Путь к ключу Google Cloud</strong> ниже, либо очистите это поле и используйте переменную окружения <code>GOOGLE_APPLICATION_CREDENTIALS</code>.",
-		"googleCloudKeyFile": "Путь к ключу Google Cloud",
-		"googleCloudProjectId": "ID проекта Google Cloud",
-		"googleCloudRegion": "Регион Google Cloud",
+		"googleCloudCredentials": "Google Cloud Credentials",
+		"googleCloudCredentialsPathWarning": "This field expects the JSON contents of a service-account key file, not a path. If you have a path, paste it into the <strong>Google Cloud Key File Path</strong> field below, or clear this field and use the <code>GOOGLE_APPLICATION_CREDENTIALS</code> environment variable.",
+		"googleCloudKeyFile": "Google Cloud Key File Path",
+		"googleCloudProjectId": "Google Cloud Project ID",
+		"googleCloudRegion": "Google Cloud Region",
 		"lmStudio": {
-			"baseUrl": "Базовый URL (опционально)",
-			"modelId": "ID модели",
-			"speculativeDecoding": "Включить speculative decoding",
-			"draftModelId": "ID черновой модели",
-			"draftModelDesc": "Черновая модель должна быть из той же семьи моделей для корректной работы speculative decoding.",
-			"selectDraftModel": "Выбрать черновую модель",
-			"noModelsFound": "Черновых моделей не найдено. Проверьте, что LM Studio запущен с включённым серверным режимом.",
-			"description": "LM Studio позволяет запускать модели локально на вашем компьютере. Для начала ознакомьтесь с <a>кратким руководством</a>. Также необходимо включить <b>локальный сервер</b> LM Studio для работы с этим расширением. <span>Примечание:</span> Zoo Code использует сложные подсказки и лучше всего работает с моделями Claude. Менее мощные модели могут работать некорректно."
+			"baseUrl": "Base URL (optional)",
+			"modelId": "Model ID",
+			"speculativeDecoding": "Enable Speculative Decoding",
+			"draftModelId": "Draft Model ID",
+			"draftModelDesc": "Draft model must be from the same model family for speculative decoding to work correctly.",
+			"selectDraftModel": "Select Draft Model",
+			"noModelsFound": "No draft models found. Please ensure LM Studio is running with Server Mode enabled.",
+			"description": "LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their <a>quickstart guide</a>. You will also need to start LM Studio's <b>local server</b> feature to use it with this extension. <span>Note:</span> Zoo Code uses complex prompts and works best with Claude models. Less capable models may not work as expected."
 		},
 		"ollama": {
-			"baseUrl": "Базовый URL (опционально)",
-			"modelId": "ID модели",
-			"apiKey": "API-ключ Ollama",
-			"apiKeyHelp": "Опциональный API-ключ для аутентифицированных экземпляров Ollama или облачных сервисов. Оставьте пустым для локальных установок.",
-			"numCtx": "Размер контекстного окна (num_ctx)",
-			"numCtxHelp": "Переопределяет размер контекстного окна модели по умолчанию. Оставьте пустым, чтобы использовать конфигурацию Modelfile модели. Минимальное значение — 128.",
-			"description": "Ollama позволяет запускать модели локально на вашем компьютере. Для начала ознакомьтесь с кратким руководством.",
-			"warning": "Примечание: Zoo Code использует сложные подсказки и лучше всего работает с моделями Claude. Менее мощные модели могут работать некорректно."
+			"baseUrl": "Base URL (optional)",
+			"modelId": "Model ID",
+			"apiKey": "Ollama API Key",
+			"apiKeyHelp": "Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations.",
+			"numCtx": "Context Window Size (num_ctx)",
+			"numCtxHelp": "Override the model's default context window size. Leave empty to use the model's Modelfile configuration. Minimum value is 128.",
+			"description": "Ollama allows you to run models locally on your computer. For instructions on how to get started, see their quickstart guide.",
+			"warning": "Note: Zoo Code uses complex prompts and works best with Claude models. Less capable models may not work as expected."
 		},
 		"openRouter": {
 			"providerRouting": {
-				"title": "Маршрутизация провайдера OpenRouter",
-				"description": "OpenRouter направляет запросы к лучшим доступным провайдерам для вашей модели. По умолчанию запросы балансируются между топовыми провайдерами для максимальной доступности. Однако вы можете выбрать конкретного провайдера для этой модели.",
-				"learnMore": "Подробнее о маршрутизации провайдеров"
+				"title": "OpenRouter Provider Routing",
+				"description": "OpenRouter routes requests to the best available providers for your model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
+				"learnMore": "Learn more about provider routing"
 			}
 		},
 		"customModel": {
-			"capabilities": "Настройте возможности и стоимость вашей пользовательской модели, совместимой с OpenAI. Будьте осторожны при указании возможностей модели, это может повлиять на работу Zoo Code.",
+			"capabilities": "Configure the capabilities and pricing for your custom OpenAI-compatible model. Be careful when specifying the model capabilities, as they can affect how Zoo Code performs.",
 			"maxTokens": {
-				"label": "Максимум токенов на вывод",
-				"description": "Максимальное количество токенов, которые модель может сгенерировать в ответе. (Укажите -1, чтобы сервер сам определил максимум.)"
+				"label": "Max Output Tokens",
+				"description": "Maximum number of tokens the model can generate in a response. (Specify -1 to allow the server to set the max tokens.)"
 			},
 			"contextWindow": {
-				"label": "Размер окна контекста",
-				"description": "Общее количество токенов (вход + выход), которые модель может обработать."
+				"label": "Context Window Size",
+				"description": "Total tokens (input + output) the model can process."
 			},
 			"imageSupport": {
-				"label": "Поддержка изображений",
-				"description": "Может ли эта модель обрабатывать и понимать изображения?"
+				"label": "Image Support",
+				"description": "Is this model capable of processing and understanding images?"
 			},
 			"computerUse": {
-				"label": "Использование компьютера",
-				"description": "Может ли эта модель взаимодействовать с браузером?"
+				"label": "Computer Use",
+				"description": "Is this model capable of interacting with a browser?"
 			},
 			"promptCache": {
-				"label": "Кэширование подсказок",
-				"description": "Может ли эта модель кэшировать подсказки?"
+				"label": "Prompt Caching",
+				"description": "Is this model capable of caching prompts?"
 			},
 			"pricing": {
 				"input": {
-					"label": "Цена за вход",
-					"description": "Стоимость за миллион токенов во входном сообщении/подсказке. Влияет на стоимость отправки контекста и инструкций модели."
+					"label": "Input Price",
+					"description": "Cost per million tokens in the input/prompt. This affects the cost of sending context and instructions to the model."
 				},
 				"output": {
-					"label": "Цена за вывод",
-					"description": "Стоимость за миллион токенов в ответе модели. Влияет на стоимость генерируемого контента."
+					"label": "Output Price",
+					"description": "Cost per million tokens in the model's response. This affects the cost of generated content and completions."
 				},
 				"cacheReads": {
-					"label": "Цена чтения из кэша",
-					"description": "Стоимость за миллион токенов при чтении из кэша. Взимается при получении кэшированного ответа."
+					"label": "Cache Reads Price",
+					"description": "Cost per million tokens for reading from the cache. This is the price charged when a cached response is retrieved."
 				},
 				"cacheWrites": {
-					"label": "Цена записи в кэш",
-					"description": "Стоимость за миллион токенов при записи в кэш. Взимается при первом кэшировании подсказки."
+					"label": "Cache Writes Price",
+					"description": "Cost per million tokens for writing to the cache. This is the price charged when a prompt is cached for the first time."
 				}
 			},
-			"resetDefaults": "Сбросить к значениям по умолчанию"
+			"resetDefaults": "Reset to Defaults"
 		},
 		"rateLimitSeconds": {
-			"label": "Лимит скорости",
-			"description": "Минимальное время между запросами к API."
+			"label": "Rate limit",
+			"description": "Minimum time between API requests."
 		},
 		"consecutiveMistakeLimit": {
-			"label": "Лимит ошибок и повторений",
-			"description": "Количество последовательных ошибок или повторных действий перед показом диалогового окна 'У Zoo возникли проблемы'. Установите 0, чтобы отключить этот механизм безопасности (он никогда не сработает).",
-			"unlimitedDescription": "Включены неограниченные повторные попытки (автоматическое продолжение). Диалоговое окно никогда не появится.",
-			"warning": "⚠️ Установка значения 0 разрешает неограниченные повторные попытки, что может значительно увеличить использование API"
+			"label": "Error & Repetition Limit",
+			"description": "Number of consecutive errors or repeated actions before showing 'Zoo is having trouble' dialog. Set to 0 to disable this safety mechanism (it will never trigger).",
+			"unlimitedDescription": "Unlimited retries enabled (auto-proceed). The dialog will never appear.",
+			"warning": "⚠️ Setting to 0 allows unlimited retries which may consume significant API usage"
 		},
 		"reasoningEffort": {
-			"label": "Усилия по рассуждению модели",
-			"none": "Нет",
-			"minimal": "Минимальный (самый быстрый)",
-			"high": "Высокие",
-			"xhigh": "Очень высокие",
-			"medium": "Средние",
-			"low": "Низкие"
+			"label": "Model Reasoning Effort",
+			"none": "None",
+			"minimal": "Minimal (Fastest)",
+			"low": "Low",
+			"medium": "Medium",
+			"high": "High",
+			"xhigh": "Extra High"
 		},
 		"verbosity": {
-			"label": "Подробность вывода",
-			"high": "Высокая",
-			"medium": "Средняя",
-			"low": "Низкая",
-			"description": "Контролирует, насколько подробны ответы модели. Низкая подробность дает краткие ответы, а высокая — подробные объяснения."
+			"label": "Output Verbosity",
+			"high": "High",
+			"medium": "Medium",
+			"low": "Low",
+			"description": "Controls how detailed the model's responses are. Low verbosity produces concise answers, while high verbosity provides thorough explanations."
 		},
-		"setReasoningLevel": "Включить усилие рассуждения",
+		"setReasoningLevel": "Enable Reasoning Effort",
 		"claudeCode": {
-			"pathLabel": "Путь к Claude Code",
-			"description": "Необязательный путь к вашему Claude Code CLI. По умолчанию используется 'claude', если не установлено.",
-			"placeholder": "По умолчанию: claude",
-			"maxTokensLabel": "Макс. выходных токенов",
-			"maxTokensDescription": "Максимальное количество выходных токенов для ответов Claude Code. По умолчанию 8000."
+			"pathLabel": "Claude Code Path",
+			"description": "Optional path to your Claude Code CLI. Defaults to 'claude' if not set.",
+			"placeholder": "Default: claude",
+			"maxTokensLabel": "Max Output Tokens",
+			"maxTokensDescription": "Maximum number of output tokens for Claude Code responses. Default is 8000."
 		}
 	},
 	"checkpoints": {
 		"timeout": {
-			"label": "Таймаут инициализации контрольной точки (секунды)",
-			"description": "Максимальное время ожидания инициализации сервиса контрольных точек. По умолчанию 15 секунд. Диапазон: 10-60 секунд."
+			"label": "Checkpoint initialization timeout (seconds)",
+			"description": "Maximum time to wait for checkpoint service initialization. Default is 15 seconds. Range: 10-60 seconds."
 		},
 		"enable": {
-			"label": "Включить автоматические контрольные точки",
-			"description": "Если включено, Zoo будет автоматически создавать контрольные точки во время выполнения задач, что упрощает просмотр изменений или возврат к предыдущим состояниям. <0>Подробнее</0>"
+			"label": "Enable automatic checkpoints",
+			"description": "When enabled, Zoo will automatically create checkpoints during task execution, making it easy to review changes or revert to earlier states. <0>Learn more</0>"
 		}
 	},
 	"notifications": {
 		"sound": {
-			"label": "Включить звуковые эффекты",
-			"description": "Если включено, Zoo будет воспроизводить звуковые эффекты для уведомлений и событий.",
-			"volumeLabel": "Громкость"
+			"label": "Enable sound effects",
+			"description": "When enabled, Zoo will play sound effects for notifications and events.",
+			"volumeLabel": "Volume"
 		},
 		"tts": {
-			"label": "Включить озвучивание",
-			"description": "Если включено, Zoo будет озвучивать свои ответы с помощью преобразования текста в речь.",
-			"speedLabel": "Скорость"
+			"label": "Enable text-to-speech",
+			"description": "When enabled, Zoo will read aloud its responses using text-to-speech.",
+			"speedLabel": "Speed"
 		}
 	},
 	"contextManagement": {
-		"description": "Управляйте, какая информация включается в окно контекста ИИ, что влияет на расход токенов и качество ответов",
+		"description": "Control what information is included in the AI's context window, affecting token usage and response quality",
 		"autoCondenseContextPercent": {
-			"label": "Порог для запуска интеллектуального сжатия контекста",
-			"description": "Когда контекстное окно достигает этого порога, Zoo автоматически его сожмёт."
+			"label": "Threshold to trigger intelligent context condensing",
+			"description": "When the context window reaches this threshold, Zoo will automatically condense it."
 		},
 		"condensingApiConfiguration": {
-			"label": "Конфигурация API для сжатия контекста",
-			"description": "Выберите конфигурацию API для операций сжатия контекста. Оставьте невыбранным, чтобы использовать текущую активную конфигурацию.",
-			"useCurrentConfig": "По умолчанию"
+			"label": "API Configuration for Context Condensing",
+			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
+			"useCurrentConfig": "Default"
 		},
 		"customCondensingPrompt": {
-			"label": "Пользовательская подсказка для сжатия контекста",
-			"description": "Пользовательская системная подсказка для сжатия контекста. Оставьте пустым, чтобы использовать подсказку по умолчанию.",
-			"placeholder": "Введите здесь свой пользовательский промпт для сжатия...\n\nВы можете использовать ту же структуру, что и в промпте по умолчанию:\n- Предыдущий разговор\n- Текущая работа\n- Ключевые технические концепции\n- Соответствующие файлы и код\n- Решение проблем\n- Ожидающие задачи и следующие шаги",
-			"reset": "Сбросить на значение по умолчанию",
-			"hint": "Пусто = использовать промпт по умолчанию"
+			"label": "Custom Context Condensing Prompt",
+			"description": "Customize the system prompt used for context condensing. Leave empty to use the default prompt.",
+			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
+			"reset": "Reset to Default",
+			"hint": "Empty = use default prompt"
 		},
 		"autoCondenseContext": {
-			"name": "Автоматически запускать интеллектуальное сжатие контекста",
-			"description": "Когда включено, Zoo будет автоматически сжимать контекст при достижении порога. Когда отключено, вы все еще можете вручную запускать сжатие контекста."
+			"name": "Automatically trigger intelligent context condensing",
+			"description": "When enabled, Zoo will automatically condense the context when the threshold is reached. When disabled, you can still manually trigger context condensing."
 		},
 		"openTabs": {
-			"label": "Лимит контекста открытых вкладок",
-			"description": "Максимальное количество открытых вкладок VSCode, включаемых в контекст. Большее значение даёт больше контекста, но увеличивает расход токенов."
+			"label": "Open tabs context limit",
+			"description": "Maximum number of VSCode open tabs to include in context. Higher values provide more context but increase token usage."
 		},
 		"workspaceFiles": {
-			"label": "Лимит контекста файлов рабочей области",
-			"description": "Максимальное количество файлов, включаемых в детали текущей рабочей директории. Большее значение даёт больше контекста, но увеличивает расход токенов."
+			"label": "Workspace files context limit",
+			"description": "Maximum number of files to include in current working directory details. Higher values provide more context but increase token usage."
 		},
 		"rooignore": {
-			"label": "Показывать .rooignore-файлы в списках и поиске",
-			"description": "Если включено, файлы, совпадающие с шаблонами в .rooignore, будут отображаться в списках с символом замка. Если выключено, такие файлы полностью скрываются из списков и поиска."
-		},
-		"maxReadFile": {
-			"label": "Порог автообрезки при чтении файла",
-			"description": "Zoo читает столько строк, если модель не указала явно начало/конец. Если число меньше общего количества строк в файле, Zoo создаёт индекс определений кода по строкам. Особые случаи: -1 — Zoo читает весь файл (без индексации), 0 — не читает строки, а создаёт только минимальный индекс. Меньшие значения минимизируют начальный контекст, позволяя точнее читать нужные диапазоны строк. Явные запросы начала/конца не ограничиваются этим параметром.",
-			"lines": "строк",
-			"always_full_read": "Всегда читать весь файл"
+			"label": "Show .rooignore'd files in lists and searches",
+			"description": "When enabled, files matching patterns in .rooignore will be shown in lists with a lock symbol. When disabled, these files will be completely hidden from file lists and searches."
 		},
 		"maxConcurrentFileReads": {
-			"label": "Лимит одновременного чтения",
-			"description": "Максимальное количество файлов, которые инструмент 'read_file' может обрабатывать одновременно. Более высокие значения могут ускорить чтение нескольких небольших файлов, но увеличивают использование памяти."
+			"label": "Concurrent file reads limit",
+			"description": "Maximum number of files the 'read_file' tool can process concurrently. Higher values may speed up reading multiple small files but increase memory usage."
+		},
+		"maxReadFile": {
+			"label": "File read auto-truncate threshold",
+			"description": "Zoo reads this number of lines when the model omits start/end values. If this number is less than the file's total, Zoo generates a line number index of code definitions. Special cases: -1 instructs Zoo to read the entire file (without indexing), and 0 instructs it to read no lines and provides line indexes only for minimal context. Lower values minimize initial context usage, enabling precise subsequent line-range reads. Explicit start/end requests are not limited by this setting.",
+			"lines": "lines",
+			"always_full_read": "Always read entire file"
+		},
+		"maxImageFileSize": {
+			"label": "Max image file size",
+			"mb": "MB",
+			"description": "Maximum size (in MB) for image files that can be processed by the read file tool."
+		},
+		"maxTotalImageSize": {
+			"label": "Max total image size",
+			"mb": "MB",
+			"description": "Maximum cumulative size limit (in MB) for all images processed in a single read_file operation. When reading multiple images, each image's size is added to the total. If including another image would exceed this limit, it will be skipped."
 		},
 		"diagnostics": {
 			"includeMessages": {
-				"label": "Автоматически включать диагностику в контекст",
-				"description": "Если включено, диагностические сообщения (ошибки) из редактируемых файлов будут автоматически включаться в контекст. Вы всегда можете вручную включить всю диагностику рабочей области, используя @problems."
+				"label": "Automatically include diagnostics in context",
+				"description": "When enabled, diagnostic messages (errors) from edited files will be automatically included in the context. You can always manually include all workspace diagnostics using @problems."
 			},
 			"maxMessages": {
-				"label": "Максимальное количество диагностических сообщений",
-				"description": "Максимальное количество диагностических сообщений для включения в файл. Этот лимит применяется как к автоматическому включению (когда флажок включен), так и к ручным упоминаниям @problems. Более высокие значения предоставляют больше контекста, но увеличивают использование токенов.",
-				"resetTooltip": "Сбросить к значению по умолчанию (50)",
-				"unlimitedLabel": "Неограниченно"
+				"label": "Maximum diagnostic messages",
+				"description": "Limits the number of diagnostic messages (errors, warnings) included in the context. When set, only this many diagnostics will be shown, prioritizing errors over warnings. Set to 0 for unlimited diagnostics.",
+				"resetTooltip": "Reset to default value (50)",
+				"unlimitedLabel": "Unlimited"
 			},
 			"delayAfterWrite": {
-				"label": "Задержка после записи, чтобы диагностика могла обнаружить потенциальные проблемы",
-				"description": "Время ожидания после записи файлов перед продолжением, чтобы средства диагностики могли обработать изменения и выявить проблемы."
+				"label": "Delay after writes to allow diagnostics to detect potential problems",
+				"description": "Time to wait after file writes before proceeding, allowing diagnostic tools to process changes and detect issues."
 			}
 		},
 		"condensingThreshold": {
-			"label": "Порог запуска сжатия",
-			"selectProfile": "Настроить порог для профиля",
-			"defaultProfile": "Глобальный по умолчанию (все профили)",
-			"defaultDescription": "Когда контекст достигнет этого процента, он будет автоматически сжат для всех профилей, если у них нет пользовательских настроек",
-			"profileDescription": "Пользовательский порог только для этого профиля (переопределяет глобальный по умолчанию)",
-			"inheritDescription": "Этот профиль наследует глобальный порог по умолчанию ({{threshold}}%)",
-			"usesGlobal": "(использует глобальный {{threshold}}%)"
-		},
-		"maxImageFileSize": {
-			"label": "Максимальный размер файла изображения",
-			"mb": "MB",
-			"description": "Максимальный размер (в МБ) для файлов изображений, которые могут быть обработаны инструментом чтения файлов."
-		},
-		"maxTotalImageSize": {
-			"label": "Максимальный общий размер изображений",
-			"mb": "МБ",
-			"description": "Максимальный совокупный лимит размера (в МБ) для всех изображений, обрабатываемых в одной операции read_file. При чтении нескольких изображений размер каждого изображения добавляется к общему. Если включение другого изображения превысит этот лимит, оно будет пропущено."
+			"label": "Condensing Trigger Threshold",
+			"selectProfile": "Configure threshold for profile",
+			"defaultProfile": "Global Default (all profiles)",
+			"defaultDescription": "When context reaches this percentage, it will be automatically condensed for all profiles unless they have custom settings",
+			"profileDescription": "Custom threshold for this profile only (overrides global default)",
+			"inheritDescription": "This profile inherits the global default threshold ({{threshold}}%)",
+			"usesGlobal": "(uses global {{threshold}}%)"
 		},
 		"includeCurrentTime": {
-			"label": "Включить текущее время в контекст",
-			"description": "Если включено, текущее время и информация о часовом поясе будут включены в системную подсказку. Отключите, если модели прекращают работу из-за проблем со временем."
+			"label": "Include current time in context",
+			"description": "When enabled, the current time and timezone information will be included in the system prompt. Disable this if models are stopping work due to time concerns."
 		},
 		"includeCurrentCost": {
-			"label": "Включить текущую стоимость в контекст",
-			"description": "Если включено, текущая стоимость использования API будет включена в системную подсказку. Отключите, если модели прекращают работу из-за проблем со стоимостью."
+			"label": "Include current cost in context",
+			"description": "When enabled, the current API usage cost will be included in the system prompt. Disable this if models are stopping work due to cost concerns."
 		},
 		"maxGitStatusFiles": {
-			"label": "Git статус макс. файлов",
-			"description": "Максимальное количество записей файлов для включения в контекст статуса git. Установите значение 0, чтобы отключить. Информация о ветке и коммитах всегда отображается, если значение > 0."
+			"label": "Git status max files",
+			"description": "Maximum number of file entries to include in git status context. Set to 0 to disable. Branch info is always shown when > 0."
 		},
 		"enableSubfolderRules": {
-			"label": "Включить правила подпапок",
-			"description": "Рекурсивно обнаруживать и загружать файлы .roo/rules и AGENTS.md из подкаталогов. Полезно для монорепозиториев с правилами для каждого пакета."
+			"label": "Enable subfolder rules",
+			"description": "Recursively discover and load .roo/rules and AGENTS.md files from subdirectories. Useful for monorepos with per-package rules."
 		}
 	},
 	"terminal": {
 		"basic": {
-			"label": "Настройки терминала: Основные",
-			"description": "Основные настройки терминала"
+			"label": "Terminal Settings: Basic",
+			"description": "Basic terminal settings"
 		},
 		"advanced": {
-			"label": "Настройки терминала: Расширенные",
-			"description": "Эти настройки применяются только когда 'Использовать встроенный терминал' отключено. Они влияют только на терминал VS Code и могут потребовать перезапуска IDE."
+			"label": "Terminal Settings: Advanced",
+			"description": "These settings apply only when 'Use Inline Terminal' is disabled. They affect the VS Code terminal only and may require restarting the IDE."
 		},
 		"outputLineLimit": {
-			"label": "Лимит вывода терминала",
-			"description": "Сохраняет первые и последние строки и отбрасывает средние, чтобы остаться в пределах лимита. Уменьшите для экономии токенов; увеличьте, чтобы дать Zoo больше деталей из середины. Zoo видит заполнитель там, где контент пропущен.<0>Подробнее</0>"
+			"label": "Terminal output limit",
+			"description": "Keeps the first and last lines and drops the middle to stay under the limit. Lower to save tokens; raise to give Zoo more middle detail. Zoo sees a placeholder where the content is skipped.<0>Learn more</0>"
 		},
 		"outputCharacterLimit": {
-			"label": "Лимит символов терминала",
-			"description": "Переопределяет лимит строк для предотвращения проблем с памятью, устанавливая жёсткое ограничение на размер вывода. При превышении сохраняет начало и конец и показывает Zoo заполнитель там, где контент пропущен. <0>Подробнее</0>"
+			"label": "Terminal character limit",
+			"description": "Overrides the line limit to prevent memory issues by enforcing a hard cap on output size. If exceeded, keeps the beginning and end and shows a placeholder to Zoo where content is skipped. <0>Learn more</0>"
 		},
 		"outputPreviewSize": {
-			"label": "Размер предпросмотра вывода команд",
-			"description": "Контролирует, сколько вывода команды Zoo видит напрямую. Полный вывод всегда сохраняется и доступен при необходимости.",
+			"label": "Command output preview size",
+			"description": "Controls how much command output Zoo sees directly. Full output is always saved and accessible when needed.",
 			"options": {
-				"small": "Маленький (5KB)",
-				"medium": "Средний (10KB)",
-				"large": "Большой (20KB)"
+				"small": "Small (5KB)",
+				"medium": "Medium (10KB)",
+				"large": "Large (20KB)"
 			}
 		},
 		"shellIntegrationTimeout": {
-			"label": "Таймаут интеграции shell терминала",
-			"description": "Сколько ждать интеграции shell VS Code перед выполнением команд. Увеличьте, если ваш shell запускается медленно или вы видите ошибки 'Интеграция Shell Недоступна'. <0>Подробнее</0>"
+			"label": "Terminal shell integration timeout",
+			"description": "How long to wait for VS Code shell integration before running commands. Raise if your shell starts slowly or you see 'Shell Integration Unavailable' errors. <0>Learn more</0>"
 		},
 		"shellIntegrationDisabled": {
-			"label": "Использовать встроенный терминал (рекомендуется)",
-			"description": "Выполняйте команды во встроенном терминале (чат), чтобы обойти профили/интеграцию shell для более быстрого и надёжного выполнения. Когда отключено, Zoo использует терминал VS Code с вашим профилем shell, промптами и плагинами. <0>Подробнее</0>"
+			"label": "Use Inline Terminal (recommended)",
+			"description": "Run commands in the Inline Terminal (chat) to bypass shell profiles/integration for faster, more reliable runs. When disabled Zoo uses the VS Code terminal with your shell profile, prompts, and plugins. <0>Learn more</0>"
 		},
 		"commandDelay": {
-			"label": "Задержка команды терминала",
-			"description": "Добавляет короткую паузу после каждой команды, чтобы терминал VS Code мог вывести весь output (bash/zsh: PROMPT_COMMAND sleep; PowerShell: start-sleep). Используйте только если видите отсутствующий tail output; иначе оставьте 0. <0>Подробнее</0>"
+			"label": "Terminal command delay",
+			"description": "Adds a short pause after each command so the VS Code terminal can flush all output (bash/zsh: PROMPT_COMMAND sleep; PowerShell: start-sleep). Use only if you see missing tail output; otherwise leave at 0. <0>Learn more</0>"
 		},
 		"powershellCounter": {
-			"label": "Включить обходчик счётчика PowerShell",
-			"description": "Включите, когда вывод PowerShell отсутствует или дублируется; добавляет маленький счётчик к каждой команде для стабилизации вывода. Оставьте выключенным, если вывод уже выглядит корректно. <0>Подробнее</0>"
+			"label": "Enable PowerShell counter workaround",
+			"description": "Turn this on when PowerShell output is missing or duplicated; it appends a tiny counter to each command to stabilize output. Keep this off if output already looks correct. <0>Learn more</0>"
 		},
 		"zshClearEolMark": {
-			"label": "Очистить метку EOL ZSH",
-			"description": "Включите, когда видите потерянные % в конце строк или парсинг выглядит неправильно; пропускает метку конца строки (%) Zsh. <0>Подробнее</0>"
+			"label": "Clear ZSH EOL mark",
+			"description": "Turn this on when you see stray % at the end of lines or parsing looks wrong; it omits Zsh’s end‑of‑line mark (%). <0>Learn more</0>"
 		},
 		"zshOhMy": {
-			"label": "Включить интеграцию Oh My Zsh",
-			"description": "Включите, когда ваша тема/плагины Oh My Zsh ожидают интеграцию shell; устанавливает ITERM_SHELL_INTEGRATION_INSTALLED=Yes. Выключите, чтобы избежать установки этой переменной. <0>Подробнее</0>"
+			"label": "Enable Oh My Zsh integration",
+			"description": "Turn this on when your Oh My Zsh theme/plugins expect shell integration; it sets ITERM_SHELL_INTEGRATION_INSTALLED=Yes. Turn this off to avoid setting that variable. <0>Learn more</0>"
 		},
 		"zshP10k": {
-			"label": "Включить интеграцию Powerlevel10k",
-			"description": "Включите при использовании интеграции shell Powerlevel10k. <0>Подробнее</0>"
+			"label": "Enable Powerlevel10k integration",
+			"description": "Turn this on when using Powerlevel10k shell integration. <0>Learn more</0>"
 		},
 		"zdotdir": {
-			"label": "Включить обработку ZDOTDIR",
-			"description": "Включите, когда интеграция shell zsh не работает или конфликтует с вашими dotfiles. <0>Подробнее</0>"
+			"label": "Enable ZDOTDIR handling",
+			"description": "Turn this on when zsh shell integration fails or conflicts with your dotfiles. <0>Learn more</0>"
 		},
 		"inheritEnv": {
-			"label": "Наследовать переменные среды",
-			"description": "Включите для наследования переменных среды от родительского процесса VS Code. <0>Подробнее</0>"
+			"label": "Inherit environment variables",
+			"description": "Turn this on to inherit environment variables from the parent VS Code process. <0>Learn more</0>"
 		}
 	},
 	"advancedSettings": {
-		"title": "Дополнительные настройки"
+		"title": "Advanced settings"
 	},
 	"advanced": {
 		"diff": {
-			"label": "Включить редактирование через диффы",
-			"description": "Если включено, Zoo сможет быстрее редактировать файлы и автоматически отклонять усечённые полные записи",
+			"label": "Enable editing through diffs",
+			"description": "When enabled, Zoo will be able to edit files more quickly and will automatically reject truncated full-file writes",
 			"strategy": {
-				"label": "Стратегия диффа",
+				"label": "Diff strategy",
 				"options": {
-					"standard": "Стандартная (один блок)",
-					"multiBlock": "Экспериментально: Мультиблочный дифф",
-					"unified": "Экспериментально: Унифицированный дифф"
+					"standard": "Standard (Single block)",
+					"multiBlock": "Experimental: Multi-block diff",
+					"unified": "Experimental: Unified diff"
 				},
 				"descriptions": {
-					"standard": "Стандартная стратегия применяет изменения к одному блоку кода за раз.",
-					"unified": "Унифицированная стратегия использует несколько подходов к применению диффов и выбирает лучший.",
-					"multiBlock": "Мультиблочная стратегия позволяет обновлять несколько блоков кода в файле за один запрос."
+					"standard": "Standard diff strategy applies changes to a single code block at a time.",
+					"unified": "Unified diff strategy takes multiple approaches to applying diffs and chooses the best approach.",
+					"multiBlock": "Multi-block diff strategy allows updating multiple code blocks in a file in one request."
 				}
 			}
 		},
 		"todoList": {
-			"label": "Включить инструмент списка задач",
-			"description": "При включении Zoo может создавать и управлять списками задач для отслеживания прогресса. Это помогает организовать сложные задачи в управляемые шаги."
+			"label": "Enable todo list tool",
+			"description": "When enabled, Zoo can create and manage todo lists to track task progress. This helps organize complex tasks into manageable steps."
 		}
 	},
 	"experimental": {
 		"DIFF_STRATEGY_UNIFIED": {
-			"name": "Использовать экспериментальную стратегию унифицированного диффа",
-			"description": "Включает экспериментальную стратегию унифицированного диффа. Может уменьшить количество повторных попыток из-за ошибок модели, но может привести к неожиданному поведению или неверным правкам. Включайте только если готовы внимательно проверять все изменения."
+			"name": "Use experimental unified diff strategy",
+			"description": "Enable the experimental unified diff strategy. This strategy might reduce the number of retries caused by model errors but may cause unexpected behavior or incorrect edits. Only enable if you understand the risks and are willing to carefully review all changes."
 		},
 		"INSERT_BLOCK": {
-			"name": "Использовать экспериментальный инструмент вставки контента",
-			"description": "Включает экспериментальный инструмент вставки контента, позволяя Zoo вставлять контент по номеру строки без создания диффа."
-		},
-		"MULTI_SEARCH_AND_REPLACE": {
-			"name": "Использовать экспериментальный мультиблочный инструмент диффа",
-			"description": "Если включено, Zoo будет использовать мультиблочный инструмент диффа, пытаясь обновить несколько блоков кода за один запрос."
+			"name": "Use experimental insert content tool",
+			"description": "Enable the experimental insert content tool, allowing Zoo to insert content at specific line numbers without needing to create a diff."
 		},
 		"CONCURRENT_FILE_READS": {
-			"name": "Включить одновременное чтение файлов",
-			"description": "При включении Zoo может читать несколько файлов в одном запросе. При отключении Zoo должен читать файлы по одному. Отключение может помочь при работе с менее производительными моделями или когда вы хотите больше контроля над доступом к файлам."
+			"name": "Enable concurrent file reads",
+			"description": "When enabled, Zoo can read multiple files in a single request. When disabled, Zoo must read files one at a time. Disabling this can help when working with less capable models or when you want more control over file access."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Use experimental multi block diff tool",
+			"description": "When enabled, Zoo will use multi block diff tool. This will try to update multiple code blocks in the file in one request."
 		},
 		"MARKETPLACE": {
-			"name": "Включить Marketplace",
-			"description": "Когда включено, вы можете устанавливать MCP и пользовательские режимы из Marketplace."
+			"name": "Enable Marketplace",
+			"description": "When enabled, you can install MCPs and custom modes from the Marketplace."
 		},
 		"PREVENT_FOCUS_DISRUPTION": {
-			"name": "Фоновое редактирование",
-			"description": "Предотвращает нарушение фокуса редактора при включении. Редактирование файлов происходит в фоновом режиме без открытия представлений различий или кражи фокуса. Вы можете продолжать работать без перерывов, пока Zoo вносит изменения. Файлы могут открываться без фокуса для захвата диагностики или оставаться полностью закрытыми."
+			"name": "Background editing",
+			"description": "Prevent editor focus disruption when enabled. File edits happen in the background without opening diff views or stealing focus. You can continue working uninterrupted while Zoo makes changes. Files can be opened without focus to capture diagnostics or kept closed entirely."
 		},
 		"ASSISTANT_MESSAGE_PARSER": {
-			"name": "Использовать новый парсер сообщений",
-			"description": "Включите экспериментальный потоковый парсер сообщений, который ускоряет длинные ответы благодаря более эффективной обработке сообщений."
+			"name": "Use new message parser",
+			"description": "Enable the experimental streaming message parser that provides significant performance improvements for long assistant responses by processing messages more efficiently."
 		},
 		"NEW_TASK_REQUIRE_TODOS": {
-			"name": "Требовать список 'todos' для новых задач",
-			"description": "Если включено, инструмент new_task будет требовать предоставления параметра todos. Это гарантирует, что все новые задачи начинаются с четкого списка целей. Когда отключено (по умолчанию), параметр todos остается необязательным для обратной совместимости."
+			"name": "Require 'todos' list for new tasks",
+			"description": "When enabled, the new_task tool will require a todos parameter to be provided. This ensures all new tasks start with a clear list of objectives. When disabled (default), the todos parameter remains optional for backward compatibility."
 		},
 		"IMAGE_GENERATION": {
-			"providerLabel": "Провайдер",
-			"providerDescription": "Выберите провайдера для генерации изображений.",
-			"name": "Включить генерацию изображений ИИ",
-			"description": "Когда включено, Zoo может генерировать изображения из текстовых запросов, используя модели генерации изображений OpenRouter. Требует настроенный API-ключ OpenRouter.",
-			"openRouterApiKeyLabel": "API-ключ OpenRouter",
-			"openRouterApiKeyPlaceholder": "Введите ваш API-ключ OpenRouter",
-			"getApiKeyText": "Получите ваш API-ключ от",
-			"modelSelectionLabel": "Модель генерации изображений",
-			"modelSelectionDescription": "Выберите модель для генерации изображений",
-			"warningMissingKey": "⚠️ API-ключ OpenRouter необходим для генерации изображений. Настройте его выше.",
-			"successConfigured": "✓ Генерация изображений настроена и готова к использованию"
+			"name": "Enable AI image generation",
+			"description": "When enabled, Zoo can generate images from text prompts using image generation models.",
+			"providerLabel": "Provider",
+			"providerDescription": "Select which provider to use for image generation.",
+			"openRouterApiKeyLabel": "OpenRouter API Key",
+			"openRouterApiKeyPlaceholder": "Enter your OpenRouter API key",
+			"getApiKeyText": "Get your API key from",
+			"modelSelectionLabel": "Image Generation Model",
+			"modelSelectionDescription": "Select the model to use for image generation",
+			"warningMissingKey": "⚠️ OpenRouter API key is required for OpenRouter image generation. Please configure it above.",
+			"successConfigured": "✓ Image generation is configured and ready to use"
 		},
 		"RUN_SLASH_COMMAND": {
-			"name": "Включить слэш-команды, инициированные моделью",
-			"description": "Когда включено, Zoo может выполнять ваши слэш-команды для выполнения рабочих процессов."
+			"name": "Enable model-initiated slash commands",
+			"description": "When enabled, Zoo can run your slash commands to execute workflows."
 		},
 		"CUSTOM_TOOLS": {
-			"name": "Включить пользовательские инструменты",
-			"description": "Если включено, Zoo сможет загружать и использовать пользовательские инструменты TypeScript/JavaScript из каталога .roo/tools вашего проекта или ~/.roo/tools для глобальных инструментов. Примечание: эти инструменты будут одобрены автоматически.",
-			"toolsHeader": "Доступные пользовательские инструменты",
-			"noTools": "Пользовательские инструменты не загружены. Добавьте файлы .ts или .js в каталог .roo/tools вашего проекта или ~/.roo/tools для глобальных инструментов.",
-			"refreshButton": "Обновить",
-			"refreshing": "Обновление...",
-			"refreshSuccess": "Инструменты успешно обновлены",
-			"refreshError": "Не удалось обновить инструменты",
-			"toolParameters": "Параметры"
+			"name": "Enable custom tools",
+			"description": "When enabled, Zoo can load and use custom TypeScript/JavaScript tools from your project's .roo/tools directory or ~/.roo/tools for global tools. Note: these tools will automatically be auto-approved.",
+			"toolsHeader": "Available Custom Tools",
+			"noTools": "No custom tools loaded. Add .ts or .js files to your project's .roo/tools directory or ~/.roo/tools for global tools.",
+			"refreshButton": "Refresh",
+			"refreshing": "Refreshing...",
+			"refreshSuccess": "Tools refreshed successfully",
+			"refreshError": "Failed to refresh tools",
+			"toolParameters": "Parameters"
 		}
 	},
 	"promptCaching": {
-		"label": "Отключить кэширование промптов",
-		"description": "Если отмечено, Zoo не будет использовать кэширование промптов для этой модели."
+		"label": "Disable prompt caching",
+		"description": "When checked, Zoo will not use prompt caching for this model."
 	},
 	"temperature": {
-		"useCustom": "Использовать пользовательскую температуру",
-		"description": "Управляет случайностью ответов модели.",
-		"rangeDescription": "Более высокие значения делают ответы более случайными, низкие — более детерминированными."
+		"useCustom": "Use custom temperature",
+		"description": "Controls randomness in the model's responses.",
+		"rangeDescription": "Higher values make output more random, lower values make it more deterministic."
 	},
 	"modelInfo": {
-		"supportsImages": "Поддерживает изображения",
-		"noImages": "Не поддерживает изображения",
-		"supportsPromptCache": "Поддерживает кэширование подсказок",
-		"noPromptCache": "Не поддерживает кэширование подсказок",
-		"contextWindow": "Контекстное окно:",
-		"maxOutput": "Максимум вывода",
-		"inputPrice": "Цена за вход",
-		"outputPrice": "Цена за вывод",
-		"cacheReadsPrice": "Цена чтения из кэша",
-		"cacheWritesPrice": "Цена записи в кэш",
-		"enableStreaming": "Включить потоковую передачу",
-		"enableR1Format": "Включить параметры модели R1",
-		"enableR1FormatTips": "Необходимо включить при использовании моделей R1 (например, QWQ), чтобы избежать ошибок 400",
-		"useAzure": "Использовать Azure",
-		"azureApiVersion": "Установить версию API Azure",
+		"supportsImages": "Supports images",
+		"noImages": "Does not support images",
+		"supportsPromptCache": "Supports prompt caching",
+		"noPromptCache": "Does not support prompt caching",
+		"contextWindow": "Context Window:",
+		"maxOutput": "Max output",
+		"inputPrice": "Input price",
+		"outputPrice": "Output price",
+		"cacheReadsPrice": "Cache reads price",
+		"cacheWritesPrice": "Cache writes price",
+		"enableStreaming": "Enable streaming",
+		"enableR1Format": "Enable R1 model parameters",
+		"enableR1FormatTips": "Must be enabled when using R1 models such as QWQ to prevent 400 errors",
+		"useAzure": "Use Azure",
+		"azureApiVersion": "Set Azure API version",
 		"gemini": {
-			"freeRequests": "* Бесплатно до {{count}} запросов в минуту. Далее тарификация зависит от размера подсказки.",
-			"pricingDetails": "Подробнее о ценах.",
-			"billingEstimate": "* Счёт — приблизительный, точная стоимость зависит от размера подсказки."
+			"freeRequests": "* Free up to {{count}} requests per minute. After that, billing depends on prompt size.",
+			"pricingDetails": "For more info, see pricing details.",
+			"billingEstimate": "* Billing is an estimate - exact cost depends on prompt size."
 		}
 	},
 	"modelPicker": {
-		"automaticFetch": "Расширение автоматически получает актуальный список моделей на <serviceLink>{{serviceName}}</serviceLink>. Если не уверены, что выбрать, Zoo Code лучше всего работает с <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Также попробуйте поискать \"free\" для бесплатных вариантов.",
-		"label": "Модель",
-		"searchPlaceholder": "Поиск",
-		"noMatchFound": "Совпадений не найдено",
-		"useCustomModel": "Использовать пользовательскую: {{modelId}}",
-		"simplifiedExplanation": "Ты сможешь настроить подробные параметры модели позже."
+		"automaticFetch": "The extension automatically fetches the latest list of models available on <serviceLink>{{serviceName}}</serviceLink>. If you're unsure which model to choose, Zoo Code works best with <defaultModelLink>{{defaultModelId}}</defaultModelLink>. You can also try searching \"free\" for no-cost options currently available.",
+		"label": "Model",
+		"searchPlaceholder": "Search",
+		"noMatchFound": "No match found",
+		"useCustomModel": "Use custom: {{modelId}}",
+		"simplifiedExplanation": "You can adjust detailed model settings later."
 	},
 	"footer": {
 		"telemetry": {
-			"label": "Разрешить анонимную отправку ошибок и статистики использования",
-			"description": "Помогите улучшить Zoo Code, отправляя анонимные данные об использовании и отчеты об ошибках. Эта телеметрия не собирает код, промпты или личную информацию. Смотрите нашу <privacyLink>политику конфиденциальности</privacyLink> для получения подробной информации."
+			"label": "Allow anonymous error and usage reporting",
+			"description": "Help improve Zoo Code by sending anonymous usage data and error reports. This telemetry does not collect code, prompts or personal information. See our <privacyLink>privacy policy</privacyLink> for more details."
 		},
 		"settings": {
-			"import": "Импорт",
-			"export": "Экспорт",
-			"reset": "Сбросить"
+			"import": "Import",
+			"export": "Export",
+			"reset": "Reset"
 		}
 	},
 	"thinkingBudget": {
-		"maxTokens": "Максимум токенов",
-		"maxThinkingTokens": "Максимум токенов на размышления"
+		"maxTokens": "Max Tokens",
+		"maxThinkingTokens": "Max Thinking Tokens"
 	},
 	"validation": {
-		"apiKey": "Вы должны указать действительный API-ключ.",
-		"awsRegion": "Вы должны выбрать регион для использования с Amazon Bedrock.",
-		"googleCloud": "Вы должны указать действительный Project ID и регион Google Cloud.",
-		"modelId": "Вы должны указать действительный ID модели.",
-		"modelSelector": "Вы должны указать действительный селектор модели.",
-		"openAi": "Вы должны указать действительный базовый URL, API-ключ и ID модели.",
+		"apiKey": "You must provide a valid API key.",
+		"awsRegion": "You must choose a region to use with Amazon Bedrock.",
+		"googleCloud": "You must provide a valid Google Cloud Project ID and Region.",
+		"modelId": "You must provide a valid model ID.",
+		"modelSelector": "You must provide a valid model selector.",
+		"openAi": "You must provide a valid base URL, API key, and model ID.",
 		"arn": {
-			"invalidFormat": "Неверный формат ARN. Проверьте требования к формату.",
-			"regionMismatch": "Внимание: регион в вашем ARN ({{arnRegion}}) не совпадает с выбранным регионом ({{region}}). Это может вызвать проблемы с доступом. Провайдер будет использовать регион из ARN."
+			"invalidFormat": "Invalid ARN format. Please check the format requirements.",
+			"regionMismatch": "Warning: The region in your ARN ({{arnRegion}}) does not match your selected region ({{region}}). This may cause access issues. The provider will use the region from the ARN."
 		},
-		"modelAvailability": "ID модели ({{modelId}}), который вы указали, недоступен. Пожалуйста, выберите другую модель.",
-		"modelDeprecated": "Эта модель больше недоступна. Пожалуйста, выберите другую модель.",
-		"providerNotAllowed": "Провайдер '{{provider}}' не разрешен вашей организацией",
-		"modelNotAllowed": "Модель '{{model}}' не разрешена для провайдера '{{provider}}' вашей организацией",
-		"profileInvalid": "Этот профиль содержит провайдера или модель, которые не разрешены вашей организацией",
-		"qwenCodeOauthPath": "Вы должны указать допустимый путь к учетным данным OAuth"
+		"modelAvailability": "The model ID ({{modelId}}) you provided is not available. Please choose a different model.",
+		"modelDeprecated": "This model is no longer available. Please select a different model.",
+		"providerNotAllowed": "Provider '{{provider}}' is not allowed by your organization",
+		"modelNotAllowed": "Model '{{model}}' is not allowed for provider '{{provider}}' by your organization",
+		"profileInvalid": "This profile contains a provider or model that is not allowed by your organization",
+		"qwenCodeOauthPath": "You must provide a valid OAuth credentials path."
 	},
 	"placeholders": {
-		"apiKey": "Введите API-ключ...",
-		"profileName": "Введите имя профиля",
-		"accessKey": "Введите Access Key...",
-		"secretKey": "Введите Secret Key...",
-		"sessionToken": "Введите Session Token...",
-		"credentialsJson": "Введите Credentials JSON...",
-		"keyFilePath": "Введите путь к ключу...",
-		"projectId": "Введите Project ID...",
-		"customArn": "Введите ARN (например, arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
-		"baseUrl": "Введите базовый URL...",
+		"apiKey": "Enter API Key...",
+		"profileName": "Enter profile name",
+		"accessKey": "Enter Access Key...",
+		"secretKey": "Enter Secret Key...",
+		"sessionToken": "Enter Session Token...",
+		"credentialsJson": "Enter Credentials JSON...",
+		"keyFilePath": "Enter Key File Path...",
+		"projectId": "Enter Project ID...",
+		"customArn": "Enter ARN (e.g. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Enter base URL...",
 		"modelId": {
-			"lmStudio": "например, meta-llama-3.1-8b-instruct",
-			"lmStudioDraft": "например, lmstudio-community/llama-3.2-1b-instruct",
-			"ollama": "например, llama3.1"
+			"lmStudio": "e.g. meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "e.g. lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "e.g. llama3.1"
 		},
 		"numbers": {
-			"maxTokens": "например, 4096",
-			"contextWindow": "например, 128000",
-			"inputPrice": "например, 0.0001",
-			"outputPrice": "например, 0.0002",
-			"cacheWritePrice": "например, 0.00005"
+			"maxTokens": "e.g. 4096",
+			"contextWindow": "e.g. 128000",
+			"inputPrice": "e.g. 0.0001",
+			"outputPrice": "e.g. 0.0002",
+			"cacheWritePrice": "e.g. 0.00005"
 		}
 	},
 	"defaults": {
-		"ollamaUrl": "По умолчанию: http://localhost:11434",
-		"lmStudioUrl": "По умолчанию: http://localhost:1234",
-		"geminiUrl": "По умолчанию: https://generativelanguage.googleapis.com"
+		"ollamaUrl": "Default: http://localhost:11434",
+		"lmStudioUrl": "Default: http://localhost:1234",
+		"geminiUrl": "Default: https://generativelanguage.googleapis.com"
 	},
 	"labels": {
-		"customArn": "Пользовательский ARN",
-		"useCustomArn": "Использовать пользовательский ARN..."
+		"customArn": "Custom ARN",
+		"useCustomArn": "Use custom ARN..."
 	},
-	"includeMaxOutputTokens": "Включить максимальные выходные токены",
-	"includeMaxOutputTokensDescription": "Отправлять параметр максимальных выходных токенов в API-запросах. Некоторые провайдеры могут не поддерживать это.",
-	"limitMaxTokensDescription": "Ограничить максимальное количество токенов в ответе",
-	"maxOutputTokensLabel": "Максимальные выходные токены",
-	"maxTokensGenerateDescription": "Максимальные токены для генерации в ответе",
+	"includeMaxOutputTokens": "Include max output tokens",
+	"includeMaxOutputTokensDescription": "Send max output tokens parameter in API requests. Some providers may not support this.",
+	"limitMaxTokensDescription": "Limit the maximum number of tokens in the response",
+	"maxOutputTokensLabel": "Max output tokens",
+	"maxTokensGenerateDescription": "Maximum tokens to generate in response",
 	"serviceTier": {
-		"label": "Уровень обслуживания",
-		"tooltip": "Для более быстрой обработки запросов API попробуйте уровень обслуживания с приоритетной обработкой. Для более низких цен с более высокой задержкой попробуйте уровень гибкой обработки.",
-		"standard": "Стандартный",
-		"flex": "Гибкий",
-		"priority": "Приоритетный",
-		"pricingTableTitle": "Цены по уровням обслуживания (цена за 1 млн токенов)",
+		"label": "Service tier",
+		"tooltip": "For faster processing of API requests, try the priority processing service tier. For lower prices with higher latency, try the flex processing tier.",
+		"standard": "Standard",
+		"flex": "Flex",
+		"priority": "Priority",
+		"pricingTableTitle": "Pricing by service tier (price per 1M tokens)",
 		"columns": {
-			"tier": "Уровень",
-			"input": "Вход",
-			"output": "Выход",
-			"cacheReads": "Чтения из кэша"
+			"tier": "Tier",
+			"input": "Input",
+			"output": "Output",
+			"cacheReads": "Cache reads"
 		}
-	},
-	"ui": {
-		"collapseThinking": {
-			"label": "Сворачивать сообщения о размышлениях по умолчанию",
-			"description": "Если включено, блоки с размышлениями будут свернуты по умолчанию, пока вы не начнете с ними взаимодействовать"
-		},
-		"requireCtrlEnterToSend": {
-			"label": "Требовать {{primaryMod}}+Enter для отправки сообщений",
-			"description": "Если включено, необходимо нажать {{primaryMod}}+Enter для отправки сообщений вместо простого Enter"
-		},
-		"chatFontSize": {
-			"label": "Размер шрифта чата",
-			"description": "Задайте размер шрифта (в пикселях) для чата Zoo Code. Оставьте значение по умолчанию, чтобы соответствовать размеру шрифта VS Code.",
-			"reset": "Использовать значение по умолчанию VS Code"
-		}
-	},
-	"skills": {
-		"description": "Управляйте навыками, которые предоставляют контекстные инструкции агенту. Навыки автоматически применяются, когда они релевантны вашим задачам. <DocsLink>Узнать больше</DocsLink>",
-		"workspaceSkills": "Навыки рабочего пространства",
-		"globalSkills": "Глобальные Навыки",
-		"noWorkspaceSkills": "Навыки в этом проекте еще не добавлены.",
-		"noGlobalSkills": "Глобальные навыки не настроены. Создайте навык, чтобы добавить возможности агента, доступные во всех проектах.",
-		"addSkill": "Добавить Навык",
-		"editSkill": "Редактировать навык",
-		"deleteSkill": "Удалить навык",
-		"configureModes": "Доступность режима",
-		"modeAny": "Любой режим",
-		"modeCount": "{{count}} режимов",
-		"deleteDialog": {
-			"title": "Удалить Навык",
-			"description": "Вы уверены, что хотите удалить навык \"{{name}}\"? Это действие нельзя отменить.",
-			"confirm": "Удалить",
-			"cancel": "Отмена"
-		},
-		"modeDialog": {
-			"title": "Настроить режимы навыка",
-			"description": "Выберите, какие режимы могут использовать этот навык",
-			"intro": "Чтобы сохранить контекст легким, мы рекомендуем делать навыки доступными только для режимов, которые их требуют.",
-			"anyMode": "Любой режим (доступно везде)",
-			"save": "Сохранить",
-			"cancel": "Отмена"
-		},
-		"createDialog": {
-			"title": "Создать Новый Навык",
-			"nameLabel": "Имя",
-			"namePlaceholder": "my-skill-name",
-			"descriptionLabel": "Описание",
-			"descriptionPlaceholder": "Опишите, когда следует использовать этот навык...",
-			"sourceLabel": "Расположение",
-			"modeLabel": "Режим (необязательно)",
-			"modePlaceholder": "Любой режим",
-			"modeHint": "Ограничьте этот навык определенным режимом",
-			"modeAny": "Любой режим",
-			"create": "Создать",
-			"cancel": "Отмена"
-		},
-		"source": {
-			"global": "Глобальный (доступен во всех проектах)",
-			"project": "Проект (только эта рабочая область)"
-		},
-		"validation": {
-			"nameRequired": "Имя обязательно",
-			"nameTooLong": "Имя должно быть не более 64 символов",
-			"nameInvalid": "Имя должно содержать 1-64 строчные буквы, цифры или дефисы",
-			"descriptionRequired": "Описание обязательно",
-			"descriptionTooLong": "Описание должно быть не более 1024 символов"
-		},
-		"footer": "Создавайте собственные навыки с режимом Skill Writer, доступным в <MarketplaceLink>Modes Marketplace</MarketplaceLink>."
 	}
 }

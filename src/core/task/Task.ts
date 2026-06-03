@@ -139,6 +139,13 @@ const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
 const FORCED_CONTEXT_REDUCTION_PERCENT = 75 // Keep 75% of context (remove 25%) on context window errors
 const MAX_CONTEXT_WINDOW_RETRIES = 3 // Maximum retries for context window errors
 
+// Story 4.2a — DispatchState enum (replaces boolean presentAssistantMessageLocked)
+export enum DispatchState {
+	IDLE = 'idle',
+	SERIAL = 'serial',
+	PARALLEL = 'parallel', // reserved for Story 4.2b
+}
+
 export interface TaskOptions extends CreateTaskOptions {
 	provider: ClineProvider
 	apiConfiguration: ProviderSettings
@@ -299,7 +306,15 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	rooIgnoreController?: RooIgnoreController
 	rooProtectedController?: RooProtectedController
 	fileContextTracker: FileContextTracker
+
+	// Story 4.1 — Per-tool-call context for parallel execution (additive, serial path unchanged)
+	/** Maps toolCallId → per-tool rejection/terminal state for concurrent isolation */
+	activeToolContexts: Map<string, { didReject: boolean; didAlreadyUse: boolean }> = new Map()
+
+	// terminalProcess kept as single-slot for backward compat with handleTerminalOperation (serial path)
 	terminalProcess?: RooTerminalProcess
+	/** Maps toolCallId → RooTerminalProcess for parallel execution */
+	terminalProcesses: Map<string, RooTerminalProcess> = new Map()
 
 	// Editing
 	diffViewProvider: DiffViewProvider
@@ -342,8 +357,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	currentStreamingContentIndex = 0
 	currentStreamingDidCheckpoint = false
 	assistantMessageContent: AssistantMessageContent[] = []
-	presentAssistantMessageLocked = false
-	presentAssistantMessageHasPendingUpdates = false
+
+	// Story 4.2a — DispatchState machine (replaces presentAssistantMessageLocked boolean)
+	/** Controls re-entrancy of presentAssistantMessage dispatch */
+	dispatchState: DispatchState = DispatchState.IDLE
+	/** Pending work to drain after current dispatch completes (serial or parallel mode) */
+	pendingWork: { mode: 'serial' | 'parallel' } | null = null
+
 	userMessageContent: (Anthropic.TextBlockParam | Anthropic.ImageBlockParam | Anthropic.ToolResultBlockParam)[] = []
 	userMessageContentReady = false
 
@@ -2618,13 +2638,17 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				this.userMessageContentReady = false
 				this.didRejectTool = false
 				this.didAlreadyUseTool = false
+				// Story 4.1 — Clear per-tool-call contexts for new API request
+				this.activeToolContexts.clear()
+				this.terminalProcesses.clear()
 				this.assistantMessageSavedToHistory = false
 				// Reset tool failure flag for each new assistant turn - this ensures that tool failures
 				// only prevent attempt_completion within the same assistant message, not across turns
 				// (e.g., if a tool fails, then user sends a message saying "just complete anyway")
 				this.didToolFailInCurrentTurn = false
-				this.presentAssistantMessageLocked = false
-				this.presentAssistantMessageHasPendingUpdates = false
+				// Story 4.2a — Reset dispatch state machine for new API request
+				this.dispatchState = DispatchState.IDLE
+				this.pendingWork = null
 				// No legacy text-stream tool parser.
 				this.streamingToolCallIndices.clear()
 				// Clear any leftover streaming tool call state from previous interrupted streams
@@ -3441,17 +3465,24 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				}
 
 				// Present any partial blocks that were just completed.
-				// Tool calls are typically presented during streaming via tool_call_partial events,
-				// but we still present here if any partial blocks remain (e.g., malformed streams).
-				// NOTE: This MUST happen AFTER saving the assistant message to API history.
-				// When new_task is in the batch, it triggers delegation which calls flushPendingToolResultsToHistory().
-				// If the assistant message isn't saved yet, tool_results would appear before tool_use blocks.
-				if (partialBlocks.length > 0) {
-					// If there is content to update then it will complete and
-					// update `this.userMessageContentReady` to true, which we
-					// `pWaitFor` before making the next request.
-					presentAssistantMessage(this)
-				}
+						// Tool calls are typically presented during streaming via tool_call_partial events,
+						// but we still present here if any partial blocks remain (e.g., malformed streams).
+						// NOTE: This MUST happen AFTER saving the assistant message to API history.
+						// When new_task is in the batch, it triggers delegation which calls flushPendingToolResultsToHistory().
+						// If the assistant message isn't saved yet, tool_results would appear before tool_use blocks.
+
+						// Story 4.2b — Parallel dispatch: if experiment flag enabled and we have multiple tools,
+						// dispatch them all in parallel instead of serial presentAssistantMessage loop.
+						const experiments = (await this.providerRef.deref()?.getState())?.experiments ?? {}
+						if (experiments.parallelToolExecution && partialBlocks.length > 1) {
+							import("../assistant-message/presentAssistantMessage").then(({ presentAssistantMessageParallel }) => {
+								presentAssistantMessageParallel(this).catch((err) =>
+									console.error(`[Task#${this.taskId}] Parallel dispatch error:`, err),
+								)
+							})
+						} else if (partialBlocks.length > 0) {
+							presentAssistantMessage(this)
+						}
 
 				if (hasTextContent || hasToolUses) {
 					// NOTE: This comment is here for future reference - this was a

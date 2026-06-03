@@ -16,6 +16,14 @@ import { customModePromptsSchema, customSupportPromptsSchema } from "./mode.js"
 import { toolNamesSchema } from "./tool.js"
 import { languagesSchema } from "./vscode.js"
 
+/** Zod schema for WorkerHeartbeatSettings (parallel task heartbeat config) */
+export const workerHeartbeatSettingsSchema = z.object({
+	updateIntervalSeconds: z.number().int().min(10).max(60).optional(),
+	mode: z.enum(["all", "errors_only", "none"]).optional(),
+})
+
+export type WorkerHeartbeatSettingsSchema = z.infer<typeof workerHeartbeatSettingsSchema>
+
 /**
  * Default delay in milliseconds after writes to allow diagnostics to detect potential problems.
  * This delay is particularly important for Go and other languages where tools like goimports
@@ -299,6 +307,19 @@ export const globalSettingsSchema = z.object({
 	parallelTaskNotificationModeSearch: z.enum(["all", "errors_only", "none"]).optional(),
 	parallelTaskNotificationModeDoc: z.enum(["all", "errors_only", "none"]).optional(),
 	parallelTaskNotificationModeCommit: z.enum(["all", "errors_only", "none"]).optional(),
+
+	/** Default task type for new tasks when parallel mode is enabled ("main" | "search" | "doc" | "commit") */
+	parallelTaskDefaultMode: z.enum(["main", "search", "doc", "commit"]).optional(),
+
+	// ── TaskFlow DAG Visualization (Phase 7j) ──
+
+	/** DAG visualization level for TaskFlowPanel — controls how workflows are rendered in the UI */
+	parallelTaskDagVisualizationLevel: z.enum(["simple", "graph", "interactive"]).optional(),
+
+	// ── Heartbeat Settings (Phase 6b) ──
+
+	/** Worker heartbeat configuration — controls how often workers emit heartbeats and what gets shown in UI */
+	workerHeartbeatSettings: workerHeartbeatSettingsSchema.optional(),
 })
 
 export type GlobalSettings = z.infer<typeof globalSettingsSchema>

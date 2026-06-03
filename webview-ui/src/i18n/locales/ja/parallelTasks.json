@@ -1,0 +1,100 @@
+{
+	"states": {
+		"pending": "Pending",
+		"waiting": "Waiting",
+		"running": "Running",
+		"completed": "Completed",
+		"failed": "Failed",
+		"paused": "Paused",
+		"skipped": "Skipped",
+		"cancelled": "Cancelled"
+	},
+	"taskFlow": {
+		"title": "Task Flow",
+		"legend": "Status colors: pending, waiting, running, completed, failed, paused, skipped, cancelled",
+		"nodes": "nodes",
+		"loading": "Loading workflow...",
+		"viz": {
+			"simple": "Simple",
+			"graph": "Graph",
+			"interactive": "Interactive"
+		},
+		"chatPlaceholder": "Control your workflow with natural language or commands",
+		"openInPanel": "Open in Panel"
+	},
+	"chatCommands": {
+		"title": "Chat Commands",
+		"description": "Use slash commands or natural language to control workflows.",
+		"available": "/list /status /pause-all /resume-all /cancel-all",
+		"send": "Send",
+		"commands": {
+			"list": "List all nodes and their status",
+			"status": "Show detailed status of a specific node",
+			"pauseAll": "Pause all running nodes in the workflow",
+			"resumeAll": "Resume all paused nodes in the workflow",
+			"cancelAll": "Cancel all active nodes in the workflow",
+			"pauseNode": "Pause a specific node (e.g., 'pause B')",
+			"resumeNode": "Resume a specific node (e.g., 'resume B')",
+			"skipNode": "Skip a specific node and its dependents (e.g., 'skip B')",
+			"cancelNode": "Cancel a specific node (e.g., 'cancel B')"
+		}
+	},
+	"panel": {
+		"title": "Task Flow Panel",
+		"noWorkflow": "No workflow selected",
+		"selectWorkflow": "Select or create a workflow to get started",
+		"createWorkflow": "Create Workflow",
+		"importWorkflow": "Import Workflow",
+		"actions": {
+			"pause": "Pause",
+			"resume": "Resume",
+			"cancel": "Cancel",
+			"skip": "Skip",
+			"pauseWorkflow": "Pause Workflow",
+			"resumeWorkflow": "Resume Workflow",
+			"cancelAll": "Cancel All"
+		},
+		"activeWorkers": "{{count}} active worker{{#if gt count 1}}s{{/if}}",
+		"disabled": "Parallel tasks disabled",
+		"enabled": "Parallel tasks enabled — max {{maxConcurrent}} concurrent workers",
+		"footer": "Background workers run independently of the main task",
+		"noWorkers": "No active background workers",
+		"queuedTasks": "{{count}} queued{{#if gt count 1}}s{{/if}}",
+		"startTaskHint": "Click + to start a new parallel task",
+		"toolCalls": "tool calls",
+		"viewResult": "View Result",
+		"workflow": "Workflow:",
+		"cancel": "Cancel",
+		"clearWorkflow": "Clear Workflow"
+	},
+	"dagViz": {
+		"title": "DAG Visualization Level",
+		"description": "Choose how workflow dependencies are visualized in the Task Flow panel.",
+		"level": {
+			"label": "Visualization level",
+			"simple": "Simple (text tree)",
+			"graph": "Graph (SVG diagram) — recommended",
+			"interactive": "Interactive (click-to-select nodes)"
+		}
+	},
+	"errorPolicy": {
+		"title": "Error Policy",
+		"description": "Control how workflow errors affect downstream tasks.",
+		"presets": {
+			"continue": "Continue — downstream tasks proceed regardless",
+			"skipDependents": "Skip Dependents — skip tasks that depend on the failed node",
+			"stopDownstream": "Stop Downstream — halt all remaining tasks",
+			"retry": "Retry — attempt to re-run the failed task once"
+		},
+		"defaultPolicy": {
+			"label": "Default error policy for new workflows",
+			"description": "Applied when a workflow doesn't specify per-node overrides."
+		}
+	},
+	"heartbeats": {
+		"title": "Worker Heartbeat",
+		"openTaskFlow": "Open TaskFlow Agent",
+		"currentAction": "Current action",
+		"toolCalls": "tool calls"
+	}
+}

@@ -632,11 +632,11 @@ export const webviewMessageHandler = async (
 
 				// Check if this is a parallel background task (has taskType)
 				const validTaskTypes = ["search", "doc", "commit", "code", "debug", "general"] as const
-				if (message.taskType && validTaskTypes.includes(message.taskType)) {
+				if (message.taskType && (validTaskTypes as readonly string[]).includes(message.taskType)) {
 					// Route through BGWorkerManager for parallel task mode
 					await provider.spawnBackgroundTask({
 						description: message.taskId ?? `task-${Date.now()}`,
-						mode: message.taskConfiguration ?? "code",
+						mode: typeof message.taskConfiguration === "string" ? message.taskConfiguration : "code",
 						message: resolved.text,
 						todos: message.todos ?? null,
 						taskType: message.taskType as (typeof validTaskTypes)[number],
@@ -3651,6 +3651,244 @@ export const webviewMessageHandler = async (
 				provider.log(`Error opening folder picker: ${errorMessage}`)
 			}
 
+			break
+		}
+
+		case "openTaskFlow": { // TaskFlowAgent (Phase 7d): open workflow from heartbeat card
+			const workflowId = message.workflowId
+			if (!workflowId) {
+				console.warn("[webviewMessageHandler] openTaskFlow called without workflowId")
+				break
+			}
+
+			// Navigate to parallel tasks tab and load the specific workflow
+			await provider.postMessageToWebview({
+				type: "action",
+				action: "parallelTasksButtonClicked",
+				values: { workflowId },
+			})
+			break
+		}
+
+		case "loadTaskFlow": { // TaskFlowAgent (Phase 7d): load specific workflow details in panel
+			const workflowId = message.workflowId
+			if (!workflowId) {
+				console.warn("[webviewMessageHandler] loadTaskFlow called without workflowId")
+				break
+			}
+
+			// Fetch the workflow from file store and post to webview for display
+			try {
+				const { readWorkflowFile } = await import("../../core/parallel/WorkflowFileStore.js")
+				const workflow = readWorkflowFile(workflowId)
+
+				if (workflow) {
+					await provider.postMessageToWebview({
+						type: "taskFlowLoaded",
+						workflow,
+					})
+				} else {
+					console.warn(`[webviewMessageHandler] Workflow "${workflowId}" not found`)
+					await provider.postMessageToWebview({
+						type: "taskFlowLoadError",
+						error: `Workflow "${workflowId}" not found`,
+					})
+				}
+			} catch (error) {
+				console.error("[webviewMessageHandler] Failed to load workflow:", error)
+				await provider.postMessageToWebview({
+					type: "taskFlowLoadError",
+					error: `Failed to load workflow: ${error instanceof Error ? error.message : String(error)}`,
+				})
+			}
+			break
+		}
+
+		case "taskFlowAction": { // TaskFlowAgent (Phase 7l): handle node actions from UI
+			const workflowId = message.workflowId as string | undefined
+			const nodeId = message.nodeId as string | undefined
+			const action = message.action as string | undefined
+			const additionalPrompt = message.additional_prompt as string | undefined
+
+			if (!workflowId || !nodeId || !action) {
+				console.warn("[webviewMessageHandler] taskFlowAction called without required fields")
+				break
+			}
+
+			// Get the TaskFlowAgent for this workflow
+			const agent: any = (provider as any)._taskFlowAgent
+			if (!agent) {
+				await provider.postMessageToWebview({
+					type: "taskFlowActionResult",
+					success: false,
+					error: "No active TaskFlowAgent",
+				})
+				break
+			}
+
+			try {
+				let success = false
+				let resultMessage = ""
+
+				switch (action) {
+					case "pause":
+						success = agent.pauseNode(nodeId)
+						resultMessage = `Node "${nodeId}" paused`
+						break
+
+					case "resume":
+						success = agent.resumeNode(nodeId)
+						resultMessage = `Node "${nodeId}" resumed`
+						break
+
+					case "cancel":
+						success = agent.cancelNode(nodeId)
+						resultMessage = `Node "${nodeId}" cancelled`
+						break
+
+					case "skip":
+						success = agent.skipNode(nodeId)
+						resultMessage = `Node "${nodeId}" skipped`
+						break
+
+					case "restart":
+						success = await agent.restartNode(nodeId, additionalPrompt)
+						resultMessage = `Node "${nodeId}" restarted${additionalPrompt ? " with updated prompt" : ""}`
+						break
+
+					case "continue":
+						success = await agent.continueNode(nodeId, additionalPrompt || action)
+						resultMessage = `Node "${nodeId}" continued`
+						break
+
+					case "split": {
+						const splits = message.splits as Array<{ id: string; description: string; type?: string }> | undefined
+						if (splits && splits.length > 0) {
+							success = await agent.splitNode(nodeId, splits)
+							resultMessage = `Node "${nodeId}" split into ${splits.map((s) => s.id).join(", ")}`
+						} else {
+							resultMessage = "No split definitions provided"
+						}
+						break
+					}
+
+					case "add": {
+						const addId = message.addNodeId as string | undefined
+						const addDescription = message.addDescription as string | undefined
+						const addType = (message.addType as any) ?? "code"
+						const dependsOn = (message.dependsOn as string[]) ?? []
+
+						if (!addId || !addDescription) {
+							resultMessage = "Missing nodeId or description for new node"
+							break
+						}
+
+						success = await agent.addNode(addId, addDescription, addType, dependsOn)
+						resultMessage = success ? `Node "${addId}" added` : `Failed to add node "${addId}" (duplicate ID?)`
+						break
+					}
+
+					case "pause_workflow":
+						// Pause all running nodes
+						for (const node of agent.getNodes()) {
+							if (node.status === "running") {
+								agent.pauseNode(node.id)
+							}
+						}
+						success = true
+						resultMessage = "All nodes paused"
+						break
+
+					case "resume_workflow":
+						// Resume all paused nodes
+						for (const node of agent.getNodes()) {
+							if (node.status === "paused") {
+								agent.resumeNode(node.id)
+							}
+						}
+						success = true
+						resultMessage = "All nodes resumed"
+						break
+
+					case "cancel_all":
+						for (const node of agent.getNodes()) {
+							if (node.status === "running") {
+								agent.cancelNode(node.id)
+							}
+						}
+						success = true
+						resultMessage = "All running nodes cancelled"
+						break
+
+					default:
+						console.warn(`[webviewMessageHandler] Unknown taskFlowAction: ${action}`)
+						await provider.postMessageToWebview({
+							type: "taskFlowActionResult",
+							success: false,
+							error: `Unknown action: ${action}`,
+						})
+						break
+				}
+
+				if (success !== undefined) {
+					await provider.postMessageToWebview({
+						type: "taskFlowActionResult",
+						success,
+						message: resultMessage,
+						nodeId,
+					})
+
+					// Refresh workflow state in webview
+					const { readWorkflowFile } = await import("../../core/parallel/WorkflowFileStore.js")
+					const updatedWorkflow = readWorkflowFile(workflowId)
+					if (updatedWorkflow) {
+						await provider.postMessageToWebview({
+							type: "taskFlowUpdate",
+							workflow: updatedWorkflow,
+						})
+					}
+				}
+			} catch (error) {
+				console.error("[webviewMessageHandler] taskFlowAction error:", error)
+				await provider.postMessageToWebview({
+					type: "taskFlowActionResult",
+					success: false,
+					error: error instanceof Error ? error.message : String(error),
+				})
+			}
+			break
+		}
+
+		case "getTaskFlow": { // TaskFlowAgent (Phase 7l): get workflow details from UI
+			const wfId = message.workflowId as string | undefined
+			if (!wfId) {
+				console.warn("[webviewMessageHandler] getTaskFlow called without workflowId")
+				break
+			}
+
+			try {
+				const { readWorkflowFile } = await import("../../core/parallel/WorkflowFileStore.js")
+				const workflow = readWorkflowFile(wfId)
+
+				if (workflow) {
+					await provider.postMessageToWebview({
+						type: "taskFlowLoaded",
+						workflow,
+					})
+				} else {
+					console.warn(`[webviewMessageHandler] Workflow "${wfId}" not found`)
+					await provider.postMessageToWebview({
+						type: "taskFlowLoadError",
+						error: `Workflow "${wfId}" not found`,
+					})
+				}
+			} catch (error) {
+				console.error("[webviewMessageHandler] Failed to get workflow:", error)
+				await provider.postMessageToWebview({
+					type: "taskFlowLoadError",
+					error: `Failed to get workflow: ${error instanceof Error ? error.message : String(error)}`,
+				})
+			}
 			break
 		}
 

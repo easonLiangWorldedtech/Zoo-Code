@@ -1,322 +1,488 @@
 {
-	"back": "Wróć do widoku zadań",
+	"back": "Back to tasks view",
 	"common": {
-		"save": "Zapisz",
-		"done": "Gotowe",
-		"cancel": "Anuluj",
-		"reset": "Resetuj",
-		"select": "Wybierz",
-		"add": "Dodaj nagłówek",
-		"remove": "Usuń"
-	},
-	"search": {
-		"placeholder": "Szukaj ustawień...",
-		"noResults": "Nie znaleziono ustawień"
+		"save": "Save",
+		"done": "Done",
+		"cancel": "Cancel",
+		"reset": "Reset",
+		"select": "Select",
+		"add": "Add Header",
+		"remove": "Remove"
 	},
 	"header": {
-		"title": "Ustawienia",
-		"saveButtonTooltip": "Zapisz zmiany",
-		"nothingChangedTooltip": "Nic się nie zmieniło",
-		"doneButtonTooltip": "Odrzuć niezapisane zmiany i zamknij panel ustawień"
+		"title": "Settings",
+		"saveButtonTooltip": "Save changes",
+		"nothingChangedTooltip": "Nothing changed",
+		"doneButtonTooltip": "Discard unsaved changes and go back to tasks view"
+	},
+	"search": {
+		"placeholder": "Search settings...",
+		"noResults": "No settings found"
 	},
 	"unsavedChangesDialog": {
-		"title": "Niezapisane zmiany",
-		"description": "Czy chcesz odrzucić zmiany i kontynuować?",
-		"cancelButton": "Anuluj",
-		"discardButton": "Odrzuć zmiany"
+		"title": "Unsaved Changes",
+		"description": "Do you want to discard changes and continue?",
+		"cancelButton": "Cancel",
+		"discardButton": "Discard changes"
 	},
 	"sections": {
-		"providers": "Dostawcy",
-		"modes": "Tryby",
-		"mcp": "Serwery MCP",
+		"providers": "Providers",
+		"modes": "Modes",
+		"mcp": "MCP Servers",
 		"worktrees": "Worktrees",
-		"autoApprove": "Auto-zatwierdzanie",
-		"checkpoints": "Punkty kontrolne",
-		"notifications": "Powiadomienia",
-		"contextManagement": "Kontekst",
+		"skills": "Skills",
+		"autoApprove": "Auto-Approve",
+		"checkpoints": "Checkpoints",
+		"notifications": "Notifications",
+		"contextManagement": "Context",
 		"terminal": "Terminal",
-		"slashCommands": "Polecenia Slash",
-		"prompts": "Podpowiedzi",
+		"slashCommands": "Slash Commands",
+		"prompts": "Prompts",
 		"ui": "UI",
-		"experimental": "Eksperymentalne",
-		"language": "Język",
-		"about": "O Zoo Code",
-		"skills": "Skills"
+		"experimental": "Experimental",
+		"language": "Language",
+		"about": "About Zoo Code",
+		"parallelTasks": "Parallel Tasks"
+	},
+	"parallelTasks": {
+		"description": "Configure background workers that run in parallel with your main task. Each worker can use a different model/provider to optimize cost and speed.",
+		"enabled": {
+			"label": "Enable parallel tasks",
+			"description": "When enabled, you can send background tasks that run alongside your main conversation."
+		},
+		"maxConcurrent": {
+			"label": "Maximum concurrent workers",
+			"description": "Number of background workers that can run simultaneously (1-16)."
+		},
+		"taskSelector": {
+			"label": "Task type for new tasks:",
+			"main": "Main task",
+			"activeWorkers": "{{count}} active · ",
+			"queued": "{{count}} queued"
+		},
+		"heartbeatSettings": {
+			"title": "Heartbeat Settings",
+			"description": "Control how background worker progress is displayed in the chat.",
+			"mode": {
+				"label": "Heartbeat mode",
+				"all": "Show all workers",
+				"errorsOnly": "Show errors only",
+				"none": "Hide heartbeats"
+			},
+			"interval": {
+				"label": "Update interval (seconds)",
+				"description": "How often worker progress updates appear in chat. Range: 10-60s."
+			}
+		},
+		"modeMapping": {
+			"title": "Task Type → Model Mapping",
+			"description": "Assign different models to different task types. Leave empty to inherit from main task settings.",
+			"inherit": "Inherit from main task",
+			"modelPlaceholder": "Model ID (e.g., gpt-4o-mini)"
+		},
+		"autoApprove": {
+			"title": "Auto-Approve Per Task Type",
+			"description": "Control which tools background workers can use without approval for each task type.",
+			"permissions": {
+				"readFiles": "Read files",
+				"writeFiles": "Write files",
+				"executeCommands": "Execute commands",
+				"browserActions": "Browser actions"
+			}
+		},
+		"limits": {
+			"title": "Limits Per Task Type",
+			"description": "Set maximum tool calls, cost ($), and tokens per task type. Leave empty to use defaults."
+		},
+		"contextRetention": {
+			"minimal": "Minimal (1 pair)",
+			"moderate": "Moderate (3 pairs)",
+			"full": "Full (8 pairs)"
+		},
+		"notificationMode": {
+			"all": "All",
+			"errorsOnly": "Errors only",
+			"none": "None"
+		},
+		"taskTypes": {
+			"search": "Search",
+			"doc": "Doc",
+			"commit": "Commit",
+			"code": "Code",
+			"debug": "Debug",
+			"general": "General"
+		},
+		"autoDetect": {
+			"label": "Auto-detect task type from message content (Phase 2+)",
+			"description": "Automatically classify background tasks by analyzing the message content."
+		},
+		"panel": {
+			"title": "Parallel Tasks",
+			"enabled": "{{maxConcurrent}} workers max · Background mode active",
+			"disabled": "Parallel tasks disabled — enable in Settings",
+			"activeWorkers": "{{count}} active",
+			"queuedTasks": "{{count}} queued",
+			"noWorkers": "No active background workers",
+			"startTaskHint": "Send a message with 'background' to start one",
+			"footer": "Background tasks run independently of your main conversation",
+			"cancel": "Cancel",
+			"viewResult": "View Result",
+			"toolCalls": "tool calls",
+			"unknown": "Unknown"
+		},
+		"dagViz": {
+			"title": "DAG Visualization Level",
+			"description": "Choose how workflow dependency graphs are visualized in the Task Flow panel.",
+			"level": {
+				"label": "Visualization level",
+				"simple": "Simple (text tree)",
+				"graph": "Graph (SVG diagram) — recommended",
+				"interactive": "Interactive (click-to-select nodes)"
+			}
+		}
 	},
 	"about": {
 		"bugReport": {
-			"label": "Znalazłeś błąd?",
-			"link": "Zgłoś na GitHub"
+			"label": "Found a bug?",
+			"link": "Report on GitHub"
 		},
 		"featureRequest": {
-			"label": "Masz pomysł?",
-			"link": "Podziel się nim z nami"
+			"label": "Have an idea?",
+			"link": "Share it with us"
 		},
 		"securityIssue": {
-			"label": "Odkryłeś lukę w zabezpieczeniach?",
-			"link": "Postępuj zgodnie z naszym procesem ujawniania"
+			"label": "Discovered a vulnerability?",
+			"link": "Follow our disclosure process"
 		},
-		"community": "Chcesz wskazówek lub po prostu porozmawiać z innymi użytkownikami Zoo Code? Dołącz do <redditLink>reddit.com/r/ZooCode</redditLink> lub <discordLink>discord.gg/VxfP4Vx3gX</discordLink>",
-		"contactAndCommunity": "Kontakt i Społeczność",
-		"manageSettings": "Zarządzaj Ustawieniami",
+		"community": "Want tips or to just hang out with other Zoo Code users? Join <redditLink>reddit.com/r/ZooCode</redditLink> or <discordLink>discord.gg/VxfP4Vx3gX</discordLink>",
+		"contactAndCommunity": "Contact & Community",
+		"manageSettings": "Manage Settings",
 		"debugMode": {
-			"label": "Włącz tryb debugowania",
-			"description": "Włącz tryb debugowania, aby wyświetlić dodatkowe przyciski w nagłówku zadania umożliwiające przeglądanie historii konwersacji API i komunikatów UI jako sformatowany JSON w plikach tymczasowych."
+			"label": "Enable debug mode",
+			"description": "Enable debug mode to show additional buttons in the task header for viewing API conversation history and UI messages as prettified JSON in temporary files."
 		}
 	},
 	"slashCommands": {
-		"description": "Zarządzaj poleceniami slash, aby szybko wykonywać niestandardowe przepływy pracy i akcje. <DocsLink>Dowiedz się więcej</DocsLink>",
-		"workspaceCommands": "Polecenia obszaru roboczego",
-		"globalCommands": "Polecenia globalne",
-		"noWorkspaceCommands": "Brak poleceń w tym projekcie.",
-		"noGlobalCommands": "Brak poleceń globalnych.",
-		"addCommand": "Dodaj polecenie Slash",
-		"editCommand": "Edytuj polecenie",
-		"deleteCommand": "Usuń polecenie",
+		"description": "Slash commands are shortcuts for reusable workflows and actions to be used on demand (like creating a PR, running a set of tasks, etc). <DocsLink>Learn more</DocsLink>",
+		"workspaceCommands": "Workspace Commands",
+		"globalCommands": "Global Commands",
+		"noWorkspaceCommands": "No commands in this project yet.",
+		"noGlobalCommands": "No global commands yet.",
+		"addCommand": "Add Slash Command",
+		"editCommand": "Edit command",
+		"deleteCommand": "Delete command",
 		"deleteDialog": {
-			"title": "Usuń polecenie",
-			"description": "Czy na pewno chcesz usunąć polecenie \"{{name}}\"? Tej czynności nie można cofnąć.",
-			"confirm": "Usuń",
-			"cancel": "Anuluj"
+			"title": "Delete Command",
+			"description": "Are you sure you want to delete the command \"{{name}}\"? This action cannot be undone.",
+			"confirm": "Delete",
+			"cancel": "Cancel"
 		},
 		"createDialog": {
-			"title": "Utwórz nowe polecenie Slash",
-			"nameLabel": "Nazwa",
+			"title": "Create New Slash Command",
+			"nameLabel": "Name",
 			"namePlaceholder": "my-command-name",
-			"nameHint": "Tylko małe litery, cyfry, łączniki i podkreślenia",
-			"sourceLabel": "Lokalizacja",
-			"create": "Utwórz",
-			"cancel": "Anuluj"
+			"nameHint": "Lowercase letters, numbers, hyphens and underscores only",
+			"sourceLabel": "Location",
+			"create": "Create",
+			"cancel": "Cancel"
 		},
 		"source": {
-			"global": "Globalne (dostępne we wszystkich obszarach roboczych)",
-			"project": "Obszar roboczy"
+			"global": "Global (available in all workspaces)",
+			"project": "Workspace"
 		},
 		"validation": {
-			"nameRequired": "Nazwa jest wymagana",
-			"nameTooLong": "Nazwa musi mieć 64 znaki lub mniej",
-			"nameInvalid": "Nazwa może zawierać tylko litery, cyfry, łączniki i podkreślenia"
+			"nameRequired": "Name is required",
+			"nameTooLong": "Name must be 64 characters or less",
+			"nameInvalid": "Name must contain only letters, numbers, hyphens, and underscores"
 		},
-		"footer": "Używaj poleceń slash do szybkiego dostępu do często używanych podpowiedzi i przepływów pracy."
+		"footer": "Use slash commands for quick access to frequently used prompts and workflows."
+	},
+	"skills": {
+		"description": "Skills encapsulate contextual instructions and workflows, which the agent can load on-demand. They can include general instructions, specific workflows and even scripts to be run as needed. <DocsLink>Learn more</DocsLink>",
+		"workspaceSkills": "Workspace Skills",
+		"globalSkills": "Global Skills",
+		"noWorkspaceSkills": "No skills in this project yet.",
+		"noGlobalSkills": "No global skills yet.",
+		"addSkill": "Add Skill",
+		"editSkill": "Edit skill",
+		"deleteSkill": "Delete skill",
+		"configureModes": "Mode availability",
+		"modeAny": "Any mode",
+		"modeCount": "{{count}} modes",
+		"deleteDialog": {
+			"title": "Delete Skill",
+			"description": "Are you sure you want to delete the skill \"{{name}}\"? This action cannot be undone.",
+			"confirm": "Delete",
+			"cancel": "Cancel"
+		},
+		"modeDialog": {
+			"title": "Configure Skill Modes",
+			"description": "Choose which modes can use this skill",
+			"intro": "To keep your context light, we recommend only making skills available for the modes that need them.",
+			"anyMode": "Any mode (available everywhere)",
+			"save": "Save",
+			"cancel": "Cancel"
+		},
+		"createDialog": {
+			"title": "Create New Skill",
+			"nameLabel": "Name",
+			"namePlaceholder": "my-skill-name (Lowercase letters, numbers, and hyphens only)",
+			"descriptionLabel": "Description",
+			"descriptionPlaceholder": "Describe when this skill should be used and its contents...",
+			"sourceLabel": "Location",
+			"modeLabel": "Mode (optional)",
+			"modePlaceholder": "Any mode",
+			"modeAny": "Any mode",
+			"modeHint": "Restrict this skill to a specific mode",
+			"create": "Create",
+			"cancel": "Cancel"
+		},
+		"source": {
+			"global": "Global (available in all projects)",
+			"project": "Project (this workspace only)"
+		},
+		"validation": {
+			"nameRequired": "Name is required",
+			"nameTooLong": "Name must be 64 characters or less",
+			"nameInvalid": "Name must be 1-64 lowercase letters, numbers, or hyphens",
+			"descriptionRequired": "Description is required",
+			"descriptionTooLong": "Description must be 1024 characters or less"
+		},
+		"footer": "Create your own skills with the Skill Writer mode, available in the <MarketplaceLink>Modes Marketplace</MarketplaceLink>."
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Collapse Thinking messages by default",
+			"description": "When enabled, thinking blocks will be collapsed by default until you interact with them"
+		},
+		"requireCtrlEnterToSend": {
+			"label": "Require {{primaryMod}}+Enter to send messages",
+			"description": "When enabled, you must press {{primaryMod}}+Enter to send messages instead of just Enter"
+		},
+		"chatFontSize": {
+			"label": "Chat font size",
+			"description": "Set the font size (in pixels) for the Zoo Code chat. Leave at the default to match VS Code's font size.",
+			"reset": "Use VS Code default"
+		}
 	},
 	"prompts": {
-		"description": "Skonfiguruj podpowiedzi wsparcia używane do szybkich działań, takich jak ulepszanie podpowiedzi, wyjaśnianie kodu i rozwiązywanie problemów. Te podpowiedzi pomagają Zoo zapewnić lepsze wsparcie dla typowych zadań programistycznych."
+		"description": "Configure support prompts that are used for quick actions like enhancing prompts, explaining code, and fixing issues. These prompts help Zoo provide better assistance for common development tasks."
 	},
 	"codeIndex": {
-		"title": "Indeksowanie kodu",
-		"enableLabel": "Włącz indeksowanie kodu",
-		"enableDescription": "Włącz indeksowanie kodu, aby poprawić wyszukiwanie i zrozumienie kontekstu",
-		"providerLabel": "Dostawca osadzania",
-		"selectProviderPlaceholder": "Wybierz dostawcę",
+		"title": "Codebase Indexing",
+		"description": "Configure codebase indexing settings to enable semantic search of your project. <0>Learn more</0>",
+		"statusTitle": "Status",
+		"enableLabel": "Enable Codebase Indexing",
+		"enableDescription": "Enable code indexing for improved search and context understanding",
+		"settingsTitle": "Indexing Settings",
+		"disabledMessage": "Codebase indexing is currently disabled. Enable it in the global settings to configure indexing options.",
+		"providerLabel": "Embeddings Provider",
+		"embedderProviderLabel": "Embedder Provider",
+		"selectProviderPlaceholder": "Select provider",
 		"openaiProvider": "OpenAI",
 		"ollamaProvider": "Ollama",
 		"geminiProvider": "Gemini",
-		"geminiApiKeyLabel": "Klucz API:",
-		"geminiApiKeyPlaceholder": "Wprowadź swój klucz API Gemini",
+		"geminiApiKeyLabel": "API Key:",
+		"geminiApiKeyPlaceholder": "Enter your Gemini API key",
 		"mistralProvider": "Mistral",
-		"mistralApiKeyLabel": "Klucz API:",
-		"mistralApiKeyPlaceholder": "Wprowadź swój klucz API Mistral",
+		"mistralApiKeyLabel": "API Key:",
+		"mistralApiKeyPlaceholder": "Enter your Mistral API key",
 		"vercelAiGatewayProvider": "Vercel AI Gateway",
-		"vercelAiGatewayApiKeyLabel": "Klucz API",
-		"vercelAiGatewayApiKeyPlaceholder": "Wprowadź swój klucz API Vercel AI Gateway",
+		"vercelAiGatewayApiKeyLabel": "API Key",
+		"vercelAiGatewayApiKeyPlaceholder": "Enter your Vercel AI Gateway API key",
 		"bedrockProvider": "Amazon Bedrock",
-		"bedrockRegionLabel": "Region AWS",
+		"bedrockRegionLabel": "AWS Region",
 		"bedrockRegionPlaceholder": "us-east-1",
-		"bedrockProfileLabel": "Profil AWS",
+		"bedrockProfileLabel": "AWS Profile",
 		"bedrockProfilePlaceholder": "default",
-		"bedrockProfileDescription": "Nazwa profilu AWS z ~/.aws/credentials (wymagane).",
+		"bedrockProfileDescription": "AWS profile name from ~/.aws/credentials (required).",
 		"openRouterProvider": "OpenRouter",
-		"openRouterApiKeyLabel": "Klucz API OpenRouter",
-		"openRouterApiKeyPlaceholder": "Wprowadź swój klucz API OpenRouter",
-		"openRouterProviderRoutingLabel": "Routing dostawców OpenRouter",
-		"openRouterProviderRoutingDescription": "OpenRouter kieruje żądania do najlepszych dostępnych dostawców dla Twojego modelu osadzania. Domyślnie żądania są równoważone między najlepszymi dostawcami, aby zmaksymalizować czas działania. Możesz jednak wybrać konkretnego dostawcę do użycia z tym modelem.",
-		"openaiCompatibleProvider": "Kompatybilny z OpenAI",
-		"openAiKeyLabel": "Klucz API OpenAI",
-		"openAiKeyPlaceholder": "Wprowadź swój klucz API OpenAI",
-		"openAiCompatibleBaseUrlLabel": "Bazowy URL",
-		"openAiCompatibleApiKeyLabel": "Klucz API",
-		"openAiCompatibleApiKeyPlaceholder": "Wprowadź swój klucz API",
-		"openAiCompatibleModelDimensionLabel": "Wymiar Embeddingu:",
-		"modelDimensionLabel": "Wymiar modelu",
-		"openAiCompatibleModelDimensionPlaceholder": "np., 1536",
-		"openAiCompatibleModelDimensionDescription": "Wymiar embeddingu (rozmiar wyjściowy) dla twojego modelu. Sprawdź dokumentację swojego dostawcy, aby uzyskać tę wartość. Typowe wartości: 384, 768, 1536, 3072.",
+		"openRouterApiKeyLabel": "OpenRouter API Key",
+		"openRouterApiKeyPlaceholder": "Enter your OpenRouter API key",
+		"openRouterProviderRoutingLabel": "OpenRouter Provider Routing",
+		"openRouterProviderRoutingDescription": "OpenRouter routes requests to the best available providers for your embedding model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
+		"openaiCompatibleProvider": "OpenAI Compatible",
+		"openAiKeyLabel": "OpenAI API Key",
+		"openAiKeyPlaceholder": "Enter your OpenAI API key",
+		"openAiCompatibleBaseUrlLabel": "Base URL",
+		"openAiCompatibleApiKeyLabel": "API Key",
+		"openAiCompatibleApiKeyPlaceholder": "Enter your API key",
+		"openAiCompatibleModelDimensionLabel": "Embedding Dimension:",
+		"modelDimensionLabel": "Model Dimension",
+		"openAiCompatibleModelDimensionPlaceholder": "e.g., 1536",
+		"openAiCompatibleModelDimensionDescription": "The embedding dimension (output size) for your model. Check your provider's documentation for this value. Common values: 384, 768, 1536, 3072.",
 		"modelLabel": "Model",
-		"selectModelPlaceholder": "Wybierz model",
-		"ollamaUrlLabel": "URL Ollama:",
-		"qdrantUrlLabel": "URL Qdrant",
-		"qdrantKeyLabel": "Klucz Qdrant:",
-		"startIndexingButton": "Rozpocznij",
-		"clearIndexDataButton": "Wyczyść indeks",
-		"unsavedSettingsMessage": "Zapisz swoje ustawienia przed rozpoczęciem procesu indeksowania.",
+		"modelPlaceholder": "Enter model name",
+		"selectModel": "Select a model",
+		"selectModelPlaceholder": "Select model",
+		"ollamaUrlLabel": "Ollama URL:",
+		"ollamaBaseUrlLabel": "Ollama Base URL",
+		"qdrantUrlLabel": "Qdrant URL",
+		"qdrantKeyLabel": "Qdrant Key:",
+		"qdrantApiKeyLabel": "Qdrant API Key",
+		"qdrantApiKeyPlaceholder": "Enter your Qdrant API key (optional)",
+		"setupConfigLabel": "Setup",
+		"advancedConfigLabel": "Advanced Configuration",
+		"searchMinScoreLabel": "Search Score Threshold",
+		"searchMinScoreDescription": "Minimum similarity score (0.0-1.0) required for search results. Lower values return more results but may be less relevant. Higher values return fewer but more relevant results.",
+		"searchMinScoreResetTooltip": "Reset to default value (0.4)",
+		"searchMaxResultsLabel": "Maximum Search Results",
+		"searchMaxResultsDescription": "Maximum number of search results to return when querying the codebase index. Higher values provide more context but may include less relevant results.",
+		"resetToDefault": "Reset to default",
+		"startIndexingButton": "Start Indexing",
+		"clearIndexDataButton": "Clear Index Data",
+		"unsavedSettingsMessage": "Please save your settings before starting the indexing process.",
 		"clearDataDialog": {
-			"title": "Czy jesteś pewien?",
-			"description": "Tej akcji nie można cofnąć. Spowoduje to trwałe usunięcie danych indeksu Twojego kodu.",
-			"cancelButton": "Anuluj",
-			"confirmButton": "Wyczyść dane"
+			"title": "Are you sure?",
+			"description": "This action cannot be undone. This will permanently delete your codebase index data.",
+			"cancelButton": "Cancel",
+			"confirmButton": "Clear Data"
 		},
-		"description": "Skonfiguruj ustawienia indeksowania bazy kodu, aby włączyć wyszukiwanie semantyczne w swoim projekcie. <0>Dowiedz się więcej</0>",
-		"statusTitle": "Status",
-		"settingsTitle": "Ustawienia indeksowania",
-		"disabledMessage": "Indeksowanie bazy kodu jest obecnie wyłączone. Włącz je w ustawieniach globalnych, aby skonfigurować opcje indeksowania.",
-		"embedderProviderLabel": "Dostawca Embeddera",
-		"modelPlaceholder": "Wprowadź nazwę modelu",
-		"selectModel": "Wybierz model",
-		"ollamaBaseUrlLabel": "Bazowy URL Ollama",
-		"qdrantApiKeyLabel": "Klucz API Qdrant",
-		"qdrantApiKeyPlaceholder": "Wprowadź swój klucz API Qdrant (opcjonalnie)",
-		"setupConfigLabel": "Konfiguracja",
 		"ollamaUrlPlaceholder": "http://localhost:11434",
 		"openAiCompatibleBaseUrlPlaceholder": "https://api.example.com",
 		"modelDimensionPlaceholder": "1536",
 		"qdrantUrlPlaceholder": "http://localhost:6333",
-		"saveError": "Nie udało się zapisać ustawień",
-		"modelDimensions": "({{dimension}} wymiarów)",
-		"saveSuccess": "Ustawienia zapisane pomyślnie",
-		"saving": "Zapisywanie...",
-		"saveSettings": "Zapisz",
+		"saveError": "Failed to save settings",
+		"modelDimensions": "({{dimension}} dimensions)",
+		"saveSuccess": "Settings saved successfully",
+		"saving": "Saving...",
+		"saveSettings": "Save",
 		"indexingStatuses": {
-			"standby": "Gotowość",
-			"indexing": "Indeksowanie",
-			"indexed": "Zaindeksowane",
-			"error": "Błąd"
+			"standby": "Standby",
+			"indexing": "Indexing",
+			"indexed": "Indexed",
+			"error": "Error"
 		},
-		"close": "Zamknij",
+		"close": "Close",
 		"validation": {
-			"invalidQdrantUrl": "Nieprawidłowy URL Qdrant",
-			"invalidOllamaUrl": "Nieprawidłowy URL Ollama",
-			"invalidBaseUrl": "Nieprawidłowy podstawowy URL",
-			"qdrantUrlRequired": "Wymagany jest URL Qdrant",
-			"openaiApiKeyRequired": "Wymagany jest klucz API OpenAI",
-			"modelSelectionRequired": "Wymagany jest wybór modelu",
-			"apiKeyRequired": "Wymagany jest klucz API",
-			"modelIdRequired": "Wymagane jest ID modelu",
-			"modelDimensionRequired": "Wymagany jest wymiar modelu",
-			"geminiApiKeyRequired": "Wymagany jest klucz API Gemini",
-			"mistralApiKeyRequired": "Klucz API Mistral jest wymagany",
-			"vercelAiGatewayApiKeyRequired": "Klucz API Vercel AI Gateway jest wymagany",
-			"bedrockRegionRequired": "Region AWS jest wymagany",
-			"bedrockProfileRequired": "Profil AWS jest wymagany",
-			"ollamaBaseUrlRequired": "Wymagany jest bazowy adres URL Ollama",
-			"baseUrlRequired": "Wymagany jest bazowy adres URL",
-			"modelDimensionMinValue": "Wymiar modelu musi być większy niż 0",
-			"openRouterApiKeyRequired": "Wymagany jest klucz API OpenRouter"
+			"qdrantUrlRequired": "Qdrant URL is required",
+			"invalidQdrantUrl": "Invalid Qdrant URL",
+			"invalidOllamaUrl": "Invalid Ollama URL",
+			"invalidBaseUrl": "Invalid base URL",
+			"openaiApiKeyRequired": "OpenAI API key is required",
+			"modelSelectionRequired": "Model selection is required",
+			"apiKeyRequired": "API key is required",
+			"modelIdRequired": "Model ID is required",
+			"modelDimensionRequired": "Model dimension is required",
+			"geminiApiKeyRequired": "Gemini API key is required",
+			"mistralApiKeyRequired": "Mistral API key is required",
+			"vercelAiGatewayApiKeyRequired": "Vercel AI Gateway API key is required",
+			"bedrockRegionRequired": "AWS region is required",
+			"bedrockProfileRequired": "AWS profile is required",
+			"openRouterApiKeyRequired": "OpenRouter API key is required",
+			"ollamaBaseUrlRequired": "Ollama base URL is required",
+			"baseUrlRequired": "Base URL is required",
+			"modelDimensionMinValue": "Model dimension must be greater than 0"
 		},
-		"optional": "opcjonalny",
-		"advancedConfigLabel": "Konfiguracja zaawansowana",
-		"searchMinScoreLabel": "Próg wyniku wyszukiwania",
-		"searchMinScoreDescription": "Minimalny wynik podobieństwa (0.0-1.0) wymagany dla wyników wyszukiwania. Niższe wartości zwracają więcej wyników, ale mogą być mniej trafne. Wyższe wartości zwracają mniej wyników, ale bardziej trafnych.",
-		"searchMinScoreResetTooltip": "Zresetuj do wartości domyślnej (0.4)",
-		"searchMaxResultsLabel": "Maksymalna liczba wyników wyszukiwania",
-		"searchMaxResultsDescription": "Maksymalna liczba wyników wyszukiwania zwracanych podczas zapytania do indeksu bazy kodu. Wyższe wartości zapewniają więcej kontekstu, ale mogą zawierać mniej istotne wyniki.",
-		"resetToDefault": "Przywróć domyślne",
-		"stopIndexingButton": "Zatrzymaj indeksowanie",
-		"stoppingButton": "Zatrzymywanie...",
-		"workspaceToggleLabel": "Włącz indeksowanie dla tego workspace'a",
-		"workspaceDisabledMessage": "Indeksowanie jest skonfigurowane, ale nie włączone dla tego workspace'a.",
-		"autoEnableDefaultLabel": "Automatycznie włączaj indeksowanie dla nowych workspace'ów"
+		"optional": "optional",
+		"stopIndexingButton": "Stop Indexing",
+		"stoppingButton": "Stopping...",
+		"workspaceToggleLabel": "Enable indexing for this workspace",
+		"workspaceDisabledMessage": "Indexing is configured but not enabled for this workspace.",
+		"autoEnableDefaultLabel": "Auto-enable indexing for new workspaces"
 	},
 	"autoApprove": {
-		"toggleShortcut": "Możesz skonfigurować globalny skrót dla tego ustawienia <SettingsLink>w preferencjach swojego IDE</SettingsLink>.",
-		"description": "Pozwól Roo na automatyczne wykonywanie operacji bez wymagania zatwierdzenia. Włącz te ustawienia tylko jeśli w pełni ufasz AI i rozumiesz związane z tym zagrożenia bezpieczeństwa.",
-		"enabled": "Auto-zatwierdzanie włączone",
-		"toggleAriaLabel": "Przełącz automatyczne zatwierdzanie",
-		"disabledAriaLabel": "Automatyczne zatwierdzanie wyłączone - najpierw wybierz opcje",
+		"description": "Run these actions without asking for permission. Only enable for actions you fully trust and if you understand the security risks.",
+		"toggleShortcut": "You can configure a keyboard shortcut for this setting <SettingsLink>in your IDE preferences</SettingsLink>.",
+		"enabled": "Auto-Approve Enabled",
 		"readOnly": {
-			"label": "Odczyt",
-			"description": "Gdy włączone, Zoo automatycznie będzie wyświetlać zawartość katalogów i czytać pliki bez konieczności klikania przycisku Zatwierdź.",
+			"label": "Read",
+			"description": "When enabled, Zoo will automatically view directory contents and read files without requiring you to click the Approve button.",
 			"outsideWorkspace": {
-				"label": "Uwzględnij pliki poza obszarem roboczym",
-				"description": "Pozwól Zoo na odczyt plików poza bieżącym obszarem roboczym bez konieczności zatwierdzania."
+				"label": "Include files outside workspace",
+				"description": "Allow Zoo to read files outside the current workspace without requiring approval."
 			}
 		},
 		"write": {
-			"label": "Zapis",
-			"description": "Automatycznie twórz i edytuj pliki bez konieczności zatwierdzania",
-			"delayLabel": "Opóźnienie po zapisach, aby umożliwić diagnostyce wykrycie potencjalnych problemów",
+			"label": "Write",
+			"description": "Automatically create and edit files without requiring approval",
+			"delayLabel": "Delay after writes to allow diagnostics to detect potential problems",
 			"outsideWorkspace": {
-				"label": "Uwzględnij pliki poza obszarem roboczym",
-				"description": "Pozwól Zoo na tworzenie i edycję plików poza bieżącym obszarem roboczym bez konieczności zatwierdzania."
+				"label": "Include files outside workspace",
+				"description": "Allow Zoo to create and edit files outside the current workspace without requiring approval."
 			},
 			"protected": {
-				"label": "Uwzględnij pliki chronione",
-				"description": "Pozwól Zoo na tworzenie i edycję plików chronionych (takich jak .rooignore i pliki konfiguracyjne .roo/) bez konieczności zatwierdzania."
+				"label": "Include protected files",
+				"description": "Allow Zoo to create and edit protected files (like .rooignore and .roo/ configuration files) without requiring approval."
 			}
 		},
 		"mcp": {
 			"label": "MCP",
-			"description": "Włącz automatyczne zatwierdzanie poszczególnych narzędzi MCP w widoku Serwerów MCP (wymaga zarówno tego ustawienia, jak i pola wyboru \"Zawsze zezwalaj\" narzędzia)"
+			"description": "Enable auto-approval of individual MCP tools in the MCP Servers view (requires both this setting and the tool's individual \"Always allow\" checkbox)"
 		},
 		"modeSwitch": {
-			"label": "Tryb",
-			"description": "Automatycznie przełączaj między różnymi trybami bez konieczności zatwierdzania"
+			"label": "Mode",
+			"description": "Automatically switch between different modes without requiring approval"
 		},
 		"subtasks": {
-			"label": "Podzadania",
-			"description": "Zezwalaj na tworzenie i ukończenie podzadań bez konieczności zatwierdzania"
+			"label": "Subtasks",
+			"description": "Allow creation and completion of subtasks without requiring approval"
 		},
 		"followupQuestions": {
-			"label": "Pytanie",
-			"description": "Automatycznie wybierz pierwszą sugerowaną odpowiedź na pytania uzupełniające po skonfigurowanym limicie czasu",
-			"timeoutLabel": "Czas oczekiwania przed automatycznym wybraniem pierwszej odpowiedzi"
+			"label": "Question",
+			"description": "Automatically select the first suggested answer for follow-up questions after the configured timeout",
+			"timeoutLabel": "Time to wait before auto-selecting the first answer"
 		},
 		"execute": {
-			"label": "Wykonaj",
-			"description": "Automatycznie wykonuj dozwolone polecenia terminala bez konieczności zatwierdzania",
-			"allowedCommands": "Dozwolone polecenia auto-wykonania",
-			"allowedCommandsDescription": "Prefiksy poleceń, które mogą być automatycznie wykonywane, gdy \"Zawsze zatwierdzaj operacje wykonania\" jest włączone. Dodaj * aby zezwolić na wszystkie polecenia (używaj z ostrożnością).",
-			"deniedCommands": "Odrzucone polecenia",
-			"deniedCommandsDescription": "Prefiksy poleceń, które będą automatycznie odrzucane bez pytania o zatwierdzenie. W przypadku konfliktów z dozwolonymi poleceniami, najdłuższe dopasowanie prefiksu ma pierwszeństwo. Dodaj * aby odrzucić wszystkie polecenia.",
-			"commandPlaceholder": "Wprowadź prefiks polecenia (np. 'git ')",
-			"deniedCommandPlaceholder": "Wprowadź prefiks polecenia do odrzucenia (np. 'rm -rf')",
-			"addButton": "Dodaj",
-			"autoDenied": "Polecenia z prefiksem `{{prefix}}` zostały zabronione przez użytkownika. Nie obchodź tego ograniczenia uruchamiając inne polecenie."
+			"label": "Execute",
+			"description": "Automatically execute allowed terminal commands without requiring approval",
+			"allowedCommands": "Allowed Auto-Execute Commands",
+			"allowedCommandsDescription": "Command prefixes that can be auto-executed when \"Always approve execute operations\" is enabled. Add * to allow all commands (use with caution).",
+			"deniedCommands": "Denied Commands",
+			"deniedCommandsDescription": "Command prefixes that will be automatically denied without asking for approval. In case of conflicts with allowed commands, the longest prefix match takes precedence. Add * to deny all commands.",
+			"commandPlaceholder": "Enter command prefix (e.g., 'git ')",
+			"deniedCommandPlaceholder": "Enter command prefix to deny (e.g., 'rm -rf')",
+			"addButton": "Add",
+			"autoDenied": "Commands with the prefix `{{prefix}}` have been forbidden by the user. Do not bypass this restriction by running another command."
 		},
 		"apiRequestLimit": {
-			"title": "Maksymalna liczba żądań",
-			"unlimited": "Bez limitu"
+			"title": "Max Count",
+			"unlimited": "Unlimited"
 		},
-		"selectOptionsFirst": "Wybierz co najmniej jedną opcję poniżej, aby włączyć automatyczne zatwierdzanie",
 		"apiCostLimit": {
-			"title": "Maksymalny koszt",
-			"unlimited": "Bez limitu"
+			"title": "Max Cost",
+			"unlimited": "Unlimited"
 		},
 		"maxLimits": {
-			"description": "Automatycznie składaj zapytania do tych limitów przed poproszeniem o zgodę na kontynuowanie."
-		}
+			"description": "Automatically make requests up to these limits before asking for approval to continue."
+		},
+		"toggleAriaLabel": "Toggle auto-approval",
+		"disabledAriaLabel": "Auto-approval disabled - select options first",
+		"selectOptionsFirst": "Select at least one option below to enable auto-approval"
 	},
 	"providers": {
-		"providerDocumentation": "Dokumentacja {{provider}}",
-		"configProfile": "Profil konfiguracji",
-		"description": "Zapisz różne konfiguracje API, aby szybko przełączać się między dostawcami i ustawieniami.",
-		"apiProvider": "Dostawca API",
-		"apiProviderDocs": "Dokumentacja dostawcy",
+		"providerDocumentation": "{{provider}} documentation",
+		"configProfile": "Configuration Profile",
+		"description": "Save different API configurations to quickly switch between providers and settings.",
+		"apiProvider": "API Provider",
+		"apiProviderDocs": "Provider Docs",
 		"model": "Model",
-		"nameEmpty": "Nazwa nie może być pusta",
-		"nameExists": "Profil o tej nazwie już istnieje",
-		"deleteProfile": "Usuń profil",
-		"invalidArnFormat": "Nieprawidłowy format ARN. Sprawdź powyższe przykłady.",
-		"enterNewName": "Wprowadź nową nazwę",
-		"addProfile": "Dodaj profil",
-		"renameProfile": "Zmień nazwę profilu",
-		"newProfile": "Nowy profil konfiguracji",
-		"enterProfileName": "Wprowadź nazwę profilu",
-		"createProfile": "Utwórz profil",
-		"cannotDeleteOnlyProfile": "Nie można usunąć jedynego profilu",
-		"searchPlaceholder": "Szukaj profili",
-		"searchProviderPlaceholder": "Szukaj dostawców",
-		"noProviderMatchFound": "Nie znaleziono dostawców",
-		"noMatchFound": "Nie znaleziono pasujących profili",
-		"retiredProviderMessage": "Ten dostawca nie jest już dostępny. Wybierz obsługiwanego dostawcę, aby kontynuować.",
-		"vscodeLmDescription": "Interfejs API modelu językowego VS Code umożliwia uruchamianie modeli dostarczanych przez inne rozszerzenia VS Code (w tym, ale nie tylko, GitHub Copilot). Najłatwiejszym sposobem na rozpoczęcie jest zainstalowanie rozszerzeń Copilot i Copilot Chat z VS Code Marketplace.",
-		"awsCustomArnUse": "Wprowadź prawidłowy Amazon Bedrock ARN dla modelu, którego chcesz użyć. Przykłady formatu:",
-		"awsCustomArnDesc": "Upewnij się, że region w ARN odpowiada wybranemu powyżej regionowi AWS.",
-		"openRouterApiKey": "Klucz API OpenRouter",
-		"getOpenRouterApiKey": "Uzyskaj klucz API OpenRouter",
-		"vercelAiGatewayApiKey": "Klucz API Vercel AI Gateway",
-		"getVercelAiGatewayApiKey": "Uzyskaj klucz API Vercel AI Gateway",
-		"opencodeGoApiKey": "Klucz API Opencode Go",
-		"getOpencodeGoApiKey": "Uzyskaj klucz API Opencode Go",
-		"apiKeyStorageNotice": "Klucze API są bezpiecznie przechowywane w Tajnym Magazynie VSCode",
+		"nameEmpty": "Name cannot be empty",
+		"nameExists": "A profile with this name already exists",
+		"deleteProfile": "Delete Profile",
+		"invalidArnFormat": "Invalid ARN format. Please check the examples above.",
+		"enterNewName": "Enter new name",
+		"addProfile": "Add Profile",
+		"renameProfile": "Rename Profile",
+		"newProfile": "New Configuration Profile",
+		"enterProfileName": "Enter profile name",
+		"createProfile": "Create Profile",
+		"cannotDeleteOnlyProfile": "Cannot delete the only profile",
+		"searchPlaceholder": "Search profiles",
+		"searchProviderPlaceholder": "Search providers",
+		"noProviderMatchFound": "No providers found",
+		"noMatchFound": "No matching profiles found",
+		"retiredProviderMessage": "This provider is no longer available. Select a supported provider to continue.",
+		"vscodeLmDescription": " The VS Code Language Model API allows you to run models provided by other VS Code extensions (including but not limited to GitHub Copilot). The easiest way to get started is to install the Copilot and Copilot Chat extensions from the VS Code Marketplace.",
+		"awsCustomArnUse": "Enter a valid Amazon Bedrock ARN for the model you want to use. Format examples:",
+		"awsCustomArnDesc": "Make sure the region in the ARN matches your selected AWS Region above.",
+		"openRouterApiKey": "OpenRouter API Key",
+		"getOpenRouterApiKey": "Get OpenRouter API Key",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway API Key",
+		"getVercelAiGatewayApiKey": "Get Vercel AI Gateway API Key",
+		"opencodeGoApiKey": "Opencode Go API Key",
+		"getOpencodeGoApiKey": "Get Opencode Go API Key",
+		"apiKeyStorageNotice": "API keys are stored securely in VSCode's Secret Storage",
 		"openAiCodexRateLimits": {
 			"title": "Usage Limits for Codex{{planLabel}}",
 			"loading": "Loading usage limits...",
@@ -348,679 +514,611 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
-		"useCustomBaseUrl": "Użyj niestandardowego URL bazowego",
-		"useReasoning": "Włącz rozumowanie",
-		"useHostHeader": "Użyj niestandardowego nagłówka Host",
-		"customHeaders": "Niestandardowe nagłówki",
-		"headerName": "Nazwa nagłówka",
-		"headerValue": "Wartość nagłówka",
-		"noCustomHeaders": "Brak zdefiniowanych niestandardowych nagłówków. Kliknij przycisk +, aby dodać.",
-		"unboundApiKey": "Klucz API Unbound",
-		"getUnboundApiKey": "Uzyskaj klucz API Unbound",
-		"requestyApiKey": "Klucz API Requesty",
+		"useCustomBaseUrl": "Use custom base URL",
+		"useReasoning": "Enable reasoning",
+		"useHostHeader": "Use custom Host header",
+		"customHeaders": "Custom Headers",
+		"headerName": "Header name",
+		"headerValue": "Header value",
+		"noCustomHeaders": "No custom headers defined. Click the + button to add one.",
+		"unboundApiKey": "Unbound API Key",
+		"getUnboundApiKey": "Get Unbound API Key",
+		"requestyApiKey": "Requesty API Key",
 		"refreshModels": {
-			"label": "Odśwież modele",
-			"hint": "Proszę ponownie otworzyć ustawienia, aby zobaczyć najnowsze modele.",
-			"loading": "Odświeżanie listy modeli...",
-			"success": "Lista modeli została pomyślnie odświeżona!",
-			"error": "Nie udało się odświeżyć listy modeli. Spróbuj ponownie."
+			"label": "Refresh Models",
+			"hint": "Please reopen the settings to see the latest models.",
+			"loading": "Refreshing models list...",
+			"success": "Models list refreshed successfully!",
+			"error": "Failed to refresh models list. Please try again."
 		},
-		"getRequestyApiKey": "Uzyskaj klucz API Requesty",
-		"getRequestyBaseUrl": "Bazowy URL",
-		"requestyUseCustomBaseUrl": "Użyj niestandardowego bazowego URL",
-		"anthropicApiKey": "Klucz API Anthropic",
-		"getAnthropicApiKey": "Uzyskaj klucz API Anthropic",
-		"anthropicUseAuthToken": "Przekaż klucz API Anthropic jako nagłówek Authorization zamiast X-Api-Key",
-		"anthropic1MContextBetaLabel": "Włącz okno kontekstowe 1M (Beta)",
-		"anthropic1MContextBetaDescription": "Rozszerza okno kontekstowe do 1 miliona tokenów dla Claude Sonnet 4.x / Claude Opus 4.6",
-		"awsBedrock1MContextBetaLabel": "Włącz okno kontekstowe 1M (Beta)",
-		"awsBedrock1MContextBetaDescription": "Rozszerza okno kontekstowe do 1 miliona tokenów dla Claude Sonnet 4.x / Claude Opus 4.6",
-		"vertex1MContextBetaLabel": "Włącz okno kontekstowe 1M (Beta)",
-		"vertex1MContextBetaDescription": "Rozszerza okno kontekstowe do 1 miliona tokenów dla Claude Sonnet 4.x / Claude Opus 4.6",
-		"basetenApiKey": "Klucz API Baseten",
-		"getBasetenApiKey": "Uzyskaj klucz API Baseten",
-		"poeApiKey": "Klucz API Poe",
-		"getPoeApiKey": "Uzyskaj klucz API Poe",
-		"poeBaseUrl": "Bazowy URL Poe",
-		"fireworksApiKey": "Klucz API Fireworks",
-		"getFireworksApiKey": "Uzyskaj klucz API Fireworks",
-		"deepSeekApiKey": "Klucz API DeepSeek",
-		"getDeepSeekApiKey": "Uzyskaj klucz API DeepSeek",
-		"moonshotApiKey": "Klucz API Moonshot",
-		"getMoonshotApiKey": "Uzyskaj klucz API Moonshot",
-		"moonshotBaseUrl": "Punkt wejścia Moonshot",
-		"zaiApiKey": "Klucz API Z AI",
-		"getZaiApiKey": "Uzyskaj klucz API Z AI",
-		"zaiEntrypoint": "Punkt wejścia Z AI",
-		"zaiEntrypointDescription": "Wybierz odpowiedni punkt wejścia API w zależności od swojej lokalizacji. Jeśli jesteś w Chinach, wybierz open.bigmodel.cn. W przeciwnym razie wybierz api.z.ai.",
-		"minimaxApiKey": "Klucz API MiniMax",
-		"getMiniMaxApiKey": "Uzyskaj klucz API MiniMax",
-		"minimaxBaseUrl": "Punkt wejścia MiniMax",
-		"mimoApiKey": "Klucz API MiMo",
-		"getMimoApiKey": "Uzyskaj klucz API MiMo",
-		"mimoBaseUrl": "Punkt wejścia MiMo",
-		"mimoBaseUrlSingapore": "Plan tokenów - Singapur (Domyślny)",
-		"mimoBaseUrlChina": "Plan tokenów - Chiny",
-		"mimoBaseUrlEurope": "Plan tokenów - Europa (AMS)",
-		"mimoBaseUrlPayg": "Płacenie za zużycie",
-		"geminiApiKey": "Klucz API Gemini",
-		"getSambaNovaApiKey": "Uzyskaj klucz API SambaNova",
-		"sambaNovaApiKey": "Klucz API SambaNova",
-		"getGeminiApiKey": "Uzyskaj klucz API Gemini",
-		"apiKey": "Klucz API",
-		"openAiApiKey": "Klucz API OpenAI",
-		"openAiBaseUrl": "URL bazowy",
-		"getOpenAiApiKey": "Uzyskaj klucz API OpenAI",
-		"mistralApiKey": "Klucz API Mistral",
-		"getMistralApiKey": "Uzyskaj klucz API Mistral / Codestral",
-		"codestralBaseUrl": "URL bazowy Codestral (opcjonalnie)",
-		"codestralBaseUrlDesc": "Ustaw opcjonalny URL dla modeli Codestral.",
-		"xaiApiKey": "Klucz API xAI",
-		"getXaiApiKey": "Uzyskaj klucz API xAI",
-		"litellmApiKey": "Klucz API LiteLLM",
-		"litellmBaseUrl": "URL bazowy LiteLLM",
-		"awsCredentials": "Poświadczenia AWS",
-		"awsProfile": "Profil AWS",
-		"awsApiKey": "Klucz API Amazon Bedrock",
-		"awsProfileName": "Nazwa profilu AWS",
-		"awsAccessKey": "Klucz dostępu AWS",
-		"awsSecretKey": "Klucz tajny AWS",
-		"awsSessionToken": "Token sesji AWS",
-		"awsRegion": "Region AWS",
-		"awsCrossRegion": "Użyj wnioskowania międzyregionalnego",
-		"awsGlobalInference": "Użyj globalnej inferencji (automatyczny wybór optymalnego regionu AWS)",
-		"awsServiceTier": "Warstwa usługi",
+		"getRequestyApiKey": "Create new Requesty API Key",
+		"getRequestyBaseUrl": "Base URL",
+		"requestyUseCustomBaseUrl": "Use custom base URL",
+		"anthropicApiKey": "Anthropic API Key",
+		"getAnthropicApiKey": "Get Anthropic API Key",
+		"anthropicUseAuthToken": "Pass Anthropic API Key as Authorization header instead of X-Api-Key",
+		"anthropic1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"anthropic1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"awsBedrock1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"awsBedrock1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"vertex1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"vertex1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"basetenApiKey": "Baseten API Key",
+		"getBasetenApiKey": "Get Baseten API Key",
+		"poeApiKey": "Poe API Key",
+		"getPoeApiKey": "Get Poe API Key",
+		"poeBaseUrl": "Poe Base URL",
+		"fireworksApiKey": "Fireworks API Key",
+		"getFireworksApiKey": "Get Fireworks API Key",
+		"deepSeekApiKey": "DeepSeek API Key",
+		"getDeepSeekApiKey": "Get DeepSeek API Key",
+		"moonshotApiKey": "Moonshot API Key",
+		"getMoonshotApiKey": "Get Moonshot API Key",
+		"moonshotBaseUrl": "Moonshot Entrypoint",
+		"minimaxApiKey": "MiniMax API Key",
+		"getMiniMaxApiKey": "Get MiniMax API Key",
+		"minimaxBaseUrl": "MiniMax Entrypoint",
+		"mimoApiKey": "MiMo API Key",
+		"getMimoApiKey": "Get MiMo API Key",
+		"mimoBaseUrl": "MiMo Entrypoint",
+		"mimoBaseUrlSingapore": "Token Plan - Singapore (Default)",
+		"mimoBaseUrlChina": "Token Plan - China",
+		"mimoBaseUrlEurope": "Token Plan - Europe (AMS)",
+		"mimoBaseUrlPayg": "Pay-as-you-go",
+		"zaiApiKey": "Z AI API Key",
+		"getZaiApiKey": "Get Z AI API Key",
+		"zaiEntrypoint": "Z AI Entrypoint",
+		"zaiEntrypointDescription": "Please select the appropriate API entrypoint based on your location. If you are in China, choose open.bigmodel.cn. Otherwise, choose api.z.ai.",
+		"geminiApiKey": "Gemini API Key",
+		"getSambaNovaApiKey": "Get SambaNova API Key",
+		"sambaNovaApiKey": "SambaNova API Key",
+		"getGeminiApiKey": "Get Gemini API Key",
+		"openAiApiKey": "OpenAI API Key",
+		"apiKey": "API Key",
+		"openAiBaseUrl": "Base URL",
+		"getOpenAiApiKey": "Get OpenAI API Key",
+		"mistralApiKey": "Mistral API Key",
+		"getMistralApiKey": "Get Mistral / Codestral API Key",
+		"codestralBaseUrl": "Codestral Base URL (Optional)",
+		"codestralBaseUrlDesc": "Set an alternative URL for the Codestral model.",
+		"xaiApiKey": "xAI API Key",
+		"getXaiApiKey": "Get xAI API Key",
+		"litellmApiKey": "LiteLLM API Key",
+		"litellmBaseUrl": "LiteLLM Base URL",
+		"awsCredentials": "AWS Credentials",
+		"awsProfile": "AWS Profile",
+		"awsApiKey": "Amazon Bedrock API Key",
+		"awsProfileName": "AWS Profile Name",
+		"awsAccessKey": "AWS Access Key",
+		"awsSecretKey": "AWS Secret Key",
+		"awsSessionToken": "AWS Session Token",
+		"awsRegion": "AWS Region",
+		"awsCrossRegion": "Use cross-region inference",
+		"awsGlobalInference": "Use Global inference (auto-select optimal AWS Region)",
+		"awsServiceTier": "Service Tier",
 		"awsServiceTierStandard": "Standard",
-		"awsServiceTierStandardDesc": "Zrównoważona wydajność i koszt",
-		"awsServiceTierFlex": "Flex (50% zniżka)",
-		"awsServiceTierFlexDesc": "Niższy koszt, wyższe opóźnienie dla zadań niekrytycznych",
-		"awsServiceTierPriority": "Priority (75% premia)",
-		"awsServiceTierPriorityDesc": "Najszybsza wydajność dla aplikacji krytycznych",
-		"awsServiceTierNote": "Warstwy usługi wpływają na ceny i wydajność. Flex oferuje 50% zniżkę z wyższym opóźnieniem, Priority oferuje 25% lepszą wydajność z 75% premią.",
+		"awsServiceTierStandardDesc": "Balanced performance and cost",
+		"awsServiceTierFlex": "Flex (50% discount)",
+		"awsServiceTierFlexDesc": "Lower cost, higher latency for non-critical tasks",
+		"awsServiceTierPriority": "Priority (75% premium)",
+		"awsServiceTierPriorityDesc": "Fastest performance for mission-critical applications",
+		"awsServiceTierNote": "Service tiers affect pricing and performance. Flex offers 50% discount with higher latency, Priority offers 25% better performance with 75% premium.",
 		"awsBedrockVpc": {
-			"useCustomVpcEndpoint": "Użyj niestandardowego punktu końcowego VPC",
-			"vpcEndpointUrlPlaceholder": "Wprowadź URL punktu końcowego VPC (opcjonalnie)",
-			"examples": "Przykłady:"
+			"useCustomVpcEndpoint": "Use custom VPC endpoint",
+			"vpcEndpointUrlPlaceholder": "Enter VPC Endpoint URL (optional)",
+			"examples": "Examples:"
 		},
-		"enablePromptCaching": "Włącz buforowanie podpowiedzi",
-		"enablePromptCachingTitle": "Włącz buforowanie podpowiedzi, aby poprawić wydajność i zmniejszyć koszty dla obsługiwanych modeli.",
-		"cacheUsageNote": "Uwaga: Jeśli nie widzisz użycia bufora, spróbuj wybrać inny model, a następnie ponownie wybrać żądany model.",
-		"vscodeLmModel": "Model językowy",
-		"vscodeLmWarning": "Uwaga: Modele dostępne przez interfejs VS Code Language Model API mogą być opakowane lub dostrojone przez dostawcę, dlatego ich działanie może różnić się od bezpośredniego użycia tego samego modelu u typowego dostawcy lub routera. Aby użyć modelu z listy «Language Model», najpierw przełącz się na ten model, a następnie kliknij «Akceptuj» w monicie Copilot Chat; w przeciwnym razie możesz zobaczyć błąd, np. 400 „The requested model is not supported”.",
+		"enablePromptCaching": "Enable prompt caching",
+		"enablePromptCachingTitle": "Enable prompt caching to improve performance and reduce costs for supported models.",
+		"cacheUsageNote": "Note: If you don't see cache usage, try selecting a different model and then selecting your desired model again.",
+		"vscodeLmModel": "Language Model",
+		"vscodeLmWarning": "Note: Models accessed via the VS Code Language Model API may be wrapped or fine-tuned by the provider, so behavior can differ from using the same model directly from a typical provider or router. To use a model from the Language Model dropdown, first switch to that model and then click Accept in the Copilot Chat prompt; otherwise you may see an error such as 400 \"The requested model is not supported\".",
 		"googleCloudSetup": {
-			"title": "Aby korzystać z Google Cloud Vertex AI, potrzebujesz:",
-			"step1": "1. Utworzyć konto Google Cloud, włączyć API Vertex AI i włączyć żądane modele Claude.",
-			"step2": "2. Zainstalować Google Cloud CLI i skonfigurować domyślne poświadczenia aplikacji.",
-			"step3": "3. Lub utworzyć konto usługi z poświadczeniami."
+			"title": "To use Google Cloud Vertex AI, you need to:",
+			"step1": "1. Create a Google Cloud account, enable the Vertex AI API & enable the desired Claude models.",
+			"step2": "2. Install the Google Cloud CLI & configure application default credentials.",
+			"step3": "3. Or create a service account with credentials."
 		},
-		"googleCloudCredentials": "Poświadczenia Google Cloud",
-		"googleCloudCredentialsPathWarning": "To pole oczekuje zawartości JSON pliku klucza konta usługi, a nie ścieżki. Jeśli masz ścieżkę, wklej ją do pola <strong>Ścieżka pliku klucza Google Cloud</strong> poniżej lub wyczyść to pole i użyj zmiennej środowiskowej <code>GOOGLE_APPLICATION_CREDENTIALS</code>.",
-		"googleCloudKeyFile": "Ścieżka pliku klucza Google Cloud",
-		"googleCloudProjectId": "ID projektu Google Cloud",
-		"googleCloudRegion": "Region Google Cloud",
+		"googleCloudCredentials": "Google Cloud Credentials",
+		"googleCloudCredentialsPathWarning": "This field expects the JSON contents of a service-account key file, not a path. If you have a path, paste it into the <strong>Google Cloud Key File Path</strong> field below, or clear this field and use the <code>GOOGLE_APPLICATION_CREDENTIALS</code> environment variable.",
+		"googleCloudKeyFile": "Google Cloud Key File Path",
+		"googleCloudProjectId": "Google Cloud Project ID",
+		"googleCloudRegion": "Google Cloud Region",
 		"lmStudio": {
-			"baseUrl": "URL bazowy (opcjonalnie)",
-			"modelId": "ID modelu",
-			"speculativeDecoding": "Włącz dekodowanie spekulacyjne",
-			"draftModelId": "ID modelu szkicu",
-			"draftModelDesc": "Aby dekodowanie spekulacyjne działało poprawnie, model szkicu musi pochodzić z tej samej rodziny modeli.",
-			"selectDraftModel": "Wybierz model szkicu",
-			"noModelsFound": "Nie znaleziono modeli szkicu. Upewnij się, że LM Studio jest uruchomione z włączonym trybem serwera.",
-			"description": "LM Studio pozwala na lokalne uruchamianie modeli na twoim komputerze. Aby rozpocząć, zapoznaj się z ich <a>przewodnikiem szybkiego startu</a>. Będziesz również musiał uruchomić funkcję <b>serwera lokalnego</b> LM Studio, aby używać go z tym rozszerzeniem. <span>Uwaga:</span> Zoo Code używa złożonych podpowiedzi i działa najlepiej z modelami Claude. Modele o niższych możliwościach mogą nie działać zgodnie z oczekiwaniami."
+			"baseUrl": "Base URL (optional)",
+			"modelId": "Model ID",
+			"speculativeDecoding": "Enable Speculative Decoding",
+			"draftModelId": "Draft Model ID",
+			"draftModelDesc": "Draft model must be from the same model family for speculative decoding to work correctly.",
+			"selectDraftModel": "Select Draft Model",
+			"noModelsFound": "No draft models found. Please ensure LM Studio is running with Server Mode enabled.",
+			"description": "LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their <a>quickstart guide</a>. You will also need to start LM Studio's <b>local server</b> feature to use it with this extension. <span>Note:</span> Zoo Code uses complex prompts and works best with Claude models. Less capable models may not work as expected."
 		},
 		"ollama": {
-			"baseUrl": "URL bazowy (opcjonalnie)",
-			"modelId": "ID modelu",
-			"apiKey": "Klucz API Ollama",
-			"apiKeyHelp": "Opcjonalny klucz API dla uwierzytelnionych instancji Ollama lub usług chmurowych. Pozostaw puste dla instalacji lokalnych.",
-			"numCtx": "Rozmiar okna kontekstu (num_ctx)",
-			"numCtxHelp": "Zastępuje domyślny rozmiar okna kontekstu modelu. Pozostaw puste, aby użyć konfiguracji Modelfile modelu. Minimalna wartość to 128.",
-			"description": "Ollama pozwala na lokalne uruchamianie modeli na twoim komputerze. Aby rozpocząć, zapoznaj się z przewodnikiem szybkiego startu.",
-			"warning": "Uwaga: Zoo Code używa złożonych podpowiedzi i działa najlepiej z modelami Claude. Modele o niższych możliwościach mogą nie działać zgodnie z oczekiwaniami."
+			"baseUrl": "Base URL (optional)",
+			"modelId": "Model ID",
+			"apiKey": "Ollama API Key",
+			"apiKeyHelp": "Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations.",
+			"numCtx": "Context Window Size (num_ctx)",
+			"numCtxHelp": "Override the model's default context window size. Leave empty to use the model's Modelfile configuration. Minimum value is 128.",
+			"description": "Ollama allows you to run models locally on your computer. For instructions on how to get started, see their quickstart guide.",
+			"warning": "Note: Zoo Code uses complex prompts and works best with Claude models. Less capable models may not work as expected."
 		},
 		"openRouter": {
 			"providerRouting": {
-				"title": "Routing dostawców OpenRouter",
-				"description": "OpenRouter kieruje żądania do najlepszych dostępnych dostawców dla Twojego modelu. Domyślnie żądania są równoważone między najlepszymi dostawcami, aby zmaksymalizować czas działania. Możesz jednak wybrać konkretnego dostawcę do użycia z tym modelem.",
-				"learnMore": "Dowiedz się więcej o routingu dostawców"
+				"title": "OpenRouter Provider Routing",
+				"description": "OpenRouter routes requests to the best available providers for your model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
+				"learnMore": "Learn more about provider routing"
 			}
 		},
 		"customModel": {
-			"capabilities": "Skonfiguruj możliwości i ceny swojego niestandardowego modelu zgodnego z OpenAI. Zachowaj ostrożność podczas określania możliwości modelu, ponieważ mogą one wpływać na wydajność Zoo Code.",
+			"capabilities": "Configure the capabilities and pricing for your custom OpenAI-compatible model. Be careful when specifying the model capabilities, as they can affect how Zoo Code performs.",
 			"maxTokens": {
-				"label": "Maksymalna liczba tokenów wyjściowych",
-				"description": "Maksymalna liczba tokenów, które model może wygenerować w odpowiedzi. (Określ -1, aby pozwolić serwerowi ustawić maksymalną liczbę tokenów.)"
+				"label": "Max Output Tokens",
+				"description": "Maximum number of tokens the model can generate in a response. (Specify -1 to allow the server to set the max tokens.)"
 			},
 			"contextWindow": {
-				"label": "Rozmiar okna kontekstu",
-				"description": "Całkowita liczba tokenów (wejście + wyjście), które model może przetworzyć."
+				"label": "Context Window Size",
+				"description": "Total tokens (input + output) the model can process."
 			},
 			"imageSupport": {
-				"label": "Obsługa obrazów",
-				"description": "Czy model jest w stanie przetwarzać i rozumieć obrazy?"
+				"label": "Image Support",
+				"description": "Is this model capable of processing and understanding images?"
 			},
 			"computerUse": {
-				"label": "Użycie komputera",
-				"description": "Czy model jest w stanie wchodzić w interakcję z przeglądarką?"
+				"label": "Computer Use",
+				"description": "Is this model capable of interacting with a browser?"
 			},
 			"promptCache": {
-				"label": "Buforowanie podpowiedzi",
-				"description": "Czy model jest w stanie buforować podpowiedzi?"
+				"label": "Prompt Caching",
+				"description": "Is this model capable of caching prompts?"
 			},
 			"pricing": {
 				"input": {
-					"label": "Cena wejścia",
-					"description": "Koszt za milion tokenów wejściowych/podpowiedzi. Wpływa to na koszt wysyłania kontekstu i instrukcji do modelu."
+					"label": "Input Price",
+					"description": "Cost per million tokens in the input/prompt. This affects the cost of sending context and instructions to the model."
 				},
 				"output": {
-					"label": "Cena wyjścia",
-					"description": "Koszt za milion tokenów odpowiedzi modelu. Wpływa to na koszt generowanej treści i uzupełnień."
+					"label": "Output Price",
+					"description": "Cost per million tokens in the model's response. This affects the cost of generated content and completions."
 				},
 				"cacheReads": {
-					"label": "Cena odczytów bufora",
-					"description": "Koszt za milion tokenów za odczyt z bufora. Ta cena jest naliczana przy otrzymywaniu zbuforowanej odpowiedzi."
+					"label": "Cache Reads Price",
+					"description": "Cost per million tokens for reading from the cache. This is the price charged when a cached response is retrieved."
 				},
 				"cacheWrites": {
-					"label": "Cena zapisów bufora",
-					"description": "Koszt za milion tokenów za zapis do bufora. Ta cena jest naliczana przy pierwszym buforowaniu podpowiedzi."
+					"label": "Cache Writes Price",
+					"description": "Cost per million tokens for writing to the cache. This is the price charged when a prompt is cached for the first time."
 				}
 			},
-			"resetDefaults": "Przywróć domyślne"
+			"resetDefaults": "Reset to Defaults"
 		},
 		"rateLimitSeconds": {
-			"label": "Limit szybkości",
-			"description": "Minimalny czas między żądaniami API."
+			"label": "Rate limit",
+			"description": "Minimum time between API requests."
 		},
 		"consecutiveMistakeLimit": {
-			"label": "Limit błędów i powtórzeń",
-			"description": "Liczba kolejnych błędów lub powtórzonych akcji przed wyświetleniem okna dialogowego 'Zoo ma problemy'. Ustaw na 0, aby wyłączyć ten mechanizm bezpieczeństwa (nigdy się nie uruchomi).",
-			"unlimitedDescription": "Włączono nieograniczone próby (automatyczne kontynuowanie). Okno dialogowe nigdy się nie pojawi.",
-			"warning": "⚠️ Ustawienie na 0 pozwala na nieograniczone próby, co może zużyć znaczną ilość API"
+			"label": "Error & Repetition Limit",
+			"description": "Number of consecutive errors or repeated actions before showing 'Zoo is having trouble' dialog. Set to 0 to disable this safety mechanism (it will never trigger).",
+			"unlimitedDescription": "Unlimited retries enabled (auto-proceed). The dialog will never appear.",
+			"warning": "⚠️ Setting to 0 allows unlimited retries which may consume significant API usage"
 		},
 		"reasoningEffort": {
-			"label": "Wysiłek rozumowania modelu",
-			"none": "Brak",
-			"minimal": "Minimalny (najszybszy)",
-			"high": "Wysoki",
-			"xhigh": "Bardzo wysoki",
-			"medium": "Średni",
-			"low": "Niski"
+			"label": "Model Reasoning Effort",
+			"none": "None",
+			"minimal": "Minimal (Fastest)",
+			"low": "Low",
+			"medium": "Medium",
+			"high": "High",
+			"xhigh": "Extra High"
 		},
 		"verbosity": {
-			"label": "Szczegółowość danych wyjściowych",
-			"high": "Wysoka",
-			"medium": "Średnia",
-			"low": "Niska",
-			"description": "Kontroluje, jak szczegółowe są odpowiedzi modelu. Niska szczegółowość generuje zwięzłe odpowiedzi, podczas gdy wysoka szczegółowość dostarcza dokładnych wyjaśnień."
+			"label": "Output Verbosity",
+			"high": "High",
+			"medium": "Medium",
+			"low": "Low",
+			"description": "Controls how detailed the model's responses are. Low verbosity produces concise answers, while high verbosity provides thorough explanations."
 		},
-		"setReasoningLevel": "Włącz wysiłek rozumowania",
+		"setReasoningLevel": "Enable Reasoning Effort",
 		"claudeCode": {
-			"pathLabel": "Ścieżka Claude Code",
-			"description": "Opcjonalna ścieżka do Twojego CLI Claude Code. Domyślnie 'claude', jeśli nie ustawiono.",
-			"placeholder": "Domyślnie: claude",
-			"maxTokensLabel": "Maksymalna liczba tokenów wyjściowych",
-			"maxTokensDescription": "Maksymalna liczba tokenów wyjściowych dla odpowiedzi Claude Code. Domyślnie 8000."
+			"pathLabel": "Claude Code Path",
+			"description": "Optional path to your Claude Code CLI. Defaults to 'claude' if not set.",
+			"placeholder": "Default: claude",
+			"maxTokensLabel": "Max Output Tokens",
+			"maxTokensDescription": "Maximum number of output tokens for Claude Code responses. Default is 8000."
 		}
 	},
 	"checkpoints": {
 		"timeout": {
-			"label": "Limit czasu inicjalizacji punktu kontrolnego (sekundy)",
-			"description": "Maksymalny czas oczekiwania na inicjalizację usługi punktów kontrolnych. Domyślnie 15 sekund. Zakres: 10-60 sekund."
+			"label": "Checkpoint initialization timeout (seconds)",
+			"description": "Maximum time to wait for checkpoint service initialization. Default is 15 seconds. Range: 10-60 seconds."
 		},
 		"enable": {
-			"label": "Włącz automatyczne punkty kontrolne",
-			"description": "Gdy włączone, Zoo automatycznie utworzy punkty kontrolne podczas wykonywania zadań, ułatwiając przeglądanie zmian lub powrót do wcześniejszych stanów. <0>Dowiedz się więcej</0>"
+			"label": "Enable automatic checkpoints",
+			"description": "When enabled, Zoo will automatically create checkpoints during task execution, making it easy to review changes or revert to earlier states. <0>Learn more</0>"
 		}
 	},
 	"notifications": {
 		"sound": {
-			"label": "Włącz efekty dźwiękowe",
-			"description": "Gdy włączone, Zoo będzie odtwarzać efekty dźwiękowe dla powiadomień i zdarzeń.",
-			"volumeLabel": "Głośność"
+			"label": "Enable sound effects",
+			"description": "When enabled, Zoo will play sound effects for notifications and events.",
+			"volumeLabel": "Volume"
 		},
 		"tts": {
-			"label": "Włącz syntezę mowy",
-			"description": "Gdy włączone, Zoo będzie czytać na głos swoje odpowiedzi za pomocą syntezy mowy.",
-			"speedLabel": "Szybkość"
+			"label": "Enable text-to-speech",
+			"description": "When enabled, Zoo will read aloud its responses using text-to-speech.",
+			"speedLabel": "Speed"
 		}
 	},
 	"contextManagement": {
-		"description": "Kontroluj, jakie informacje są zawarte w oknie kontekstu AI, wpływając na zużycie token i jakość odpowiedzi",
+		"description": "Control what information is included in the AI's context window, affecting token usage and response quality",
 		"autoCondenseContextPercent": {
-			"label": "Próg wyzwalający inteligentną kondensację kontekstu",
-			"description": "Gdy okno kontekstu osiągnie ten próg, Zoo automatycznie je skondensuje."
+			"label": "Threshold to trigger intelligent context condensing",
+			"description": "When the context window reaches this threshold, Zoo will automatically condense it."
 		},
 		"condensingApiConfiguration": {
-			"label": "Konfiguracja API dla kondensacji kontekstu",
-			"description": "Wybierz, którą konfigurację API używać do operacji kondensacji kontekstu. Pozostaw niewybrane, aby użyć aktualnej aktywnej konfiguracji.",
-			"useCurrentConfig": "Domyślna"
+			"label": "API Configuration for Context Condensing",
+			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
+			"useCurrentConfig": "Default"
 		},
 		"customCondensingPrompt": {
-			"label": "Niestandardowy monit kondensacji kontekstu",
-			"description": "Niestandardowy monit systemowy dla kondensacji kontekstu. Pozostaw puste, aby użyć domyślnego monitu.",
-			"placeholder": "Wprowadź tutaj swój niestandardowy monit kondensacji...\n\nMożesz użyć tej samej struktury co domyślny monit:\n- Poprzednia rozmowa\n- Aktualna praca\n- Kluczowe koncepcje techniczne\n- Istotne pliki i kod\n- Rozwiązywanie problemów\n- Oczekujące zadania i następne kroki",
-			"reset": "Przywróć domyślne",
-			"hint": "Puste = użyj domyślnego monitu"
+			"label": "Custom Context Condensing Prompt",
+			"description": "Customize the system prompt used for context condensing. Leave empty to use the default prompt.",
+			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
+			"reset": "Reset to Default",
+			"hint": "Empty = use default prompt"
 		},
 		"autoCondenseContext": {
-			"name": "Automatycznie wyzwalaj inteligentną kondensację kontekstu",
-			"description": "Gdy włączone, Zoo automatycznie skondensuje kontekst po osiągnięciu progu. Gdy wyłączone, nadal możesz ręcznie wyzwolić kondensację kontekstu."
+			"name": "Automatically trigger intelligent context condensing",
+			"description": "When enabled, Zoo will automatically condense the context when the threshold is reached. When disabled, you can still manually trigger context condensing."
 		},
 		"openTabs": {
-			"label": "Limit kontekstu otwartych kart",
-			"description": "Maksymalna liczba otwartych kart VSCode do uwzględnienia w kontekście. Wyższe wartości zapewniają więcej kontekstu, ale zwiększają zużycie token."
+			"label": "Open tabs context limit",
+			"description": "Maximum number of VSCode open tabs to include in context. Higher values provide more context but increase token usage."
 		},
 		"workspaceFiles": {
-			"label": "Limit kontekstu plików obszaru roboczego",
-			"description": "Maksymalna liczba plików do uwzględnienia w szczegółach bieżącego katalogu roboczego. Wyższe wartości zapewniają więcej kontekstu, ale zwiększają zużycie token."
+			"label": "Workspace files context limit",
+			"description": "Maximum number of files to include in current working directory details. Higher values provide more context but increase token usage."
 		},
 		"rooignore": {
-			"label": "Pokaż pliki .rooignore na listach i w wyszukiwaniach",
-			"description": "Gdy włączone, pliki pasujące do wzorców w .rooignore będą pokazywane na listach z symbolem kłódki. Gdy wyłączone, te pliki będą całkowicie ukryte z list plików i wyszukiwań."
-		},
-		"maxReadFile": {
-			"label": "Próg automatycznego skracania odczytu pliku",
-			"description": "Zoo odczytuje tę liczbę linii, gdy model nie określa wartości początkowej/końcowej. Jeśli ta liczba jest mniejsza niż całkowita liczba linii pliku, Zoo generuje indeks numerów linii definicji kodu. Przypadki specjalne: -1 nakazuje Zoo odczytać cały plik (bez indeksowania), a 0 nakazuje nie czytać żadnych linii i dostarczyć tylko indeksy linii dla minimalnego kontekstu. Niższe wartości minimalizują początkowe użycie kontekstu, umożliwiając późniejsze precyzyjne odczyty zakresów linii. Jawne żądania początku/końca nie są ograniczone tym ustawieniem.",
-			"lines": "linii",
-			"always_full_read": "Zawsze czytaj cały plik"
+			"label": "Show .rooignore'd files in lists and searches",
+			"description": "When enabled, files matching patterns in .rooignore will be shown in lists with a lock symbol. When disabled, these files will be completely hidden from file lists and searches."
 		},
 		"maxConcurrentFileReads": {
-			"label": "Limit jednoczesnych odczytów",
-			"description": "Maksymalna liczba plików, które narzędzie 'read_file' może przetwarzać jednocześnie. Wyższe wartości mogą przyspieszyć odczyt wielu małych plików, ale zwiększają zużycie pamięci."
+			"label": "Concurrent file reads limit",
+			"description": "Maximum number of files the 'read_file' tool can process concurrently. Higher values may speed up reading multiple small files but increase memory usage."
+		},
+		"maxReadFile": {
+			"label": "File read auto-truncate threshold",
+			"description": "Zoo reads this number of lines when the model omits start/end values. If this number is less than the file's total, Zoo generates a line number index of code definitions. Special cases: -1 instructs Zoo to read the entire file (without indexing), and 0 instructs it to read no lines and provides line indexes only for minimal context. Lower values minimize initial context usage, enabling precise subsequent line-range reads. Explicit start/end requests are not limited by this setting.",
+			"lines": "lines",
+			"always_full_read": "Always read entire file"
+		},
+		"maxImageFileSize": {
+			"label": "Max image file size",
+			"mb": "MB",
+			"description": "Maximum size (in MB) for image files that can be processed by the read file tool."
+		},
+		"maxTotalImageSize": {
+			"label": "Max total image size",
+			"mb": "MB",
+			"description": "Maximum cumulative size limit (in MB) for all images processed in a single read_file operation. When reading multiple images, each image's size is added to the total. If including another image would exceed this limit, it will be skipped."
 		},
 		"diagnostics": {
 			"includeMessages": {
-				"label": "Automatycznie dołączaj diagnostykę do kontekstu",
-				"description": "Gdy włączone, komunikaty diagnostyczne (błędy) z edytowanych plików będą automatycznie dołączane do kontekstu. Zawsze możesz ręcznie dołączyć całą diagnostykę obszaru roboczego używając @problems."
+				"label": "Automatically include diagnostics in context",
+				"description": "When enabled, diagnostic messages (errors) from edited files will be automatically included in the context. You can always manually include all workspace diagnostics using @problems."
 			},
 			"maxMessages": {
-				"label": "Maksymalna liczba komunikatów diagnostycznych",
-				"description": "Maksymalna liczba komunikatów diagnostycznych dołączanych na plik. Ten limit dotyczy zarówno automatycznego dołączania (gdy pole wyboru jest włączone) jak i ręcznych wzmianek @problems. Wyższe wartości dostarczają więcej kontekstu, ale zwiększają zużycie tokenów.",
-				"resetTooltip": "Resetuj do wartości domyślnej (50)",
-				"unlimitedLabel": "Nieograniczone"
+				"label": "Maximum diagnostic messages",
+				"description": "Limits the number of diagnostic messages (errors, warnings) included in the context. When set, only this many diagnostics will be shown, prioritizing errors over warnings. Set to 0 for unlimited diagnostics.",
+				"resetTooltip": "Reset to default value (50)",
+				"unlimitedLabel": "Unlimited"
 			},
 			"delayAfterWrite": {
-				"label": "Opóźnienie po zapisie, aby umożliwić diagnostyce wykrycie potencjalnych problemów",
-				"description": "Czas oczekiwania po zapisie plików przed kontynuowaniem, aby narzędzia diagnostyczne mogły przetworzyć zmiany i wykryć problemy."
+				"label": "Delay after writes to allow diagnostics to detect potential problems",
+				"description": "Time to wait after file writes before proceeding, allowing diagnostic tools to process changes and detect issues."
 			}
 		},
 		"condensingThreshold": {
-			"label": "Próg wyzwalania kondensacji",
-			"selectProfile": "Skonfiguruj próg dla profilu",
-			"defaultProfile": "Globalny domyślny (wszystkie profile)",
-			"defaultDescription": "Gdy kontekst osiągnie ten procent, zostanie automatycznie skondensowany dla wszystkich profili, chyba że mają niestandardowe ustawienia",
-			"profileDescription": "Niestandardowy próg tylko dla tego profilu (zastępuje globalny domyślny)",
-			"inheritDescription": "Ten profil dziedziczy globalny domyślny próg ({{threshold}}%)",
-			"usesGlobal": "(używa globalnego {{threshold}}%)"
-		},
-		"maxImageFileSize": {
-			"label": "Maksymalny rozmiar pliku obrazu",
-			"mb": "MB",
-			"description": "Maksymalny rozmiar (w MB) plików obrazów, które mogą być przetwarzane przez narzędzie do czytania plików."
-		},
-		"maxTotalImageSize": {
-			"label": "Maksymalny całkowity rozmiar obrazów",
-			"mb": "MB",
-			"description": "Maksymalny skumulowany limit rozmiaru (w MB) dla wszystkich obrazów przetwarzanych w jednej operacji read_file. Podczas odczytu wielu obrazów rozmiar każdego obrazu jest dodawany do sumy. Jeśli dołączenie kolejnego obrazu przekroczyłoby ten limit, zostanie on pominięty."
+			"label": "Condensing Trigger Threshold",
+			"selectProfile": "Configure threshold for profile",
+			"defaultProfile": "Global Default (all profiles)",
+			"defaultDescription": "When context reaches this percentage, it will be automatically condensed for all profiles unless they have custom settings",
+			"profileDescription": "Custom threshold for this profile only (overrides global default)",
+			"inheritDescription": "This profile inherits the global default threshold ({{threshold}}%)",
+			"usesGlobal": "(uses global {{threshold}}%)"
 		},
 		"includeCurrentTime": {
-			"label": "Uwzględnij bieżący czas w kontekście",
-			"description": "Gdy włączone, bieżący czas i informacje o strefie czasowej zostaną uwzględnione w promptcie systemowym. Wyłącz, jeśli modele przestają działać z powodu problemów z czasem."
+			"label": "Include current time in context",
+			"description": "When enabled, the current time and timezone information will be included in the system prompt. Disable this if models are stopping work due to time concerns."
 		},
 		"includeCurrentCost": {
-			"label": "Uwzględnij bieżący koszt w kontekście",
-			"description": "Gdy włączone, bieżący koszt użycia API zostanie uwzględniony w promptcie systemowym. Wyłącz, jeśli modele przestają działać z powodu problemów z kosztami."
+			"label": "Include current cost in context",
+			"description": "When enabled, the current API usage cost will be included in the system prompt. Disable this if models are stopping work due to cost concerns."
 		},
 		"maxGitStatusFiles": {
-			"label": "Git status maks. plików",
-			"description": "Maksymalna liczba wpisów plików do uwzględnienia w kontekście statusu git. Ustaw na 0, aby wyłączyć. Informacje o gałęzi i zatwierdzenia są zawsze pokazywane, gdy > 0."
+			"label": "Git status max files",
+			"description": "Maximum number of file entries to include in git status context. Set to 0 to disable. Branch info is always shown when > 0."
 		},
 		"enableSubfolderRules": {
-			"label": "Włącz reguły podfolderów",
-			"description": "Rekursywnie odkrywaj i ładuj pliki .roo/rules i AGENTS.md z podkatalogów. Przydatne dla monorepo z regułami dla poszczególnych pakietów."
+			"label": "Enable subfolder rules",
+			"description": "Recursively discover and load .roo/rules and AGENTS.md files from subdirectories. Useful for monorepos with per-package rules."
 		}
 	},
 	"terminal": {
 		"basic": {
-			"label": "Ustawienia terminala: Podstawowe",
-			"description": "Podstawowe ustawienia terminala"
+			"label": "Terminal Settings: Basic",
+			"description": "Basic terminal settings"
 		},
 		"advanced": {
-			"label": "Ustawienia terminala: Zaawansowane",
-			"description": "Te ustawienia mają zastosowanie tylko gdy 'Użyj terminala wbudowanego' jest wyłączone. Dotyczą tylko terminala VS Code i mogą wymagać ponownego uruchomienia IDE."
+			"label": "Terminal Settings: Advanced",
+			"description": "These settings apply only when 'Use Inline Terminal' is disabled. They affect the VS Code terminal only and may require restarting the IDE."
 		},
 		"outputLineLimit": {
-			"label": "Limit wyjścia terminala",
-			"description": "Zachowuje pierwsze i ostatnie linie i odrzuca środkowe, aby zmieścić się w limicie. Zmniejsz, aby oszczędzać tokeny; zwiększ, aby dać Zoo więcej szczegółów ze środka. Zoo widzi symbol zastępczy tam, gdzie treść jest pomijana.<0>Dowiedz się więcej</0>"
+			"label": "Terminal output limit",
+			"description": "Keeps the first and last lines and drops the middle to stay under the limit. Lower to save tokens; raise to give Zoo more middle detail. Zoo sees a placeholder where the content is skipped.<0>Learn more</0>"
 		},
 		"outputCharacterLimit": {
-			"label": "Limit znaków terminala",
-			"description": "Zastępuje limit linii, aby zapobiec problemom z pamięcią, narzucając twardy limit rozmiaru wyjścia. W przypadku przekroczenia zachowuje początek i koniec i pokazuje symbol zastępczy Zoo tam, gdzie treść jest pomijana. <0>Dowiedz się więcej</0>"
+			"label": "Terminal character limit",
+			"description": "Overrides the line limit to prevent memory issues by enforcing a hard cap on output size. If exceeded, keeps the beginning and end and shows a placeholder to Zoo where content is skipped. <0>Learn more</0>"
 		},
 		"outputPreviewSize": {
-			"label": "Rozmiar podglądu wyjścia polecenia",
-			"description": "Kontroluje, ile wyjścia polecenia Zoo widzi bezpośrednio. Pełne wyjście jest zawsze zapisywane i dostępne w razie potrzeby.",
+			"label": "Command output preview size",
+			"description": "Controls how much command output Zoo sees directly. Full output is always saved and accessible when needed.",
 			"options": {
-				"small": "Mały (5KB)",
-				"medium": "Średni (10KB)",
-				"large": "Duży (20KB)"
+				"small": "Small (5KB)",
+				"medium": "Medium (10KB)",
+				"large": "Large (20KB)"
 			}
 		},
 		"shellIntegrationTimeout": {
-			"label": "Limit czasu integracji powłoki terminala",
-			"description": "Jak długo czekać na integrację powłoki VS Code przed wykonaniem poleceń. Zwiększ, jeśli twoja powłoka wolno się uruchamia lub widzisz błędy 'Integracja Powłoki Niedostępna'. <0>Dowiedz się więcej</0>"
+			"label": "Terminal shell integration timeout",
+			"description": "How long to wait for VS Code shell integration before running commands. Raise if your shell starts slowly or you see 'Shell Integration Unavailable' errors. <0>Learn more</0>"
 		},
 		"shellIntegrationDisabled": {
-			"label": "Użyj terminala wbudowanego (zalecane)",
-			"description": "Uruchamiaj polecenia w terminalu wbudowanym (czat), aby ominąć profile/integrację powłoki dla szybszych, bardziej niezawodnych uruchomień. Gdy wyłączony, Zoo używa terminala VS Code z twoim profilem powłoki, monitami i wtyczkami. <0>Dowiedz się więcej</0>"
+			"label": "Use Inline Terminal (recommended)",
+			"description": "Run commands in the Inline Terminal (chat) to bypass shell profiles/integration for faster, more reliable runs. When disabled Zoo uses the VS Code terminal with your shell profile, prompts, and plugins. <0>Learn more</0>"
 		},
 		"commandDelay": {
-			"label": "Opóźnienie polecenia terminala",
-			"description": "Dodaje krótką pauzę po każdym poleceniu, aby terminal VS Code mógł opróżnić całe wyjście (bash/zsh: PROMPT_COMMAND sleep; PowerShell: start-sleep). Używaj tylko gdy widzisz brakujące wyjście końcowe; w przeciwnym razie zostaw na 0. <0>Dowiedz się więcej</0>"
+			"label": "Terminal command delay",
+			"description": "Adds a short pause after each command so the VS Code terminal can flush all output (bash/zsh: PROMPT_COMMAND sleep; PowerShell: start-sleep). Use only if you see missing tail output; otherwise leave at 0. <0>Learn more</0>"
 		},
 		"powershellCounter": {
-			"label": "Włącz obejście licznika PowerShell",
-			"description": "Włącz gdy brakuje lub jest zduplikowane wyjście PowerShell; dodaje mały licznik do każdego polecenia, aby ustabilizować wyjście. Pozostaw wyłączone, jeśli wyjście już wygląda poprawnie. <0>Dowiedz się więcej</0>"
+			"label": "Enable PowerShell counter workaround",
+			"description": "Turn this on when PowerShell output is missing or duplicated; it appends a tiny counter to each command to stabilize output. Keep this off if output already looks correct. <0>Learn more</0>"
 		},
 		"zshClearEolMark": {
-			"label": "Wyczyść znacznik końca linii ZSH",
-			"description": "Włącz gdy widzisz zbłąkane % na końcu linii lub parsowanie wygląda nieprawidłowo; pomija znacznik końca linii (%) Zsh. <0>Dowiedz się więcej</0>"
+			"label": "Clear ZSH EOL mark",
+			"description": "Turn this on when you see stray % at the end of lines or parsing looks wrong; it omits Zsh’s end‑of‑line mark (%). <0>Learn more</0>"
 		},
 		"zshOhMy": {
-			"label": "Włącz integrację Oh My Zsh",
-			"description": "Włącz gdy twój motyw/wtyczki Oh My Zsh oczekują integracji powłoki; ustawia ITERM_SHELL_INTEGRATION_INSTALLED=Yes. Wyłącz, aby uniknąć ustawiania tej zmiennej. <0>Dowiedz się więcej</0>"
+			"label": "Enable Oh My Zsh integration",
+			"description": "Turn this on when your Oh My Zsh theme/plugins expect shell integration; it sets ITERM_SHELL_INTEGRATION_INSTALLED=Yes. Turn this off to avoid setting that variable. <0>Learn more</0>"
 		},
 		"zshP10k": {
-			"label": "Włącz integrację Powerlevel10k",
-			"description": "Włącz gdy używasz integracji powłoki Powerlevel10k. <0>Dowiedz się więcej</0>"
+			"label": "Enable Powerlevel10k integration",
+			"description": "Turn this on when using Powerlevel10k shell integration. <0>Learn more</0>"
 		},
 		"zdotdir": {
-			"label": "Włącz obsługę ZDOTDIR",
-			"description": "Włącz gdy integracja powłoki zsh zawodzi lub jest w konflikcie z twoimi plikami dotfiles. <0>Dowiedz się więcej</0>"
+			"label": "Enable ZDOTDIR handling",
+			"description": "Turn this on when zsh shell integration fails or conflicts with your dotfiles. <0>Learn more</0>"
 		},
 		"inheritEnv": {
-			"label": "Dziedzicz zmienne środowiskowe",
-			"description": "Włącz, aby dziedziczyć zmienne środowiskowe z procesu nadrzędnego VS Code. <0>Dowiedz się więcej</0>"
+			"label": "Inherit environment variables",
+			"description": "Turn this on to inherit environment variables from the parent VS Code process. <0>Learn more</0>"
 		}
 	},
 	"advancedSettings": {
-		"title": "Ustawienia zaawansowane"
+		"title": "Advanced settings"
 	},
 	"advanced": {
 		"diff": {
-			"label": "Włącz edycję przez różnice",
-			"description": "Gdy włączone, Zoo będzie w stanie edytować pliki szybciej i automatycznie odrzuci obcięte pełne zapisy plików",
+			"label": "Enable editing through diffs",
+			"description": "When enabled, Zoo will be able to edit files more quickly and will automatically reject truncated full-file writes",
 			"strategy": {
-				"label": "Strategia diff",
+				"label": "Diff strategy",
 				"options": {
-					"standard": "Standardowa (Pojedynczy blok)",
-					"multiBlock": "Eksperymentalna: Diff wieloblokowy",
-					"unified": "Eksperymentalna: Diff ujednolicony"
+					"standard": "Standard (Single block)",
+					"multiBlock": "Experimental: Multi-block diff",
+					"unified": "Experimental: Unified diff"
 				},
 				"descriptions": {
-					"standard": "Standardowa strategia diff stosuje zmiany do jednego bloku kodu na raz.",
-					"unified": "Strategia diff ujednoliconego stosuje wiele podejść do zastosowania różnic i wybiera najlepsze podejście.",
-					"multiBlock": "Strategia diff wieloblokowego pozwala na aktualizację wielu bloków kodu w pliku w jednym żądaniu."
+					"standard": "Standard diff strategy applies changes to a single code block at a time.",
+					"unified": "Unified diff strategy takes multiple approaches to applying diffs and chooses the best approach.",
+					"multiBlock": "Multi-block diff strategy allows updating multiple code blocks in a file in one request."
 				}
 			}
 		},
 		"todoList": {
-			"label": "Włącz narzędzie listy zadań",
-			"description": "Po włączeniu Zoo może tworzyć i zarządzać listami zadań do śledzenia postępu zadań. Pomaga to organizować złożone zadania w łatwe do zarządzania kroki."
+			"label": "Enable todo list tool",
+			"description": "When enabled, Zoo can create and manage todo lists to track task progress. This helps organize complex tasks into manageable steps."
 		}
 	},
 	"experimental": {
 		"DIFF_STRATEGY_UNIFIED": {
-			"name": "Użyj eksperymentalnej ujednoliconej strategii diff",
-			"description": "Włącz eksperymentalną ujednoliconą strategię diff. Ta strategia może zmniejszyć liczbę ponownych prób spowodowanych błędami modelu, ale może powodować nieoczekiwane zachowanie lub nieprawidłowe edycje. Włącz tylko jeśli rozumiesz ryzyko i jesteś gotów dokładnie przeglądać wszystkie zmiany."
+			"name": "Use experimental unified diff strategy",
+			"description": "Enable the experimental unified diff strategy. This strategy might reduce the number of retries caused by model errors but may cause unexpected behavior or incorrect edits. Only enable if you understand the risks and are willing to carefully review all changes."
 		},
 		"INSERT_BLOCK": {
-			"name": "Użyj eksperymentalnego narzędzia do wstawiania treści",
-			"description": "Włącz eksperymentalne narzędzie do wstawiania treści, umożliwiając Zoo wstawianie treści w określonych numerach linii bez konieczności tworzenia diff."
-		},
-		"MULTI_SEARCH_AND_REPLACE": {
-			"name": "Użyj eksperymentalnego narzędzia diff wieloblokowego",
-			"description": "Po włączeniu, Zoo użyje narzędzia diff wieloblokowego. Spróbuje to zaktualizować wiele bloków kodu w pliku w jednym żądaniu."
+			"name": "Use experimental insert content tool",
+			"description": "Enable the experimental insert content tool, allowing Zoo to insert content at specific line numbers without needing to create a diff."
 		},
 		"CONCURRENT_FILE_READS": {
-			"name": "Włącz jednoczesne odczytywanie plików",
-			"description": "Po włączeniu Zoo może odczytać wiele plików w jednym żądaniu. Po wyłączeniu Zoo musi odczytywać pliki pojedynczo. Wyłączenie może pomóc podczas pracy z mniej wydajnymi modelami lub gdy chcesz mieć większą kontrolę nad dostępem do plików."
+			"name": "Enable concurrent file reads",
+			"description": "When enabled, Zoo can read multiple files in a single request. When disabled, Zoo must read files one at a time. Disabling this can help when working with less capable models or when you want more control over file access."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Use experimental multi block diff tool",
+			"description": "When enabled, Zoo will use multi block diff tool. This will try to update multiple code blocks in the file in one request."
 		},
 		"MARKETPLACE": {
-			"name": "Włącz Marketplace",
-			"description": "Gdy włączone, możesz instalować MCP i niestandardowe tryby z Marketplace."
+			"name": "Enable Marketplace",
+			"description": "When enabled, you can install MCPs and custom modes from the Marketplace."
 		},
 		"PREVENT_FOCUS_DISRUPTION": {
-			"name": "Edycja w tle",
-			"description": "Zapobiega zakłócaniu fokusa edytora gdy włączone. Edycje plików odbywają się w tle bez otwierania widoków różnic lub kradzieży fokusa. Możesz kontynuować pracę bez przeszkód podczas gdy Zoo wprowadza zmiany. Pliki mogą być otwierane bez fokusa aby przechwycić diagnostykę lub pozostać całkowicie zamknięte."
+			"name": "Background editing",
+			"description": "Prevent editor focus disruption when enabled. File edits happen in the background without opening diff views or stealing focus. You can continue working uninterrupted while Zoo makes changes. Files can be opened without focus to capture diagnostics or kept closed entirely."
 		},
 		"ASSISTANT_MESSAGE_PARSER": {
-			"name": "Użyj nowego parsera wiadomości",
-			"description": "Włącz eksperymentalny parser wiadomości w strumieniu, który przyspiesza długie odpowiedzi dzięki bardziej wydajnemu przetwarzaniu wiadomości."
+			"name": "Use new message parser",
+			"description": "Enable the experimental streaming message parser that provides significant performance improvements for long assistant responses by processing messages more efficiently."
 		},
 		"NEW_TASK_REQUIRE_TODOS": {
-			"name": "Wymagaj listy 'todos' dla nowych zadań",
-			"description": "Gdy włączone, narzędzie new_task będzie wymagało podania parametru todos. Zapewnia to, że wszystkie nowe zadania rozpoczynają się od jasnej listy celów. Gdy wyłączone (domyślnie), parametr todos pozostaje opcjonalny dla zachowania kompatybilności wstecznej."
+			"name": "Require 'todos' list for new tasks",
+			"description": "When enabled, the new_task tool will require a todos parameter to be provided. This ensures all new tasks start with a clear list of objectives. When disabled (default), the todos parameter remains optional for backward compatibility."
 		},
 		"IMAGE_GENERATION": {
-			"providerLabel": "Dostawca",
-			"providerDescription": "Wybierz dostawcę do generowania obrazów.",
-			"name": "Włącz generowanie obrazów AI",
-			"description": "Gdy włączone, Zoo może generować obrazy z promptów tekstowych używając modeli generowania obrazów OpenRouter. Wymaga skonfigurowanego klucza API OpenRouter.",
-			"openRouterApiKeyLabel": "Klucz API OpenRouter",
-			"openRouterApiKeyPlaceholder": "Wprowadź swój klucz API OpenRouter",
-			"getApiKeyText": "Uzyskaj swój klucz API od",
-			"modelSelectionLabel": "Model generowania obrazów",
-			"modelSelectionDescription": "Wybierz model do generowania obrazów",
-			"warningMissingKey": "⚠️ Klucz API OpenRouter jest wymagany do generowania obrazów. Skonfiguruj go powyżej.",
-			"successConfigured": "✓ Generowanie obrazów jest skonfigurowane i gotowe do użycia"
+			"name": "Enable AI image generation",
+			"description": "When enabled, Zoo can generate images from text prompts using image generation models.",
+			"providerLabel": "Provider",
+			"providerDescription": "Select which provider to use for image generation.",
+			"openRouterApiKeyLabel": "OpenRouter API Key",
+			"openRouterApiKeyPlaceholder": "Enter your OpenRouter API key",
+			"getApiKeyText": "Get your API key from",
+			"modelSelectionLabel": "Image Generation Model",
+			"modelSelectionDescription": "Select the model to use for image generation",
+			"warningMissingKey": "⚠️ OpenRouter API key is required for OpenRouter image generation. Please configure it above.",
+			"successConfigured": "✓ Image generation is configured and ready to use"
 		},
 		"RUN_SLASH_COMMAND": {
-			"name": "Włącz polecenia slash inicjowane przez model",
-			"description": "Gdy włączone, Zoo może uruchamiać twoje polecenia slash w celu wykonywania przepływów pracy."
+			"name": "Enable model-initiated slash commands",
+			"description": "When enabled, Zoo can run your slash commands to execute workflows."
 		},
 		"CUSTOM_TOOLS": {
-			"name": "Włącz niestandardowe narzędzia",
-			"description": "Gdy włączone, Zoo może ładować i używać niestandardowych narzędzi TypeScript/JavaScript z katalogu .roo/tools Twojego projektu lub ~/.roo/tools dla narzędzi globalnych. Uwaga: te narzędzia będą automatycznie zatwierdzane.",
-			"toolsHeader": "Dostępne niestandardowe narzędzia",
-			"noTools": "Nie załadowano niestandardowych narzędzi. Dodaj pliki .ts lub .js do katalogu .roo/tools swojego projektu lub ~/.roo/tools dla narzędzi globalnych.",
-			"refreshButton": "Odśwież",
-			"refreshing": "Odświeżanie...",
-			"refreshSuccess": "Narzędzia odświeżone pomyślnie",
-			"refreshError": "Nie udało się odświeżyć narzędzi",
-			"toolParameters": "Parametry"
+			"name": "Enable custom tools",
+			"description": "When enabled, Zoo can load and use custom TypeScript/JavaScript tools from your project's .roo/tools directory or ~/.roo/tools for global tools. Note: these tools will automatically be auto-approved.",
+			"toolsHeader": "Available Custom Tools",
+			"noTools": "No custom tools loaded. Add .ts or .js files to your project's .roo/tools directory or ~/.roo/tools for global tools.",
+			"refreshButton": "Refresh",
+			"refreshing": "Refreshing...",
+			"refreshSuccess": "Tools refreshed successfully",
+			"refreshError": "Failed to refresh tools",
+			"toolParameters": "Parameters"
 		}
 	},
 	"promptCaching": {
-		"label": "Wyłącz buforowanie promptów",
-		"description": "Po zaznaczeniu, Zoo nie będzie używać buforowania promptów dla tego modelu."
+		"label": "Disable prompt caching",
+		"description": "When checked, Zoo will not use prompt caching for this model."
 	},
 	"temperature": {
-		"useCustom": "Użyj niestandardowej temperatury",
-		"description": "Kontroluje losowość w odpowiedziach modelu.",
-		"rangeDescription": "Wyższe wartości sprawiają, że wyjście jest bardziej losowe, niższe wartości czynią je bardziej deterministycznym."
+		"useCustom": "Use custom temperature",
+		"description": "Controls randomness in the model's responses.",
+		"rangeDescription": "Higher values make output more random, lower values make it more deterministic."
 	},
 	"modelInfo": {
-		"supportsImages": "Obsługuje obrazy",
-		"noImages": "Nie obsługuje obrazów",
-		"supportsPromptCache": "Obsługuje buforowanie podpowiedzi",
-		"noPromptCache": "Nie obsługuje buforowania podpowiedzi",
-		"contextWindow": "Okno kontekstowe:",
-		"maxOutput": "Maksymalne wyjście",
-		"inputPrice": "Cena wejścia",
-		"outputPrice": "Cena wyjścia",
-		"cacheReadsPrice": "Cena odczytów bufora",
-		"cacheWritesPrice": "Cena zapisów bufora",
-		"enableStreaming": "Włącz strumieniowanie",
-		"enableR1Format": "Włącz parametry modelu R1",
-		"enableR1FormatTips": "Należy włączyć podczas korzystania z modeli R1, takich jak QWQ, aby uniknąć błędu 400",
-		"useAzure": "Użyj Azure",
-		"azureApiVersion": "Ustaw wersję API Azure",
+		"supportsImages": "Supports images",
+		"noImages": "Does not support images",
+		"supportsPromptCache": "Supports prompt caching",
+		"noPromptCache": "Does not support prompt caching",
+		"contextWindow": "Context Window:",
+		"maxOutput": "Max output",
+		"inputPrice": "Input price",
+		"outputPrice": "Output price",
+		"cacheReadsPrice": "Cache reads price",
+		"cacheWritesPrice": "Cache writes price",
+		"enableStreaming": "Enable streaming",
+		"enableR1Format": "Enable R1 model parameters",
+		"enableR1FormatTips": "Must be enabled when using R1 models such as QWQ to prevent 400 errors",
+		"useAzure": "Use Azure",
+		"azureApiVersion": "Set Azure API version",
 		"gemini": {
-			"freeRequests": "* Darmowe do {{count}} zapytań na minutę. Po tym, rozliczanie zależy od rozmiaru podpowiedzi.",
-			"pricingDetails": "Więcej informacji znajdziesz w szczegółach cennika.",
-			"billingEstimate": "* Rozliczenie jest szacunkowe - dokładny koszt zależy od rozmiaru podpowiedzi."
+			"freeRequests": "* Free up to {{count}} requests per minute. After that, billing depends on prompt size.",
+			"pricingDetails": "For more info, see pricing details.",
+			"billingEstimate": "* Billing is an estimate - exact cost depends on prompt size."
 		}
 	},
 	"modelPicker": {
-		"automaticFetch": "Rozszerzenie automatycznie pobiera najnowszą listę modeli dostępnych w <serviceLink>{{serviceName}}</serviceLink>. Jeśli nie jesteś pewien, który model wybrać, Zoo Code działa najlepiej z <defaultModelLink>{{defaultModelId}}</defaultModelLink>. Możesz również wyszukać \"free\", aby znaleźć obecnie dostępne opcje bezpłatne.",
+		"automaticFetch": "The extension automatically fetches the latest list of models available on <serviceLink>{{serviceName}}</serviceLink>. If you're unsure which model to choose, Zoo Code works best with <defaultModelLink>{{defaultModelId}}</defaultModelLink>. You can also try searching \"free\" for no-cost options currently available.",
 		"label": "Model",
-		"searchPlaceholder": "Wyszukaj",
-		"noMatchFound": "Nie znaleziono dopasowań",
-		"useCustomModel": "Użyj niestandardowy: {{modelId}}",
-		"simplifiedExplanation": "Można dostosować szczegółowe ustawienia modelu później."
+		"searchPlaceholder": "Search",
+		"noMatchFound": "No match found",
+		"useCustomModel": "Use custom: {{modelId}}",
+		"simplifiedExplanation": "You can adjust detailed model settings later."
 	},
 	"footer": {
 		"telemetry": {
-			"label": "Zezwól na anonimowe raportowanie błędów i użycia",
-			"description": "Pomóż ulepszyć Zoo Code, wysyłając anonimowe dane użytkowania i raporty błędów. Ta telemetria nie zbiera kodu, promptów ani danych osobowych. Zobacz naszą <privacyLink>politykę prywatności</privacyLink>, aby uzyskać więcej szczegółów. Możesz to wyłączyć w dowolnym momencie."
+			"label": "Allow anonymous error and usage reporting",
+			"description": "Help improve Zoo Code by sending anonymous usage data and error reports. This telemetry does not collect code, prompts or personal information. See our <privacyLink>privacy policy</privacyLink> for more details."
 		},
 		"settings": {
-			"import": "Importuj",
-			"export": "Eksportuj",
-			"reset": "Resetuj"
+			"import": "Import",
+			"export": "Export",
+			"reset": "Reset"
 		}
 	},
 	"thinkingBudget": {
-		"maxTokens": "Maksymalna liczba tokenów",
-		"maxThinkingTokens": "Maksymalna liczba tokenów myślenia"
+		"maxTokens": "Max Tokens",
+		"maxThinkingTokens": "Max Thinking Tokens"
 	},
 	"validation": {
-		"apiKey": "Musisz podać prawidłowy klucz API.",
-		"awsRegion": "Musisz wybrać region, aby korzystać z Amazon Bedrock.",
-		"googleCloud": "Musisz podać prawidłowe ID projektu i region Google Cloud.",
-		"modelId": "Musisz podać prawidłowe ID modelu.",
-		"modelSelector": "Musisz podać prawidłowy selektor modelu.",
-		"openAi": "Musisz podać prawidłowy bazowy URL, klucz API i ID modelu.",
+		"apiKey": "You must provide a valid API key.",
+		"awsRegion": "You must choose a region to use with Amazon Bedrock.",
+		"googleCloud": "You must provide a valid Google Cloud Project ID and Region.",
+		"modelId": "You must provide a valid model ID.",
+		"modelSelector": "You must provide a valid model selector.",
+		"openAi": "You must provide a valid base URL, API key, and model ID.",
 		"arn": {
-			"invalidFormat": "Nieprawidłowy format ARN. Sprawdź wymagania dotyczące formatu.",
-			"regionMismatch": "Ostrzeżenie: Region w Twoim ARN ({{arnRegion}}) nie zgadza się z wybranym regionem ({{region}}). Może to powodować problemy z dostępem. Dostawca użyje regionu z ARN."
+			"invalidFormat": "Invalid ARN format. Please check the format requirements.",
+			"regionMismatch": "Warning: The region in your ARN ({{arnRegion}}) does not match your selected region ({{region}}). This may cause access issues. The provider will use the region from the ARN."
 		},
-		"modelAvailability": "Podane ID modelu ({{modelId}}) jest niedostępne. Wybierz inny model.",
-		"modelDeprecated": "Ten model nie jest już dostępny. Wybierz inny model.",
-		"providerNotAllowed": "Dostawca '{{provider}}' nie jest dozwolony przez Twoją organizację",
-		"modelNotAllowed": "Model '{{model}}' nie jest dozwolony dla dostawcy '{{provider}}' przez Twoją organizację",
-		"profileInvalid": "Ten profil zawiera dostawcę lub model, który nie jest dozwolony przez Twoją organizację",
-		"qwenCodeOauthPath": "Musisz podać prawidłową ścieżkę do poświadczeń OAuth"
+		"modelAvailability": "The model ID ({{modelId}}) you provided is not available. Please choose a different model.",
+		"modelDeprecated": "This model is no longer available. Please select a different model.",
+		"providerNotAllowed": "Provider '{{provider}}' is not allowed by your organization",
+		"modelNotAllowed": "Model '{{model}}' is not allowed for provider '{{provider}}' by your organization",
+		"profileInvalid": "This profile contains a provider or model that is not allowed by your organization",
+		"qwenCodeOauthPath": "You must provide a valid OAuth credentials path."
 	},
 	"placeholders": {
-		"apiKey": "Wprowadź klucz API...",
-		"profileName": "Wprowadź nazwę profilu",
-		"accessKey": "Wprowadź klucz dostępu...",
-		"secretKey": "Wprowadź klucz tajny...",
-		"sessionToken": "Wprowadź token sesji...",
-		"credentialsJson": "Wprowadź JSON poświadczeń...",
-		"keyFilePath": "Wprowadź ścieżkę pliku klucza...",
-		"projectId": "Wprowadź ID projektu...",
-		"customArn": "Wprowadź ARN (np. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
-		"baseUrl": "Wprowadź podstawowy URL...",
+		"apiKey": "Enter API Key...",
+		"profileName": "Enter profile name",
+		"accessKey": "Enter Access Key...",
+		"secretKey": "Enter Secret Key...",
+		"sessionToken": "Enter Session Token...",
+		"credentialsJson": "Enter Credentials JSON...",
+		"keyFilePath": "Enter Key File Path...",
+		"projectId": "Enter Project ID...",
+		"customArn": "Enter ARN (e.g. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Enter base URL...",
 		"modelId": {
-			"lmStudio": "np. meta-llama-3.1-8b-instruct",
-			"lmStudioDraft": "np. lmstudio-community/llama-3.2-1b-instruct",
-			"ollama": "np. llama3.1"
+			"lmStudio": "e.g. meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "e.g. lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "e.g. llama3.1"
 		},
 		"numbers": {
-			"maxTokens": "np. 4096",
-			"contextWindow": "np. 128000",
-			"inputPrice": "np. 0.0001",
-			"outputPrice": "np. 0.0002",
-			"cacheWritePrice": "np. 0.00005"
+			"maxTokens": "e.g. 4096",
+			"contextWindow": "e.g. 128000",
+			"inputPrice": "e.g. 0.0001",
+			"outputPrice": "e.g. 0.0002",
+			"cacheWritePrice": "e.g. 0.00005"
 		}
 	},
 	"defaults": {
-		"ollamaUrl": "Domyślnie: http://localhost:11434",
-		"lmStudioUrl": "Domyślnie: http://localhost:1234",
-		"geminiUrl": "Domyślnie: https://generativelanguage.googleapis.com"
+		"ollamaUrl": "Default: http://localhost:11434",
+		"lmStudioUrl": "Default: http://localhost:1234",
+		"geminiUrl": "Default: https://generativelanguage.googleapis.com"
 	},
 	"labels": {
-		"customArn": "Niestandardowy ARN",
-		"useCustomArn": "Użyj niestandardowego ARN..."
+		"customArn": "Custom ARN",
+		"useCustomArn": "Use custom ARN..."
 	},
-	"includeMaxOutputTokens": "Uwzględnij maksymalne tokeny wyjściowe",
-	"includeMaxOutputTokensDescription": "Wyślij parametr maksymalnych tokenów wyjściowych w żądaniach API. Niektórzy dostawcy mogą tego nie obsługiwać.",
-	"limitMaxTokensDescription": "Ogranicz maksymalną liczbę tokenów w odpowiedzi",
-	"maxOutputTokensLabel": "Maksymalne tokeny wyjściowe",
-	"maxTokensGenerateDescription": "Maksymalne tokeny do wygenerowania w odpowiedzi",
+	"includeMaxOutputTokens": "Include max output tokens",
+	"includeMaxOutputTokensDescription": "Send max output tokens parameter in API requests. Some providers may not support this.",
+	"limitMaxTokensDescription": "Limit the maximum number of tokens in the response",
+	"maxOutputTokensLabel": "Max output tokens",
+	"maxTokensGenerateDescription": "Maximum tokens to generate in response",
 	"serviceTier": {
-		"label": "Poziom usług",
-		"tooltip": "Aby szybciej przetwarzać żądania API, wypróbuj priorytetowy poziom usług. Aby uzyskać niższe ceny przy wyższej latencji, wypróbuj elastyczny poziom usług.",
-		"standard": "Standardowy",
-		"flex": "Elastyczny",
-		"priority": "Priorytetowy",
-		"pricingTableTitle": "Cennik według poziomu usług (cena za 1 mln tokenów)",
+		"label": "Service tier",
+		"tooltip": "For faster processing of API requests, try the priority processing service tier. For lower prices with higher latency, try the flex processing tier.",
+		"standard": "Standard",
+		"flex": "Flex",
+		"priority": "Priority",
+		"pricingTableTitle": "Pricing by service tier (price per 1M tokens)",
 		"columns": {
-			"tier": "Poziom",
-			"input": "Wejście",
-			"output": "Wyjście",
-			"cacheReads": "Odczyty z pamięci podręcznej"
+			"tier": "Tier",
+			"input": "Input",
+			"output": "Output",
+			"cacheReads": "Cache reads"
 		}
-	},
-	"ui": {
-		"collapseThinking": {
-			"label": "Domyślnie zwijaj komunikaty o myśleniu",
-			"description": "Gdy włączone, bloki myślenia będą domyślnie zwinięte, dopóki nie wejdziesz z nimi w interakcję"
-		},
-		"requireCtrlEnterToSend": {
-			"label": "Wymagaj {{primaryMod}}+Enter do wysyłania wiadomości",
-			"description": "Po włączeniu musisz nacisnąć {{primaryMod}}+Enter, aby wysłać wiadomości, zamiast tylko Enter"
-		},
-		"chatFontSize": {
-			"label": "Rozmiar czcionki czatu",
-			"description": "Ustaw rozmiar czcionki (w pikselach) dla czatu Zoo Code. Pozostaw wartość domyślną, aby dopasować ją do rozmiaru czcionki VS Code.",
-			"reset": "Użyj wartości domyślnej VS Code"
-		}
-	},
-	"skills": {
-		"description": "Zarządzaj umiejętnościami, które dostarczają kontekstowe instrukcje dla agenta. Umiejętności są automatycznie stosowane, gdy są istotne dla Twoich zadań. <DocsLink>Dowiedz się więcej</DocsLink>",
-		"workspaceSkills": "Umiejętności obszaru roboczego",
-		"globalSkills": "Umiejętności Globalne",
-		"noWorkspaceSkills": "Brak umiejętności w tym projekcie.",
-		"noGlobalSkills": "Brak skonfigurowanych umiejętności globalnych. Utwórz jedną, aby dodać możliwości agenta dostępne we wszystkich projektach.",
-		"addSkill": "Dodaj Umiejętność",
-		"editSkill": "Edytuj umiejętność",
-		"deleteSkill": "Usuń umiejętność",
-		"configureModes": "Dostępność trybu",
-		"modeAny": "Dowolny tryb",
-		"modeCount": "{{count}} tryby",
-		"deleteDialog": {
-			"title": "Usuń Umiejętność",
-			"description": "Czy na pewno chcesz usunąć umiejętność \"{{name}}\"? Tej akcji nie można cofnąć.",
-			"confirm": "Usuń",
-			"cancel": "Anuluj"
-		},
-		"modeDialog": {
-			"title": "Konfiguruj tryby umiejętności",
-			"description": "Wybierz, które tryby mogą korzystać z tej umiejętności",
-			"intro": "Aby utrzymać lekki kontekst, zalecamy udostępnienie umiejętności tylko trybom, które ich potrzebują.",
-			"anyMode": "Dowolny tryb (dostępny wszędzie)",
-			"save": "Zapisz",
-			"cancel": "Anuluj"
-		},
-		"createDialog": {
-			"title": "Utwórz Nową Umiejętność",
-			"nameLabel": "Nazwa",
-			"namePlaceholder": "moja-nazwa-umiejetnosci",
-			"descriptionLabel": "Opis",
-			"descriptionPlaceholder": "Opisz, kiedy ta umiejętność powinna być użyta...",
-			"sourceLabel": "Lokalizacja",
-			"modeLabel": "Tryb (opcjonalnie)",
-			"modePlaceholder": "Dowolny tryb",
-			"modeHint": "Ogranicz tę umiejętność do określonego trybu",
-			"modeAny": "Dowolny tryb",
-			"create": "Utwórz",
-			"cancel": "Anuluj"
-		},
-		"source": {
-			"global": "Globalnie (dostępne we wszystkich projektach)",
-			"project": "Projekt (tylko ten obszar roboczy)"
-		},
-		"validation": {
-			"nameRequired": "Nazwa jest wymagana",
-			"nameTooLong": "Nazwa musi mieć maksymalnie 64 znaki",
-			"nameInvalid": "Nazwa musi zawierać 1-64 małe litery, cyfry lub myślniki",
-			"descriptionRequired": "Opis jest wymagany",
-			"descriptionTooLong": "Opis musi mieć maksymalnie 1024 znaki"
-		},
-		"footer": "Twórz własne umiejętności za pomocą trybu Skill Writer, dostępnego w <MarketplaceLink>Modes Marketplace</MarketplaceLink>."
 	}
 }

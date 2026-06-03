@@ -30,6 +30,8 @@ import { askFollowupQuestionTool } from "../tools/AskFollowupQuestionTool"
 import { switchModeTool } from "../tools/SwitchModeTool"
 import { attemptCompletionTool, AttemptCompletionCallbacks } from "../tools/AttemptCompletionTool"
 import { newTaskTool } from "../tools/NewTaskTool"
+import { createWorkflowTool } from "../tools/CreateWorkflowTool"
+import { conditionalTaskTool } from "../tools/ConditionalTaskTool"
 import { updateTodoListTool } from "../tools/UpdateTodoListTool"
 import { runSlashCommandTool } from "../tools/RunSlashCommandTool"
 import { skillTool } from "../tools/SkillTool"
@@ -376,6 +378,16 @@ export async function presentAssistantMessage(cline: Task) {
 						const message = block.params.message ?? "(no message)"
 						const modeName = getModeBySlug(mode, customModes)?.name ?? mode
 						return `[${block.name} in ${modeName} mode: '${message}']`
+					}
+							case "create_workflow": {
+						const name: string | undefined = block.params.name
+						const nodeCount: number | undefined = block.params.nodes?.length
+						return `[${block.name}: "${name ?? ""}" (${nodeCount ?? 0} nodes)]`
+					}
+					case "conditional_task": {
+						const action: string | undefined = block.params.action
+						const targetId: string | undefined = block.params.target_id
+						return `[${block.name}: ${action ?? "?"} on node "${targetId ?? ""}"]`
 					}
 					case "run_slash_command":
 						return `[${block.name} for '${block.params.command}'${block.params.args ? ` with args: ${block.params.args}` : ""}]`
@@ -804,15 +816,31 @@ export async function presentAssistantMessage(cline: Task) {
 					})
 					break
 				case "new_task":
-					await checkpointSaveAndMark(cline)
-					await newTaskTool.handle(cline, block as ToolUse<"new_task">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-						toolCallId: block.id,
-					})
-					break
-				case "attempt_completion": {
+						await checkpointSaveAndMark(cline)
+						await newTaskTool.handle(cline, block as ToolUse<"new_task">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+							toolCallId: block.id,
+						})
+						break
+					case "create_workflow":
+						await checkpointSaveAndMark(cline)
+						await createWorkflowTool.handle(cline, block as ToolUse<"create_workflow">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						})
+						break
+					case "conditional_task":
+						await checkpointSaveAndMark(cline)
+						await conditionalTaskTool.handle(cline, block as ToolUse<"conditional_task">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						})
+						break
+					case "attempt_completion": {
 					const completionCallbacks: AttemptCompletionCallbacks = {
 						askApproval,
 						handleError,

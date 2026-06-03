@@ -16,6 +16,7 @@ import HistoryView from "./components/history/HistoryView"
 import SettingsView, { SettingsViewRef } from "./components/settings/SettingsView"
 import WelcomeView from "./components/welcome/WelcomeViewProvider"
 import { MarketplaceView } from "./components/marketplace/MarketplaceView"
+import { ParallelTaskPanel } from "./components/parallel-tasks/ParallelTaskPanel"
 import { CheckpointRestoreDialog } from "./components/chat/CheckpointRestoreDialog"
 import { DeleteMessageDialog, EditMessageDialog } from "./components/chat/MessageModificationConfirmationDialog"
 import ErrorBoundary from "./components/ErrorBoundary"
@@ -23,7 +24,7 @@ import { useAddNonInteractiveClickListener } from "./components/ui/hooks/useNonI
 import { TooltipProvider } from "./components/ui/tooltip"
 import { STANDARD_TOOLTIP_DELAY } from "./components/ui/standard-tooltip"
 
-type Tab = "settings" | "history" | "chat" | "marketplace"
+type Tab = "settings" | "history" | "chat" | "marketplace" | "parallelTasks"
 
 interface DeleteMessageDialogState {
 	isOpen: boolean
@@ -48,6 +49,7 @@ const tabsByMessageAction: Partial<Record<NonNullable<ExtensionMessage["action"]
 	settingsButtonClicked: "settings",
 	historyButtonClicked: "history",
 	marketplaceButtonClicked: "marketplace",
+	parallelTasksButtonClicked: "parallelTasks",
 }
 
 const App = () => {
@@ -109,6 +111,7 @@ const App = () => {
 
 	const [currentSection, setCurrentSection] = useState<string | undefined>(undefined)
 	const [currentMarketplaceTab, setCurrentMarketplaceTab] = useState<string | undefined>(undefined)
+	const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | undefined>(undefined)
 
 	const onMessage = useCallback(
 		(e: MessageEvent) => {
@@ -128,11 +131,19 @@ const App = () => {
 					const newTab = tabsByMessageAction[message.action]
 					const section = message.values?.section as string | undefined
 					const marketplaceTab = message.values?.marketplaceTab as string | undefined
+					// Extract workflowId for TaskFlowAgent (Phase 7d)
+					const workflowId = message.values?.workflowId as string | undefined
 
 					if (newTab) {
 						switchTab(newTab)
 						setCurrentSection(section)
 						setCurrentMarketplaceTab(marketplaceTab)
+						// Set selected workflow for TaskFlowAgent panel navigation
+						if (newTab === "parallelTasks" && workflowId) {
+							setSelectedWorkflowId(workflowId)
+						} else if (newTab !== "parallelTasks") {
+							setSelectedWorkflowId(undefined)
+						}
 					}
 				}
 			}
@@ -229,7 +240,7 @@ const App = () => {
 
 	// Do not conditionally load ChatView, it's expensive and there's state we
 	// don't want to lose (user input, disableInput, askResponse promise, etc.)
-	const isSetupGatedTab = showWelcome && tab !== "settings" && tab !== "marketplace"
+	const isSetupGatedTab = showWelcome && tab !== "settings" && tab !== "marketplace" && tab !== "parallelTasks"
 
 	return isSetupGatedTab ? (
 		<WelcomeView />
@@ -240,12 +251,13 @@ const App = () => {
 				<SettingsView ref={settingsRef} onDone={() => setTab("chat")} targetSection={currentSection} />
 			)}
 			{tab === "marketplace" && (
-				<MarketplaceView
-					stateManager={marketplaceStateManager}
-					onDone={() => switchTab("chat")}
-					targetTab={currentMarketplaceTab as "mcp" | "mode" | undefined}
-				/>
-			)}
+					<MarketplaceView
+						stateManager={marketplaceStateManager}
+						onDone={() => switchTab("chat")}
+						targetTab={currentMarketplaceTab as "mcp" | "mode" | undefined}
+					/>
+				)}
+				{tab === "parallelTasks" && <ParallelTaskPanel selectedWorkflowId={selectedWorkflowId} />}
 			<ChatView
 				ref={chatViewRef}
 				isHidden={tab !== "chat"}

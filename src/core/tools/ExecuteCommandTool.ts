@@ -378,7 +378,13 @@ export async function executeCommandInTerminal(
 	}
 
 	const process = terminal.runCommand(command, callbacks)
-	task.terminalProcess = process
+	// Story 4.1 — Store per-toolCallId for parallel execution isolation
+	if (callbacks.toolCallId) {
+		task.terminalProcesses.set(callbacks.toolCallId, process)
+	} else {
+		// Fallback to single-slot for serial path / backward compat
+		task.terminalProcess = process
+	}
 
 	// Dual-timeout logic:
 	// - Agent timeout: transitions the command to background (continues running)
@@ -412,7 +418,12 @@ export async function executeCommandInTerminal(
 				new Promise<void>((_, reject) => {
 					userTimeoutId = setTimeout(() => {
 						isUserTimedOut = true
-						task.terminalProcess?.abort()
+						// Story 4.1 — Abort via terminalProcesses map (or fallback to single-slot)
+						if (callbacks.toolCallId) {
+							task.terminalProcesses.get(callbacks.toolCallId)?.abort()
+						} else {
+							task.terminalProcess?.abort()
+						}
 						reject(new Error(`Command execution timed out after ${commandExecutionTimeout}ms`))
 					}, commandExecutionTimeout)
 				}),
@@ -426,7 +437,12 @@ export async function executeCommandInTerminal(
 			provider?.postMessageToWebview({ type: "commandExecutionStatus", text: JSON.stringify(status) })
 			await task.say("error", t("common:errors:command_timeout", { seconds: commandExecutionTimeoutSeconds }))
 			task.didToolFailInCurrentTurn = true
-			task.terminalProcess = undefined
+			// Story 4.1 — Clear from terminalProcesses map (or single-slot)
+			if (callbacks.toolCallId) {
+				task.terminalProcesses.delete(callbacks.toolCallId)
+			} else {
+				task.terminalProcess = undefined
+			}
 
 			return [
 				false,
@@ -438,7 +454,12 @@ export async function executeCommandInTerminal(
 		clearTimeout(agentTimeoutId)
 		clearTimeout(userTimeoutId)
 		clearTimeout(pendingCommandOutputEmitTimer)
-		task.terminalProcess = undefined
+		// Story 4.1 — Clear from terminalProcesses map (or single-slot)
+		if (callbacks.toolCallId) {
+			task.terminalProcesses.delete(callbacks.toolCallId)
+		} else {
+			task.terminalProcess = undefined
+		}
 	}
 
 	if (shellIntegrationError) {

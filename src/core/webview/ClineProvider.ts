@@ -96,7 +96,7 @@ import { CustomModesManager } from "../config/CustomModesManager"
 import { Task } from "../task/Task"
 
 import { webviewMessageHandler } from "./webviewMessageHandler"
-import type { ClineMessage, TodoItem } from "@roo-code/types"
+import type { ClineMessage, TodoItem, ParallelTaskType } from "@roo-code/types"
 import { readApiMessages, saveApiMessages, saveTaskMessages, TaskHistoryStore } from "../task-persistence"
 
 import { BGWorkerManager } from "../parallel/BGWorkerManager"
@@ -190,12 +190,49 @@ export class ClineProvider
 	/** BGWorkerManager — manages parallel background task workers. Lazily initialized on first spawn. */
 	private _bgWorkerManager?: BGWorkerManager
 
+	/** TaskFlowAgent — workflow orchestrator for DAG-based parallel tasks. Disposed when main task ends. */
+	private _taskFlowAgent: import("../parallel/TaskFlowAgent").TaskFlowAgent | null = null
+
 	/** Lazy getter for BGWorkerManager singleton (created on first access) */
 	get bgWorkerManager(): BGWorkerManager {
 		if (!this._bgWorkerManager) {
 			this._bgWorkerManager = new BGWorkerManager(this)
 		}
 		return this._bgWorkerManager
+	}
+
+	/** Shared Heartbeat System (Phase 6a): store aggregated heartbeats from BGWorkerManager */
+	private _workerHeartbeats: Array<{
+		workerId: string
+		taskDescription: string
+		taskType?: string | null
+		state: string
+		progressPercent: number
+		elapsedMs: number
+		totalCost: number
+		currentAction?: string
+		toolCallCount: number
+		maxToolCalls: number
+		timestamp: number
+		workflowId?: string // TaskFlowAgent (Phase 7d): link heartbeat to parent workflow DAG
+	}> = []
+
+	/** Receive aggregated heartbeats from BGWorkerManager and include in next state push */
+	postWorkerHeartbeats(heartbeats: Array<{
+		workerId: string
+		taskDescription: string
+		taskType?: string | null
+		state: string
+		progressPercent: number
+		elapsedMs: number
+		totalCost: number
+		currentAction?: string
+		toolCallCount: number
+		maxToolCalls: number
+		timestamp: number
+		workflowId?: string // TaskFlowAgent (Phase 7d): link heartbeat to parent workflow DAG
+	}>): void {
+		this._workerHeartbeats = heartbeats
 	}
 
 	/**
@@ -507,6 +544,13 @@ export class ClineProvider
 				)
 			}
 
+			// Dispose TaskFlowAgent when main task ends — lifecycle follows main task
+			if (this._taskFlowAgent) {
+				this._taskFlowAgent.dispose()
+				console.log(`[ClineProvider#removeClineFromStack] Disposed TaskFlowAgent`)
+				this._taskFlowAgent = null
+			}
+
 			// Remove event listeners before clearing the reference.
 			const cleanupFunctions = this.taskEventListeners.get(task)
 
@@ -656,6 +700,13 @@ export class ClineProvider
 		this.taskHistoryStore.dispose()
 		this._bgWorkerManager?.dispose()
 		this._bgWorkerManager = undefined
+
+		// Dispose TaskFlowAgent if still active (should already be disposed by removeClineFromStack)
+		if (this._taskFlowAgent) {
+			this._taskFlowAgent.dispose()
+			console.log(`[ClineProvider#dispose] Disposed remaining TaskFlowAgent`)
+			this._taskFlowAgent = null
+		}
 		this.flushGlobalStateWriteThrough()
 		this.log("Disposed all disposables")
 		ClineProvider.activeInstances.delete(this)
@@ -2334,6 +2385,8 @@ export class ClineProvider
 			})(),
 			...zooCodeState,
 			debug: vscode.workspace.getConfiguration(Package.name).get<boolean>("debug", false),
+			// Shared Heartbeat System (Phase 6a): include aggregated worker heartbeats
+			workerHeartbeats: this._workerHeartbeats.length > 0 ? this._workerHeartbeats : undefined,
 		}
 	}
 
@@ -2945,13 +2998,13 @@ export class ClineProvider
 		const proxy = (this as any).contextProxy
 		if (!proxy) {
 			this.log("[spawnBackgroundTask] contextProxy not available, falling back to createTask")
-			return this.createTask(config.message, undefined, undefined, { background: true }).then((t) => t.taskId)
+			return this.createTask(config.message, undefined, undefined, {}).then((t) => t.taskId)
 		}
 
-		const enabled = proxy.get("parallelTaskEnabled") ?? false
+		const enabled = (proxy as any)?.stateCache?.["parallelTaskEnabled"] ?? false
 		if (!enabled) {
 			this.log("[spawnBackgroundTask] parallel tasks not enabled, falling back to createTask")
-			return this.createTask(config.message, undefined, undefined, { background: true }).then((t) => t.taskId)
+			return this.createTask(config.message, undefined, undefined, {}).then((t) => t.taskId)
 		}
 
 		const workerId = await this.bgWorkerManager.spawn({
@@ -2960,7 +3013,7 @@ export class ClineProvider
 			mode: config.mode,
 			message: config.message,
 			todos: config.todos ?? null,
-			taskType: config.taskType,
+			taskType: config.taskType as ParallelTaskType | undefined,
 			priority: config.priority ?? 0,
 		})
 
@@ -3143,6 +3196,121 @@ export class ClineProvider
 
 	public async setMode(mode: string): Promise<void> {
 		await this.setValues({ mode })
+	}
+
+	// ─── TaskFlow Agent (Phase 7l) ──────────────────────────────────────
+
+	/** Handle node actions from the webview UI — delegates to TaskFlowAgent */
+	public async handleNodeAction(params: {
+		workflowId: string
+		nodeId: string
+		action: string
+		additionalPrompt?: string
+		splits?: Array<{ id: string; description: string; type?: string }>
+		addNodeId?: string
+		addDescription?: string
+		addType?: string
+		dependsOn?: string[]
+	}): Promise<{ success: boolean; message: string }> {
+		const agent = this._taskFlowAgent
+		if (!agent) {
+			return { success: false, message: "No active TaskFlowAgent" }
+		}
+
+		try {
+			let success = false
+			let resultMessage = ""
+
+			switch (params.action) {
+				case "pause":
+					success = agent.pauseNode(params.nodeId)
+					resultMessage = `Node "${params.nodeId}" paused`
+					break
+
+				case "resume":
+					success = agent.resumeNode(params.nodeId)
+					resultMessage = `Node "${params.nodeId}" resumed`
+					break
+
+				case "cancel":
+					success = agent.cancelNode(params.nodeId)
+					resultMessage = `Node "${params.nodeId}" cancelled`
+					break
+
+				case "skip":
+					success = agent.skipNode(params.nodeId)
+					resultMessage = `Node "${params.nodeId}" skipped`
+					break
+
+				case "restart":
+					success = await agent.restartNode(params.nodeId, params.additionalPrompt)
+					resultMessage = `Node "${params.nodeId}" restarted${params.additionalPrompt ? " with updated prompt" : ""}`
+					break
+
+				case "continue":
+					success = await agent.continueNode(params.nodeId, params.additionalPrompt || params.action)
+					resultMessage = `Node "${params.nodeId}" continued`
+					break
+
+				case "split": {
+					if (params.splits && params.splits.length > 0) {
+						success = await agent.splitNode(params.nodeId, params.splits as any)
+						resultMessage = `Node "${params.nodeId}" split into ${params.splits.map((s) => s.id).join(", ")}`
+					} else {
+						resultMessage = "No split definitions provided"
+					}
+					break
+				}
+
+				case "add": {
+					if (params.addNodeId && params.addDescription) {
+						success = await agent.addNode(
+							params.addNodeId,
+							params.addDescription,
+							(params.addType as any) ?? "code",
+							params.dependsOn ?? [],
+						)
+						resultMessage = success ? `Node "${params.addNodeId}" added` : `Failed to add node (duplicate ID?)`
+					} else {
+						resultMessage = "Missing nodeId or description"
+					}
+					break
+				}
+
+				case "pause_workflow":
+					for (const node of agent.getNodes()) {
+						if (node.status === "running") agent.pauseNode(node.id)
+					}
+					success = true
+					resultMessage = "All nodes paused"
+					break
+
+				case "resume_workflow":
+					for (const node of agent.getNodes()) {
+						if (node.status === "paused") agent.resumeNode(node.id)
+					}
+					success = true
+					resultMessage = "All nodes resumed"
+					break
+
+				case "cancel_all":
+					for (const node of agent.getNodes()) {
+						if (node.status === "running") agent.cancelNode(node.id)
+					}
+					success = true
+					resultMessage = "All running nodes cancelled"
+					break
+
+				default:
+					return { success: false, message: `Unknown action: ${params.action}` }
+			}
+
+			return { success, message: resultMessage }
+		} catch (error) {
+			const msg = error instanceof Error ? error.message : String(error)
+			console.error("[ClineProvider#handleNodeAction] Error:", msg)
+			return { success: false, message: msg }
+		}
 	}
 
 	// Provider Profiles

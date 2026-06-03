@@ -17,6 +17,7 @@ import type { OpenAiCodexRateLimitInfo } from "./providers/openai-codex-rate-lim
 import type { SkillMetadata } from "./skills.js"
 import type { TelemetrySetting } from "./telemetry.js"
 import type { WorktreeIncludeStatus } from "./worktree.js"
+import type { BGWorkerStateUpdate, WorkerHeartbeat } from "./parallel-task-mode.js"
 
 /**
  * ExtensionMessage
@@ -98,9 +99,16 @@ export interface ExtensionMessage {
 		| "folderSelected"
 		| "skills"
 		| "fileContent"
-	text?: string
+		| "bgWorkerState"
+				// TaskFlowAgent (Phase 7d): workflow loading in panel
+				| "taskFlowLoaded"
+				| "taskFlowLoadError"
+				// TaskFlowAgent (Phase 7l): node action result from UI
+				| "taskFlowActionResult"
+		text?: string
 	/** For fileContent: { path, content, error? } */
 	fileContent?: { path: string; content: string | null; error?: string }
+	bgWorkerUpdate?: BGWorkerStateUpdate
 	payload?: any // eslint-disable-line @typescript-eslint/no-explicit-any
 	checkpointWarning?: {
 		type: "WAIT_TIMEOUT" | "INIT_TIMEOUT"
@@ -111,6 +119,7 @@ export interface ExtensionMessage {
 		| "settingsButtonClicked"
 		| "historyButtonClicked"
 		| "marketplaceButtonClicked"
+		| "parallelTasksButtonClicked"
 		| "didBecomeVisible"
 		| "focusInput"
 		| "switchTab"
@@ -184,6 +193,8 @@ export interface ExtensionMessage {
 	taskHistory?: HistoryItem[] // For taskHistoryUpdated: full sorted task history
 	/** For taskHistoryItemUpdated: single updated/added history item */
 	taskHistoryItem?: HistoryItem
+	// TaskFlowAgent (Phase 7d): workflow loaded from file store
+	workflow?: import("@roo-code/types").TaskFlowWorkflow
 	// Worktree response properties
 	worktrees?: Array<{
 		path: string
@@ -382,6 +393,68 @@ export type ExtensionState = Pick<
 	 * (captured during async getStateToPostToWebview) from overwriting newer messages.
 	 */
 	clineMessagesSeq?: number
+
+	/** Parallel task settings — read from globalState flat fields */
+	parallelTaskEnabled?: boolean
+	parallelTaskMaxConcurrent?: number
+	parallelTaskDefaultMode?: "main" | "search" | "doc" | "commit"
+
+	/* TaskFlow DAG visualization level (Phase 7j) */
+	parallelTaskDagVisualizationLevel?: "simple" | "graph" | "interactive" // Default: "graph"
+
+	/* Per-task-type mode overrides (provider + model) */
+	parallelTaskModeSearchProvider?: string
+	parallelTaskModeSearchModelId?: string
+	parallelTaskModeDocProvider?: string
+	parallelTaskModeDocModelId?: string
+	parallelTaskModeCommitProvider?: string
+	parallelTaskModeCommitModelId?: string
+	parallelTaskModeCodeProvider?: string
+	parallelTaskModeCodeModelId?: string
+	parallelTaskModeDebugProvider?: string
+	parallelTaskModeDebugModelId?: string
+
+	/* Per-task-type auto-approve flags */
+	parallelTaskAutoApproveSearchReadFiles?: boolean
+	parallelTaskAutoApproveSearchWriteFiles?: boolean
+	parallelTaskAutoApproveSearchExecuteCommands?: boolean
+	parallelTaskAutoApproveSearchBrowserActions?: boolean
+	parallelTaskAutoApproveDocReadFiles?: boolean
+	parallelTaskAutoApproveDocWriteFiles?: boolean
+	parallelTaskAutoApproveDocExecuteCommands?: boolean
+	parallelTaskAutoApproveDocBrowserActions?: boolean
+	parallelTaskAutoApproveCommitReadFiles?: boolean
+	parallelTaskAutoApproveCommitWriteFiles?: boolean
+	parallelTaskAutoApproveCommitExecuteCommands?: boolean
+	parallelTaskAutoApproveCommitBrowserActions?: boolean
+
+	/* Per-task-type limits */
+	parallelTaskMaxToolCallsSearch?: number
+	parallelTaskMaxToolCallsDoc?: number
+	parallelTaskMaxToolCallsCommit?: number
+	parallelTaskMaxCostSearch?: number
+	parallelTaskMaxCostDoc?: number
+	parallelTaskMaxCostCommit?: number
+	parallelTaskMaxTokensSearch?: number
+	parallelTaskMaxTokensDoc?: number
+	parallelTaskMaxTokensCommit?: number
+
+	/* Per-task-type context retention & notification mode */
+	parallelTaskContextRetentionSearch?: "minimal" | "moderate" | "full"
+	parallelTaskContextRetentionDoc?: "minimal" | "moderate" | "full"
+	parallelTaskContextRetentionCommit?: "minimal" | "moderate" | "full"
+	parallelTaskNotificationModeSearch?: "all" | "errors_only" | "none"
+	parallelTaskNotificationModeDoc?: "all" | "errors_only" | "none"
+	parallelTaskNotificationModeCommit?: "all" | "errors_only" | "none"
+
+	/* Shared Heartbeat System (Phase 6a) */
+	workerHeartbeats?: WorkerHeartbeat[] // Aggregated heartbeats from all BGWorkers, managed by BGWorkerManager
+
+	/** Heartbeat settings — controls visibility and update frequency of worker progress in chat */
+	workerHeartbeatSettings?: {
+		updateIntervalSeconds: number // 10-60, default: 30
+		mode: "all" | "errors_only" | "none" // Default: "all"
+	}
 }
 
 export interface Command {
@@ -581,6 +654,16 @@ export interface WebviewMessage {
 		| "moveSkill"
 		| "updateSkillModes"
 		| "openSkillFile"
+		| "cancelParallelTask"
+		| "viewParallelTaskResult"
+		// TaskFlowAgent (Phase 7d): open workflow from heartbeat card
+			| "openTaskFlow"
+			// TaskFlowAgent (Phase 7d): load specific workflow in parallel tasks panel
+			| "loadTaskFlow"
+			// TaskFlowAgent (Phase 7l): node actions + workflow get from UI
+			| "taskFlowAction"
+			| "getTaskFlow"
+			| "taskFlowChat"
 	text?: string
 	taskId?: string
 	editedMessageContent?: string
@@ -647,6 +730,8 @@ export interface WebviewMessage {
 	list?: string[] // For dismissedUpsells response
 	organizationId?: string | null // For organization switching
 	useProviderSignup?: boolean // For rooCloudSignIn to use provider signup flow
+	taskType?: string // For parallel task creation (newTask with task type)
+	todos?: string // For parallel task creation (todo list as JSON string)
 	codeIndexSettings?: {
 		// Global state settings
 		codebaseIndexEnabled: boolean
@@ -690,6 +775,14 @@ export interface WebviewMessage {
 	worktreeForce?: boolean
 	worktreeNewWindow?: boolean
 	worktreeIncludeContent?: string
+	/** TaskFlowAgent (Phase 7d): workflow ID for openTaskFlow message */
+	workflowId?: string
+	/** TaskFlowAgent (Phase 7l): node ID for taskFlowAction messages */
+	nodeId?: string
+	/** TaskFlowChat: chat message text */
+	message?: string
+	/** TaskFlowAction: action type (split, add, restart, continue, pause, resume, cancel, skip) */
+	action?: string
 }
 
 export interface RequestOpenAiCodexRateLimitsMessage {

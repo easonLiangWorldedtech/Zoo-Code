@@ -1,1026 +1,1124 @@
 {
-	"back": "回到工作檢視",
+	"back": "Back to tasks view",
 	"common": {
-		"save": "儲存",
-		"done": "完成",
-		"cancel": "取消",
-		"reset": "重設",
-		"select": "選擇",
-		"add": "新增標頭",
-		"remove": "移除"
+		"save": "Save",
+		"done": "Done",
+		"cancel": "Cancel",
+		"reset": "Reset",
+		"select": "Select",
+		"add": "Add Header",
+		"remove": "Remove"
 	},
 	"header": {
-		"title": "設定",
-		"saveButtonTooltip": "儲存變更",
-		"nothingChangedTooltip": "無任何變更",
-		"doneButtonTooltip": "捨棄未儲存的變更並回到工作檢視"
+		"title": "Settings",
+		"saveButtonTooltip": "Save changes",
+		"nothingChangedTooltip": "Nothing changed",
+		"doneButtonTooltip": "Discard unsaved changes and go back to tasks view"
 	},
 	"search": {
-		"placeholder": "搜尋設定...",
-		"noResults": "找不到設定"
+		"placeholder": "Search settings...",
+		"noResults": "No settings found"
 	},
 	"unsavedChangesDialog": {
-		"title": "未儲存的變更",
-		"description": "是否要取消變更並繼續？",
-		"cancelButton": "取消",
-		"discardButton": "取消變更"
+		"title": "Unsaved Changes",
+		"description": "Do you want to discard changes and continue?",
+		"cancelButton": "Cancel",
+		"discardButton": "Discard changes"
 	},
 	"sections": {
-		"providers": "供應商",
-		"modes": "模式",
-		"mcp": "MCP 伺服器",
-		"worktrees": "Worktree",
-		"autoApprove": "自動核准",
-		"checkpoints": "檢查點",
-		"notifications": "通知",
-		"contextManagement": "上下文",
-		"terminal": "終端機",
-		"slashCommands": "斜線命令",
-		"prompts": "提示詞",
+		"providers": "Providers",
+		"modes": "Modes",
+		"mcp": "MCP Servers",
+		"worktrees": "Worktrees",
+		"skills": "Skills",
+		"autoApprove": "Auto-Approve",
+		"checkpoints": "Checkpoints",
+		"notifications": "Notifications",
+		"contextManagement": "Context",
+		"terminal": "Terminal",
+		"slashCommands": "Slash Commands",
+		"prompts": "Prompts",
 		"ui": "UI",
-		"experimental": "實驗性",
-		"language": "語言",
-		"about": "關於 Zoo Code",
-		"skills": "Skills"
+		"experimental": "Experimental",
+		"language": "Language",
+		"about": "About Zoo Code",
+		"parallelTasks": "Parallel Tasks"
+	},
+	"parallelTasks": {
+		"description": "Configure background workers that run in parallel with your main task. Each worker can use a different model/provider to optimize cost and speed.",
+		"enabled": {
+			"label": "Enable parallel tasks",
+			"description": "When enabled, you can send background tasks that run alongside your main conversation."
+		},
+		"maxConcurrent": {
+			"label": "Maximum concurrent workers",
+			"description": "Number of background workers that can run simultaneously (1-16)."
+		},
+		"taskSelector": {
+			"label": "Task type for new tasks:",
+			"main": "Main task",
+			"activeWorkers": "{{count}} active · ",
+			"queued": "{{count}} queued"
+		},
+		"heartbeatSettings": {
+			"title": "Heartbeat Settings",
+			"description": "Control how background worker progress is displayed in the chat.",
+			"mode": {
+				"label": "Heartbeat mode",
+				"all": "Show all workers",
+				"errorsOnly": "Show errors only",
+				"none": "Hide heartbeats"
+			},
+			"interval": {
+				"label": "Update interval (seconds)",
+				"description": "How often worker progress updates appear in chat. Range: 10-60s."
+			}
+		},
+		"modeMapping": {
+			"title": "Task Type → Model Mapping",
+			"description": "Assign different models to different task types. Leave empty to inherit from main task settings.",
+			"inherit": "Inherit from main task",
+			"modelPlaceholder": "Model ID (e.g., gpt-4o-mini)"
+		},
+		"autoApprove": {
+			"title": "Auto-Approve Per Task Type",
+			"description": "Control which tools background workers can use without approval for each task type.",
+			"permissions": {
+				"readFiles": "Read files",
+				"writeFiles": "Write files",
+				"executeCommands": "Execute commands",
+				"browserActions": "Browser actions"
+			}
+		},
+		"limits": {
+			"title": "Limits Per Task Type",
+			"description": "Set maximum tool calls, cost ($), and tokens per task type. Leave empty to use defaults."
+		},
+		"contextRetention": {
+			"minimal": "Minimal (1 pair)",
+			"moderate": "Moderate (3 pairs)",
+			"full": "Full (8 pairs)"
+		},
+		"notificationMode": {
+			"all": "All",
+			"errorsOnly": "Errors only",
+			"none": "None"
+		},
+		"taskTypes": {
+			"search": "Search",
+			"doc": "Doc",
+			"commit": "Commit",
+			"code": "Code",
+			"debug": "Debug",
+			"general": "General"
+		},
+		"autoDetect": {
+			"label": "Auto-detect task type from message content (Phase 2+)",
+			"description": "Automatically classify background tasks by analyzing the message content."
+		},
+		"panel": {
+			"title": "Parallel Tasks",
+			"enabled": "{{maxConcurrent}} workers max · Background mode active",
+			"disabled": "Parallel tasks disabled — enable in Settings",
+			"activeWorkers": "{{count}} active",
+			"queuedTasks": "{{count}} queued",
+			"noWorkers": "No active background workers",
+			"startTaskHint": "Send a message with 'background' to start one",
+			"footer": "Background tasks run independently of your main conversation",
+			"cancel": "Cancel",
+			"viewResult": "View Result",
+			"toolCalls": "tool calls",
+			"unknown": "Unknown"
+		},
+		"dagViz": {
+			"title": "DAG Visualization Level",
+			"description": "Choose how workflow dependency graphs are visualized in the Task Flow panel.",
+			"level": {
+				"label": "Visualization level",
+				"simple": "Simple (text tree)",
+				"graph": "Graph (SVG diagram) — recommended",
+				"interactive": "Interactive (click-to-select nodes)"
+			}
+		}
 	},
 	"about": {
 		"bugReport": {
-			"label": "發現錯誤？",
-			"link": "在 GitHub 回報"
+			"label": "Found a bug?",
+			"link": "Report on GitHub"
 		},
 		"featureRequest": {
-			"label": "有想法？",
-			"link": "與我們分享"
+			"label": "Have an idea?",
+			"link": "Share it with us"
 		},
 		"securityIssue": {
-			"label": "發現安全漏洞？",
-			"link": "遵循我們的揭露流程"
+			"label": "Discovered a vulnerability?",
+			"link": "Follow our disclosure process"
 		},
-		"community": "想要取得使用技巧或與其他 Zoo Code 使用者交流？加入 <redditLink>reddit.com/r/ZooCode</redditLink> 或 <discordLink>discord.gg/VxfP4Vx3gX</discordLink>",
-		"contactAndCommunity": "聯絡與社群",
-		"manageSettings": "管理設定",
+		"community": "Want tips or to just hang out with other Zoo Code users? Join <redditLink>reddit.com/r/ZooCode</redditLink> or <discordLink>discord.gg/VxfP4Vx3gX</discordLink>",
+		"contactAndCommunity": "Contact & Community",
+		"manageSettings": "Manage Settings",
 		"debugMode": {
-			"label": "啟用偵錯模式",
-			"description": "啟用偵錯模式以在工作標題顯示額外按鈕，用於在暫存檔案中檢視 API 對話歷史記錄和 UI 訊息的格式化 JSON。"
+			"label": "Enable debug mode",
+			"description": "Enable debug mode to show additional buttons in the task header for viewing API conversation history and UI messages as prettified JSON in temporary files."
 		}
 	},
 	"slashCommands": {
-		"description": "管理您的斜線命令，以便快速執行自訂工作流程和動作。 <DocsLink>了解更多</DocsLink>",
-		"workspaceCommands": "工作區命令",
-		"globalCommands": "全域命令",
-		"noWorkspaceCommands": "此專案中還沒有命令。",
-		"noGlobalCommands": "還沒有全域命令。",
-		"addCommand": "新增斜線命令",
-		"editCommand": "編輯命令",
-		"deleteCommand": "刪除命令",
+		"description": "Slash commands are shortcuts for reusable workflows and actions to be used on demand (like creating a PR, running a set of tasks, etc). <DocsLink>Learn more</DocsLink>",
+		"workspaceCommands": "Workspace Commands",
+		"globalCommands": "Global Commands",
+		"noWorkspaceCommands": "No commands in this project yet.",
+		"noGlobalCommands": "No global commands yet.",
+		"addCommand": "Add Slash Command",
+		"editCommand": "Edit command",
+		"deleteCommand": "Delete command",
 		"deleteDialog": {
-			"title": "刪除命令",
-			"description": "您確定要刪除命令 \"{{name}}\" 嗎？此動作無法復原。",
-			"confirm": "刪除",
-			"cancel": "取消"
+			"title": "Delete Command",
+			"description": "Are you sure you want to delete the command \"{{name}}\"? This action cannot be undone.",
+			"confirm": "Delete",
+			"cancel": "Cancel"
 		},
 		"createDialog": {
-			"title": "建立新斜線命令",
-			"nameLabel": "名稱",
+			"title": "Create New Slash Command",
+			"nameLabel": "Name",
 			"namePlaceholder": "my-command-name",
-			"nameHint": "僅限小寫字母、數字、連字號和底線",
-			"sourceLabel": "位置",
-			"create": "建立",
-			"cancel": "取消"
+			"nameHint": "Lowercase letters, numbers, hyphens and underscores only",
+			"sourceLabel": "Location",
+			"create": "Create",
+			"cancel": "Cancel"
 		},
 		"source": {
-			"global": "全域（可在所有工作區中使用）",
-			"project": "工作區"
+			"global": "Global (available in all workspaces)",
+			"project": "Workspace"
 		},
 		"validation": {
-			"nameRequired": "名稱為必填項",
-			"nameTooLong": "名稱必須為 64 個字元或更少",
-			"nameInvalid": "名稱只能包含字母、數字、連字號和底線"
+			"nameRequired": "Name is required",
+			"nameTooLong": "Name must be 64 characters or less",
+			"nameInvalid": "Name must contain only letters, numbers, hyphens, and underscores"
 		},
-		"footer": "使用斜線命令快速存取經常使用的提示詞和工作流程。"
+		"footer": "Use slash commands for quick access to frequently used prompts and workflows."
+	},
+	"skills": {
+		"description": "Skills encapsulate contextual instructions and workflows, which the agent can load on-demand. They can include general instructions, specific workflows and even scripts to be run as needed. <DocsLink>Learn more</DocsLink>",
+		"workspaceSkills": "Workspace Skills",
+		"globalSkills": "Global Skills",
+		"noWorkspaceSkills": "No skills in this project yet.",
+		"noGlobalSkills": "No global skills yet.",
+		"addSkill": "Add Skill",
+		"editSkill": "Edit skill",
+		"deleteSkill": "Delete skill",
+		"configureModes": "Mode availability",
+		"modeAny": "Any mode",
+		"modeCount": "{{count}} modes",
+		"deleteDialog": {
+			"title": "Delete Skill",
+			"description": "Are you sure you want to delete the skill \"{{name}}\"? This action cannot be undone.",
+			"confirm": "Delete",
+			"cancel": "Cancel"
+		},
+		"modeDialog": {
+			"title": "Configure Skill Modes",
+			"description": "Choose which modes can use this skill",
+			"intro": "To keep your context light, we recommend only making skills available for the modes that need them.",
+			"anyMode": "Any mode (available everywhere)",
+			"save": "Save",
+			"cancel": "Cancel"
+		},
+		"createDialog": {
+			"title": "Create New Skill",
+			"nameLabel": "Name",
+			"namePlaceholder": "my-skill-name (Lowercase letters, numbers, and hyphens only)",
+			"descriptionLabel": "Description",
+			"descriptionPlaceholder": "Describe when this skill should be used and its contents...",
+			"sourceLabel": "Location",
+			"modeLabel": "Mode (optional)",
+			"modePlaceholder": "Any mode",
+			"modeAny": "Any mode",
+			"modeHint": "Restrict this skill to a specific mode",
+			"create": "Create",
+			"cancel": "Cancel"
+		},
+		"source": {
+			"global": "Global (available in all projects)",
+			"project": "Project (this workspace only)"
+		},
+		"validation": {
+			"nameRequired": "Name is required",
+			"nameTooLong": "Name must be 64 characters or less",
+			"nameInvalid": "Name must be 1-64 lowercase letters, numbers, or hyphens",
+			"descriptionRequired": "Description is required",
+			"descriptionTooLong": "Description must be 1024 characters or less"
+		},
+		"footer": "Create your own skills with the Skill Writer mode, available in the <MarketplaceLink>Modes Marketplace</MarketplaceLink>."
 	},
 	"ui": {
 		"collapseThinking": {
-			"label": "預設折疊「思考」訊息",
-			"description": "啟用後，「思考」塊將預設折疊，直到您與其互動"
+			"label": "Collapse Thinking messages by default",
+			"description": "When enabled, thinking blocks will be collapsed by default until you interact with them"
 		},
 		"requireCtrlEnterToSend": {
-			"label": "需要 {{primaryMod}}+Enter 傳送訊息",
-			"description": "啟用後，必須按 {{primaryMod}}+Enter 傳送訊息，而不只是 Enter"
+			"label": "Require {{primaryMod}}+Enter to send messages",
+			"description": "When enabled, you must press {{primaryMod}}+Enter to send messages instead of just Enter"
 		},
 		"chatFontSize": {
-			"label": "聊天字型大小",
-			"description": "設定 Zoo Code 聊天的字型大小（以像素為單位）。保留預設值以符合 VS Code 的字型大小。",
-			"reset": "使用 VS Code 預設值"
+			"label": "Chat font size",
+			"description": "Set the font size (in pixels) for the Zoo Code chat. Leave at the default to match VS Code's font size.",
+			"reset": "Use VS Code default"
 		}
 	},
 	"prompts": {
-		"description": "設定用於快速操作的支援提示詞，如增強提示詞、解釋程式碼和修復問題。這些提示詞幫助 Zoo 為常見開發工作提供更好的支援。"
+		"description": "Configure support prompts that are used for quick actions like enhancing prompts, explaining code, and fixing issues. These prompts help Zoo provide better assistance for common development tasks."
 	},
 	"codeIndex": {
-		"title": "程式碼庫索引",
-		"description": "設定程式碼庫索引設定以啟用專案的語意搜尋。<0>了解更多</0>",
-		"statusTitle": "狀態",
-		"enableLabel": "啟用程式碼庫索引",
-		"enableDescription": "啟用程式碼索引以改進搜尋和上下文理解",
-		"settingsTitle": "索引設定",
-		"disabledMessage": "程式碼庫索引目前已停用。請在全域設定中啟用以設定索引選項。",
-		"providerLabel": "嵌入供應商",
-		"embedderProviderLabel": "嵌入器供應商",
-		"selectProviderPlaceholder": "選擇供應商",
+		"title": "Codebase Indexing",
+		"description": "Configure codebase indexing settings to enable semantic search of your project. <0>Learn more</0>",
+		"statusTitle": "Status",
+		"enableLabel": "Enable Codebase Indexing",
+		"enableDescription": "Enable code indexing for improved search and context understanding",
+		"settingsTitle": "Indexing Settings",
+		"disabledMessage": "Codebase indexing is currently disabled. Enable it in the global settings to configure indexing options.",
+		"providerLabel": "Embeddings Provider",
+		"embedderProviderLabel": "Embedder Provider",
+		"selectProviderPlaceholder": "Select provider",
 		"openaiProvider": "OpenAI",
 		"ollamaProvider": "Ollama",
 		"geminiProvider": "Gemini",
-		"geminiApiKeyLabel": "API 金鑰：",
-		"geminiApiKeyPlaceholder": "輸入您的 Gemini API 金鑰",
+		"geminiApiKeyLabel": "API Key:",
+		"geminiApiKeyPlaceholder": "Enter your Gemini API key",
 		"mistralProvider": "Mistral",
-		"mistralApiKeyLabel": "API 金鑰：",
-		"mistralApiKeyPlaceholder": "輸入您的 Mistral API 金鑰",
+		"mistralApiKeyLabel": "API Key:",
+		"mistralApiKeyPlaceholder": "Enter your Mistral API key",
 		"vercelAiGatewayProvider": "Vercel AI Gateway",
-		"vercelAiGatewayApiKeyLabel": "API 金鑰",
-		"vercelAiGatewayApiKeyPlaceholder": "輸入您的 Vercel AI Gateway API 金鑰",
+		"vercelAiGatewayApiKeyLabel": "API Key",
+		"vercelAiGatewayApiKeyPlaceholder": "Enter your Vercel AI Gateway API key",
 		"bedrockProvider": "Amazon Bedrock",
-		"bedrockRegionLabel": "AWS 區域",
+		"bedrockRegionLabel": "AWS Region",
 		"bedrockRegionPlaceholder": "us-east-1",
 		"bedrockProfileLabel": "AWS Profile",
 		"bedrockProfilePlaceholder": "default",
-		"bedrockProfileDescription": "來自 ~/.aws/credentials 的 AWS Profile 名稱（必需）。",
+		"bedrockProfileDescription": "AWS profile name from ~/.aws/credentials (required).",
 		"openRouterProvider": "OpenRouter",
-		"openRouterApiKeyLabel": "OpenRouter API 金鑰",
-		"openRouterApiKeyPlaceholder": "輸入您的 OpenRouter API 金鑰",
-		"openRouterProviderRoutingLabel": "OpenRouter 供應商路由",
-		"openRouterProviderRoutingDescription": "OpenRouter 會將請求路由到適合您嵌入模型的最佳可用供應商。預設情況下，請求會在頂尖供應商之間進行負載平衡以最大化正常運作時間。您也可以為此模型選擇特定的供應商。",
-		"openaiCompatibleProvider": "OpenAI 相容",
-		"openAiKeyLabel": "OpenAI API 金鑰",
-		"openAiKeyPlaceholder": "輸入您的 OpenAI API 金鑰",
-		"openAiCompatibleBaseUrlLabel": "基礎 URL",
-		"openAiCompatibleApiKeyLabel": "API 金鑰",
-		"openAiCompatibleApiKeyPlaceholder": "輸入您的 API 金鑰",
-		"openAiCompatibleModelDimensionLabel": "嵌入維度：",
-		"modelDimensionLabel": "模型維度",
-		"openAiCompatibleModelDimensionPlaceholder": "例如，1536",
-		"openAiCompatibleModelDimensionDescription": "模型的嵌入維度（輸出大小）。請查閱供應商說明文件以取得此值。常見值：384、768、1536、3072。",
-		"modelLabel": "模型",
-		"modelPlaceholder": "輸入模型名稱",
-		"selectModel": "選擇模型",
-		"selectModelPlaceholder": "選擇模型",
+		"openRouterApiKeyLabel": "OpenRouter API Key",
+		"openRouterApiKeyPlaceholder": "Enter your OpenRouter API key",
+		"openRouterProviderRoutingLabel": "OpenRouter Provider Routing",
+		"openRouterProviderRoutingDescription": "OpenRouter routes requests to the best available providers for your embedding model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
+		"openaiCompatibleProvider": "OpenAI Compatible",
+		"openAiKeyLabel": "OpenAI API Key",
+		"openAiKeyPlaceholder": "Enter your OpenAI API key",
+		"openAiCompatibleBaseUrlLabel": "Base URL",
+		"openAiCompatibleApiKeyLabel": "API Key",
+		"openAiCompatibleApiKeyPlaceholder": "Enter your API key",
+		"openAiCompatibleModelDimensionLabel": "Embedding Dimension:",
+		"modelDimensionLabel": "Model Dimension",
+		"openAiCompatibleModelDimensionPlaceholder": "e.g., 1536",
+		"openAiCompatibleModelDimensionDescription": "The embedding dimension (output size) for your model. Check your provider's documentation for this value. Common values: 384, 768, 1536, 3072.",
+		"modelLabel": "Model",
+		"modelPlaceholder": "Enter model name",
+		"selectModel": "Select a model",
+		"selectModelPlaceholder": "Select model",
 		"ollamaUrlLabel": "Ollama URL:",
-		"ollamaBaseUrlLabel": "Ollama 基礎 URL",
+		"ollamaBaseUrlLabel": "Ollama Base URL",
 		"qdrantUrlLabel": "Qdrant URL",
-		"qdrantKeyLabel": "Qdrant 金鑰：",
-		"qdrantApiKeyLabel": "Qdrant API 金鑰",
-		"qdrantApiKeyPlaceholder": "輸入您的 Qdrant API 金鑰（選用）",
-		"setupConfigLabel": "設定",
-		"advancedConfigLabel": "進階設定",
-		"searchMinScoreLabel": "搜尋分數閾值",
-		"searchMinScoreDescription": "搜尋結果所需的最低相似度分數（0.0-1.0）。較低的值會傳回更多結果，但可能較不相關。較高的值會傳回較少但更相關的結果。",
-		"searchMinScoreResetTooltip": "重設為預設值 (0.4)",
-		"searchMaxResultsLabel": "最大搜尋結果數",
-		"searchMaxResultsDescription": "查詢程式碼庫索引時傳回的最大搜尋結果數。較高的值提供更多上下文，但可能包含相關性較低的結果。",
-		"resetToDefault": "重設為預設值",
-		"startIndexingButton": "開始索引",
-		"clearIndexDataButton": "清除索引資料",
-		"unsavedSettingsMessage": "請先儲存設定再開始索引程序。",
+		"qdrantKeyLabel": "Qdrant Key:",
+		"qdrantApiKeyLabel": "Qdrant API Key",
+		"qdrantApiKeyPlaceholder": "Enter your Qdrant API key (optional)",
+		"setupConfigLabel": "Setup",
+		"advancedConfigLabel": "Advanced Configuration",
+		"searchMinScoreLabel": "Search Score Threshold",
+		"searchMinScoreDescription": "Minimum similarity score (0.0-1.0) required for search results. Lower values return more results but may be less relevant. Higher values return fewer but more relevant results.",
+		"searchMinScoreResetTooltip": "Reset to default value (0.4)",
+		"searchMaxResultsLabel": "Maximum Search Results",
+		"searchMaxResultsDescription": "Maximum number of search results to return when querying the codebase index. Higher values provide more context but may include less relevant results.",
+		"resetToDefault": "Reset to default",
+		"startIndexingButton": "Start Indexing",
+		"clearIndexDataButton": "Clear Index Data",
+		"unsavedSettingsMessage": "Please save your settings before starting the indexing process.",
 		"clearDataDialog": {
-			"title": "確定要繼續嗎？",
-			"description": "此操作無法復原。這將永久刪除您的程式碼庫索引資料。",
-			"cancelButton": "取消",
-			"confirmButton": "清除資料"
+			"title": "Are you sure?",
+			"description": "This action cannot be undone. This will permanently delete your codebase index data.",
+			"cancelButton": "Cancel",
+			"confirmButton": "Clear Data"
 		},
 		"ollamaUrlPlaceholder": "http://localhost:11434",
 		"openAiCompatibleBaseUrlPlaceholder": "https://api.example.com",
 		"modelDimensionPlaceholder": "1536",
 		"qdrantUrlPlaceholder": "http://localhost:6333",
-		"saveError": "無法儲存設定",
-		"modelDimensions": "（{{dimension}} 維度）",
-		"saveSuccess": "設定已成功儲存",
-		"saving": "儲存中...",
-		"saveSettings": "儲存",
+		"saveError": "Failed to save settings",
+		"modelDimensions": "({{dimension}} dimensions)",
+		"saveSuccess": "Settings saved successfully",
+		"saving": "Saving...",
+		"saveSettings": "Save",
 		"indexingStatuses": {
-			"standby": "待命",
-			"indexing": "索引中",
-			"indexed": "已索引",
-			"error": "錯誤"
+			"standby": "Standby",
+			"indexing": "Indexing",
+			"indexed": "Indexed",
+			"error": "Error"
 		},
-		"close": "關閉",
+		"close": "Close",
 		"validation": {
-			"qdrantUrlRequired": "需要 Qdrant URL",
-			"invalidQdrantUrl": "無效的 Qdrant URL",
-			"invalidOllamaUrl": "無效的 Ollama URL",
-			"invalidBaseUrl": "無效的基礎 URL",
-			"openaiApiKeyRequired": "需要 OpenAI API 金鑰",
-			"modelSelectionRequired": "需要選擇模型",
-			"apiKeyRequired": "需要 API 金鑰",
-			"modelIdRequired": "需要模型 ID",
-			"modelDimensionRequired": "需要模型維度",
-			"geminiApiKeyRequired": "需要 Gemini API 金鑰",
-			"mistralApiKeyRequired": "需要 Mistral API 金鑰",
-			"vercelAiGatewayApiKeyRequired": "需要 Vercel AI Gateway API 金鑰",
-			"bedrockRegionRequired": "AWS 區域必填",
-			"bedrockProfileRequired": "AWS Profile 必填",
-			"openRouterApiKeyRequired": "OpenRouter API 金鑰必填",
-			"ollamaBaseUrlRequired": "需要 Ollama 基礎 URL",
-			"baseUrlRequired": "需要基礎 URL",
-			"modelDimensionMinValue": "模型維度必須大於 0"
+			"qdrantUrlRequired": "Qdrant URL is required",
+			"invalidQdrantUrl": "Invalid Qdrant URL",
+			"invalidOllamaUrl": "Invalid Ollama URL",
+			"invalidBaseUrl": "Invalid base URL",
+			"openaiApiKeyRequired": "OpenAI API key is required",
+			"modelSelectionRequired": "Model selection is required",
+			"apiKeyRequired": "API key is required",
+			"modelIdRequired": "Model ID is required",
+			"modelDimensionRequired": "Model dimension is required",
+			"geminiApiKeyRequired": "Gemini API key is required",
+			"mistralApiKeyRequired": "Mistral API key is required",
+			"vercelAiGatewayApiKeyRequired": "Vercel AI Gateway API key is required",
+			"bedrockRegionRequired": "AWS region is required",
+			"bedrockProfileRequired": "AWS profile is required",
+			"openRouterApiKeyRequired": "OpenRouter API key is required",
+			"ollamaBaseUrlRequired": "Ollama base URL is required",
+			"baseUrlRequired": "Base URL is required",
+			"modelDimensionMinValue": "Model dimension must be greater than 0"
 		},
-		"optional": "選用",
-		"stopIndexingButton": "停止索引",
-		"stoppingButton": "正在停止...",
-		"workspaceToggleLabel": "為此工作區啟用索引",
-		"workspaceDisabledMessage": "索引已設定，但尚未為此工作區啟用。",
-		"autoEnableDefaultLabel": "自動為新工作區啟用索引"
+		"optional": "optional",
+		"stopIndexingButton": "Stop Indexing",
+		"stoppingButton": "Stopping...",
+		"workspaceToggleLabel": "Enable indexing for this workspace",
+		"workspaceDisabledMessage": "Indexing is configured but not enabled for this workspace.",
+		"autoEnableDefaultLabel": "Auto-enable indexing for new workspaces"
 	},
 	"autoApprove": {
-		"description": "無需詢問許可即可執行下列動作。請僅在您完全信任且了解安全風險的情況下啟用此功能。",
-		"toggleShortcut": "您可於 <SettingsLink>IDE 偏好設定</SettingsLink> 中自訂此功能的快捷鍵。",
-		"enabled": "自動核准已啟用",
+		"description": "Run these actions without asking for permission. Only enable for actions you fully trust and if you understand the security risks.",
+		"toggleShortcut": "You can configure a keyboard shortcut for this setting <SettingsLink>in your IDE preferences</SettingsLink>.",
+		"enabled": "Auto-Approve Enabled",
 		"readOnly": {
-			"label": "讀取",
-			"description": "啟用後，Zoo 將自動檢視目錄內容並讀取檔案，無需等待您的核准。",
+			"label": "Read",
+			"description": "When enabled, Zoo will automatically view directory contents and read files without requiring you to click the Approve button.",
 			"outsideWorkspace": {
-				"label": "包含工作區外的檔案",
-				"description": "允許 Zoo 讀取目前工作區外的檔案且無需核准。"
+				"label": "Include files outside workspace",
+				"description": "Allow Zoo to read files outside the current workspace without requiring approval."
 			}
 		},
 		"write": {
-			"label": "寫入",
-			"description": "無需核准即可自動建立與編輯檔案",
-			"delayLabel": "寫入後延遲一小段時間，以便診斷工具偵測潛在問題",
+			"label": "Write",
+			"description": "Automatically create and edit files without requiring approval",
+			"delayLabel": "Delay after writes to allow diagnostics to detect potential problems",
 			"outsideWorkspace": {
-				"label": "包含工作區外的檔案",
-				"description": "允許 Zoo 在目前工作區外建立與編輯檔案且無需核准。"
+				"label": "Include files outside workspace",
+				"description": "Allow Zoo to create and edit files outside the current workspace without requiring approval."
 			},
 			"protected": {
-				"label": "包含受保護的檔案",
-				"description": "允許 Zoo 建立與編輯受保護的檔案（如 .rooignore 和 .roo/ 設定檔）且無需核准。"
+				"label": "Include protected files",
+				"description": "Allow Zoo to create and edit protected files (like .rooignore and .roo/ configuration files) without requiring approval."
 			}
 		},
 		"mcp": {
 			"label": "MCP",
-			"description": "啟用 MCP 伺服器檢視中個別 MCP 工具的自動核准（需同時啟用此設定與該工具的「始終允許」核取方塊）"
+			"description": "Enable auto-approval of individual MCP tools in the MCP Servers view (requires both this setting and the tool's individual \"Always allow\" checkbox)"
 		},
 		"modeSwitch": {
-			"label": "模式",
-			"description": "無需核准即可自動切換至不同模式"
+			"label": "Mode",
+			"description": "Automatically switch between different modes without requiring approval"
 		},
 		"subtasks": {
-			"label": "子任務",
-			"description": "無需核准即可建立與完成子任務"
+			"label": "Subtasks",
+			"description": "Allow creation and completion of subtasks without requiring approval"
 		},
 		"followupQuestions": {
-			"label": "後續提問",
-			"description": "在設定的逾時時間過後，自動選擇後續問題的第一個建議答案",
-			"timeoutLabel": "自動選擇第一個答案前的等待時間"
+			"label": "Question",
+			"description": "Automatically select the first suggested answer for follow-up questions after the configured timeout",
+			"timeoutLabel": "Time to wait before auto-selecting the first answer"
 		},
 		"execute": {
-			"label": "執行命令",
-			"description": "無需核准即可自動執行允許的終端機命令",
-			"allowedCommands": "允許自動執行的命令",
-			"allowedCommandsDescription": "啟用「始終核准執行」時，可自動執行的命令前綴。新增 * 可允許所有命令（請謹慎使用）。",
-			"deniedCommands": "拒絕的命令",
-			"deniedCommandsDescription": "將自動拒絕且不詢問核准的命令前綴。若與允許的命令衝突，將以最長前綴比對優先。新增 * 可拒絕所有命令。",
-			"commandPlaceholder": "輸入命令前綴（例如 'git '）",
-			"deniedCommandPlaceholder": "輸入要拒絕的命令前綴（例如 'rm -rf'）",
-			"addButton": "新增",
-			"autoDenied": "前綴為 `{{prefix}}` 的命令已被使用者禁止。請勿透過執行其他命令來繞過此限制。"
+			"label": "Execute",
+			"description": "Automatically execute allowed terminal commands without requiring approval",
+			"allowedCommands": "Allowed Auto-Execute Commands",
+			"allowedCommandsDescription": "Command prefixes that can be auto-executed when \"Always approve execute operations\" is enabled. Add * to allow all commands (use with caution).",
+			"deniedCommands": "Denied Commands",
+			"deniedCommandsDescription": "Command prefixes that will be automatically denied without asking for approval. In case of conflicts with allowed commands, the longest prefix match takes precedence. Add * to deny all commands.",
+			"commandPlaceholder": "Enter command prefix (e.g., 'git ')",
+			"deniedCommandPlaceholder": "Enter command prefix to deny (e.g., 'rm -rf')",
+			"addButton": "Add",
+			"autoDenied": "Commands with the prefix `{{prefix}}` have been forbidden by the user. Do not bypass this restriction by running another command."
 		},
 		"apiRequestLimit": {
-			"title": "請求次數上限",
-			"unlimited": "無限制"
+			"title": "Max Count",
+			"unlimited": "Unlimited"
 		},
 		"apiCostLimit": {
-			"title": "費用上限",
-			"unlimited": "無限制"
+			"title": "Max Cost",
+			"unlimited": "Unlimited"
 		},
 		"maxLimits": {
-			"description": "在達到這些限制之前自動發送請求，超過後將詢問核准以繼續。"
+			"description": "Automatically make requests up to these limits before asking for approval to continue."
 		},
-		"toggleAriaLabel": "切換自動核准狀態",
-		"disabledAriaLabel": "自動核准已停用 - 請先選取下方選項",
-		"selectOptionsFirst": "請先選取下方至少一個選項以啟用自動核准"
+		"toggleAriaLabel": "Toggle auto-approval",
+		"disabledAriaLabel": "Auto-approval disabled - select options first",
+		"selectOptionsFirst": "Select at least one option below to enable auto-approval"
 	},
 	"providers": {
-		"providerDocumentation": "{{provider}} 說明文件",
-		"configProfile": "設定檔",
-		"description": "儲存不同的 API 設定以快速切換供應商和設定。",
-		"apiProvider": "API 供應商",
-		"apiProviderDocs": "供應商說明文件",
-		"model": "模型",
-		"nameEmpty": "名稱不能為空",
-		"nameExists": "已存在同名的設定檔",
-		"deleteProfile": "刪除設定檔",
-		"invalidArnFormat": "ARN 格式無效。請檢查上方範例。",
-		"enterNewName": "輸入新名稱",
-		"addProfile": "新增設定檔",
-		"renameProfile": "重新命名設定檔",
-		"newProfile": "新增設定檔",
-		"enterProfileName": "輸入設定檔名稱",
-		"createProfile": "建立設定檔",
-		"cannotDeleteOnlyProfile": "無法刪除唯一的設定檔",
-		"searchPlaceholder": "搜尋設定檔",
-		"searchProviderPlaceholder": "搜尋供應商",
-		"noProviderMatchFound": "找不到供應商",
-		"noMatchFound": "找不到符合的設定檔",
-		"retiredProviderMessage": "此供應商已不可用。請選擇受支援的供應商以繼續。",
-		"vscodeLmDescription": "VS Code 語言模型 API 可以讓您使用其他擴充功能（如 GitHub Copilot）提供的模型。最簡單的方式是從 VS Code Marketplace 安裝 Copilot 和 Copilot Chat 擴充套件。",
-		"awsCustomArnUse": "輸入您要使用的模型的有效 Amazon Bedrock ARN。格式範例：",
-		"awsCustomArnDesc": "確保 ARN 中的區域與您上面選擇的 AWS 區域相符。",
-		"openRouterApiKey": "OpenRouter API 金鑰",
-		"getOpenRouterApiKey": "取得 OpenRouter API 金鑰",
-		"vercelAiGatewayApiKey": "Vercel AI Gateway API 金鑰",
-		"getVercelAiGatewayApiKey": "取得 Vercel AI Gateway API 金鑰",
-		"opencodeGoApiKey": "Opencode Go API 金鑰",
-		"getOpencodeGoApiKey": "取得 Opencode Go API 金鑰",
-		"apiKeyStorageNotice": "API 金鑰會安全地儲存在 VS Code 的 Secret Storage 中",
+		"providerDocumentation": "{{provider}} documentation",
+		"configProfile": "Configuration Profile",
+		"description": "Save different API configurations to quickly switch between providers and settings.",
+		"apiProvider": "API Provider",
+		"apiProviderDocs": "Provider Docs",
+		"model": "Model",
+		"nameEmpty": "Name cannot be empty",
+		"nameExists": "A profile with this name already exists",
+		"deleteProfile": "Delete Profile",
+		"invalidArnFormat": "Invalid ARN format. Please check the examples above.",
+		"enterNewName": "Enter new name",
+		"addProfile": "Add Profile",
+		"renameProfile": "Rename Profile",
+		"newProfile": "New Configuration Profile",
+		"enterProfileName": "Enter profile name",
+		"createProfile": "Create Profile",
+		"cannotDeleteOnlyProfile": "Cannot delete the only profile",
+		"searchPlaceholder": "Search profiles",
+		"searchProviderPlaceholder": "Search providers",
+		"noProviderMatchFound": "No providers found",
+		"noMatchFound": "No matching profiles found",
+		"retiredProviderMessage": "This provider is no longer available. Select a supported provider to continue.",
+		"vscodeLmDescription": " The VS Code Language Model API allows you to run models provided by other VS Code extensions (including but not limited to GitHub Copilot). The easiest way to get started is to install the Copilot and Copilot Chat extensions from the VS Code Marketplace.",
+		"awsCustomArnUse": "Enter a valid Amazon Bedrock ARN for the model you want to use. Format examples:",
+		"awsCustomArnDesc": "Make sure the region in the ARN matches your selected AWS Region above.",
+		"openRouterApiKey": "OpenRouter API Key",
+		"getOpenRouterApiKey": "Get OpenRouter API Key",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway API Key",
+		"getVercelAiGatewayApiKey": "Get Vercel AI Gateway API Key",
+		"opencodeGoApiKey": "Opencode Go API Key",
+		"getOpencodeGoApiKey": "Get Opencode Go API Key",
+		"apiKeyStorageNotice": "API keys are stored securely in VSCode's Secret Storage",
 		"openAiCodexRateLimits": {
-			"title": "Codex 用量限制{{planLabel}}",
-			"loading": "正在載入用量限制...",
-			"loadError": "無法載入用量限制",
-			"retry": "重試",
-			"usedPercent": "已使用 {{percent}}%",
-			"resetsIn": "{{time}} 後重設",
+			"title": "Usage Limits for Codex{{planLabel}}",
+			"loading": "Loading usage limits...",
+			"loadError": "Failed to load usage limits",
+			"retry": "Retry",
+			"usedPercent": "{{percent}}% used",
+			"resetsIn": "Resets in {{time}}",
 			"plan": {
 				"default": "",
 				"withType": " ({{planType}})"
 			},
 			"time": {
-				"now": "立即",
-				"notAvailable": "無法取得"
+				"now": "Now",
+				"notAvailable": "N/A"
 			},
 			"duration": {
-				"daysHours": "{{days}} 天 {{hours}} 小時",
-				"hoursMinutes": "{{hours}} 小時 {{minutes}} 分鐘",
-				"minutes": "{{minutes}} 分鐘"
+				"daysHours": "{{days}}d {{hours}}h",
+				"hoursMinutes": "{{hours}}h {{minutes}}m",
+				"minutes": "{{minutes}}m"
 			},
 			"window": {
-				"usage": "用量",
-				"fiveHour": "5 小時限制",
-				"oneHour": "1 小時限制",
-				"daily": "每日限制",
-				"weekly": "每週限制",
-				"days": "{{days}} 天限制",
-				"hours": "{{hours}} 小時限制",
-				"minutes": "{{minutes}} 分鐘限制"
+				"usage": "Usage",
+				"fiveHour": "5h limit",
+				"oneHour": "1h limit",
+				"daily": "Daily limit",
+				"weekly": "Weekly limit",
+				"days": "{{days}}d limit",
+				"hours": "{{hours}}h limit",
+				"minutes": "{{minutes}}m limit"
 			}
 		},
-		"useCustomBaseUrl": "使用自訂基礎 URL",
-		"useReasoning": "啟用推理",
-		"useHostHeader": "使用自訂 Host 標頭",
-		"customHeaders": "自訂標頭",
-		"headerName": "標頭名稱",
-		"headerValue": "標頭值",
-		"noCustomHeaders": "尚未定義自訂標頭。點選 + 按鈕以新增。",
-		"unboundApiKey": "Unbound API 金鑰",
-		"getUnboundApiKey": "取得 Unbound API 金鑰",
-		"requestyApiKey": "Requesty API 金鑰",
+		"useCustomBaseUrl": "Use custom base URL",
+		"useReasoning": "Enable reasoning",
+		"useHostHeader": "Use custom Host header",
+		"customHeaders": "Custom Headers",
+		"headerName": "Header name",
+		"headerValue": "Header value",
+		"noCustomHeaders": "No custom headers defined. Click the + button to add one.",
+		"unboundApiKey": "Unbound API Key",
+		"getUnboundApiKey": "Get Unbound API Key",
+		"requestyApiKey": "Requesty API Key",
 		"refreshModels": {
-			"label": "重新整理模型",
-			"hint": "請重新開啟設定以查看最新模型。",
-			"loading": "正在重新整理模型列表...",
-			"success": "模型列表重新整理成功！",
-			"error": "重新整理模型列表失敗。請再試一次。"
+			"label": "Refresh Models",
+			"hint": "Please reopen the settings to see the latest models.",
+			"loading": "Refreshing models list...",
+			"success": "Models list refreshed successfully!",
+			"error": "Failed to refresh models list. Please try again."
 		},
-		"getRequestyApiKey": "取得 Requesty API 金鑰",
-		"getRequestyBaseUrl": "基礎 URL",
-		"requestyUseCustomBaseUrl": "使用自訂基礎 URL",
-		"anthropicApiKey": "Anthropic API 金鑰",
-		"getAnthropicApiKey": "取得 Anthropic API 金鑰",
-		"anthropicUseAuthToken": "將 Anthropic API 金鑰作為 Authorization 標頭傳遞，而非使用 X-Api-Key",
-		"anthropic1MContextBetaLabel": "啟用 1M 上下文視窗 (Beta)",
-		"anthropic1MContextBetaDescription": "為 Claude Sonnet 4.x / Claude Opus 4.6 將上下文視窗擴展至 100 萬個 token",
-		"awsBedrock1MContextBetaLabel": "啟用 1M 上下文視窗 (Beta)",
-		"awsBedrock1MContextBetaDescription": "為 Claude Sonnet 4.x / Claude Opus 4.6 將上下文視窗擴展至 100 萬個 token",
-		"vertex1MContextBetaLabel": "啟用 1M 上下文視窗 (Beta)",
-		"vertex1MContextBetaDescription": "為 Claude Sonnet 4.x / Claude Opus 4.6 將上下文視窗擴展至 100 萬個 token",
-		"basetenApiKey": "Baseten API 金鑰",
-		"getBasetenApiKey": "取得 Baseten API 金鑰",
-		"poeApiKey": "Poe API 金鑰",
-		"getPoeApiKey": "取得 Poe API 金鑰",
-		"poeBaseUrl": "Poe 基礎 URL",
-		"fireworksApiKey": "Fireworks API 金鑰",
-		"getFireworksApiKey": "取得 Fireworks API 金鑰",
-		"deepSeekApiKey": "DeepSeek API 金鑰",
-		"getDeepSeekApiKey": "取得 DeepSeek API 金鑰",
-		"moonshotApiKey": "Moonshot API 金鑰",
-		"getMoonshotApiKey": "取得 Moonshot API 金鑰",
-		"moonshotBaseUrl": "Moonshot 服務端點",
-		"minimaxApiKey": "MiniMax API 金鑰",
-		"getMiniMaxApiKey": "取得 MiniMax API 金鑰",
-		"minimaxBaseUrl": "MiniMax 服務端點",
-		"mimoApiKey": "MiMo API 金鑰",
-		"getMimoApiKey": "取得 MiMo API 金鑰",
-		"mimoBaseUrl": "MiMo 入口點",
-		"mimoBaseUrlSingapore": "Token 方案 - 新加坡（預設）",
-		"mimoBaseUrlChina": "Token 方案 - 中國",
-		"mimoBaseUrlEurope": "Token 方案 - 歐洲（AMS）",
-		"mimoBaseUrlPayg": "隨選付費",
-		"zaiApiKey": "Z AI API 金鑰",
-		"getZaiApiKey": "取得 Z AI API 金鑰",
-		"zaiEntrypoint": "Z AI 服務端點",
-		"zaiEntrypointDescription": "請根據您的位置選擇適當的 API 服務端點。如果您在中國，請選擇 open.bigmodel.cn。否則，請選擇 api.z.ai。",
-		"geminiApiKey": "Gemini API 金鑰",
-		"getSambaNovaApiKey": "取得 SambaNova API 金鑰",
-		"sambaNovaApiKey": "SambaNova API 金鑰",
-		"getGeminiApiKey": "取得 Gemini API 金鑰",
-		"openAiApiKey": "OpenAI API 金鑰",
-		"apiKey": "API 金鑰",
-		"openAiBaseUrl": "基礎 URL",
-		"getOpenAiApiKey": "取得 OpenAI API 金鑰",
-		"mistralApiKey": "Mistral API 金鑰",
-		"getMistralApiKey": "取得 Mistral/Codestral API 金鑰",
-		"codestralBaseUrl": "Codestral 基礎 URL（選用）",
-		"codestralBaseUrlDesc": "設定 Codestral 模型的替代 URL。",
-		"xaiApiKey": "xAI API 金鑰",
-		"getXaiApiKey": "取得 xAI API 金鑰",
-		"litellmApiKey": "LiteLLM API 金鑰",
-		"litellmBaseUrl": "LiteLLM 基礎 URL",
-		"awsCredentials": "AWS 認證",
+		"getRequestyApiKey": "Create new Requesty API Key",
+		"getRequestyBaseUrl": "Base URL",
+		"requestyUseCustomBaseUrl": "Use custom base URL",
+		"anthropicApiKey": "Anthropic API Key",
+		"getAnthropicApiKey": "Get Anthropic API Key",
+		"anthropicUseAuthToken": "Pass Anthropic API Key as Authorization header instead of X-Api-Key",
+		"anthropic1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"anthropic1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"awsBedrock1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"awsBedrock1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"vertex1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"vertex1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"basetenApiKey": "Baseten API Key",
+		"getBasetenApiKey": "Get Baseten API Key",
+		"poeApiKey": "Poe API Key",
+		"getPoeApiKey": "Get Poe API Key",
+		"poeBaseUrl": "Poe Base URL",
+		"fireworksApiKey": "Fireworks API Key",
+		"getFireworksApiKey": "Get Fireworks API Key",
+		"deepSeekApiKey": "DeepSeek API Key",
+		"getDeepSeekApiKey": "Get DeepSeek API Key",
+		"moonshotApiKey": "Moonshot API Key",
+		"getMoonshotApiKey": "Get Moonshot API Key",
+		"moonshotBaseUrl": "Moonshot Entrypoint",
+		"minimaxApiKey": "MiniMax API Key",
+		"getMiniMaxApiKey": "Get MiniMax API Key",
+		"minimaxBaseUrl": "MiniMax Entrypoint",
+		"mimoApiKey": "MiMo API Key",
+		"getMimoApiKey": "Get MiMo API Key",
+		"mimoBaseUrl": "MiMo Entrypoint",
+		"mimoBaseUrlSingapore": "Token Plan - Singapore (Default)",
+		"mimoBaseUrlChina": "Token Plan - China",
+		"mimoBaseUrlEurope": "Token Plan - Europe (AMS)",
+		"mimoBaseUrlPayg": "Pay-as-you-go",
+		"zaiApiKey": "Z AI API Key",
+		"getZaiApiKey": "Get Z AI API Key",
+		"zaiEntrypoint": "Z AI Entrypoint",
+		"zaiEntrypointDescription": "Please select the appropriate API entrypoint based on your location. If you are in China, choose open.bigmodel.cn. Otherwise, choose api.z.ai.",
+		"geminiApiKey": "Gemini API Key",
+		"getSambaNovaApiKey": "Get SambaNova API Key",
+		"sambaNovaApiKey": "SambaNova API Key",
+		"getGeminiApiKey": "Get Gemini API Key",
+		"openAiApiKey": "OpenAI API Key",
+		"apiKey": "API Key",
+		"openAiBaseUrl": "Base URL",
+		"getOpenAiApiKey": "Get OpenAI API Key",
+		"mistralApiKey": "Mistral API Key",
+		"getMistralApiKey": "Get Mistral / Codestral API Key",
+		"codestralBaseUrl": "Codestral Base URL (Optional)",
+		"codestralBaseUrlDesc": "Set an alternative URL for the Codestral model.",
+		"xaiApiKey": "xAI API Key",
+		"getXaiApiKey": "Get xAI API Key",
+		"litellmApiKey": "LiteLLM API Key",
+		"litellmBaseUrl": "LiteLLM Base URL",
+		"awsCredentials": "AWS Credentials",
 		"awsProfile": "AWS Profile",
-		"awsApiKey": "Amazon Bedrock API 金鑰",
-		"awsProfileName": "AWS Profile 名稱",
-		"awsAccessKey": "AWS 存取金鑰",
-		"awsSecretKey": "AWS 秘密金鑰",
-		"awsSessionToken": "AWS 工作階段權杖",
-		"awsRegion": "AWS 區域",
-		"awsCrossRegion": "使用跨區域推論",
-		"awsGlobalInference": "使用全域推論（自動選取最佳 AWS 區域）",
-		"awsServiceTier": "服務層級",
+		"awsApiKey": "Amazon Bedrock API Key",
+		"awsProfileName": "AWS Profile Name",
+		"awsAccessKey": "AWS Access Key",
+		"awsSecretKey": "AWS Secret Key",
+		"awsSessionToken": "AWS Session Token",
+		"awsRegion": "AWS Region",
+		"awsCrossRegion": "Use cross-region inference",
+		"awsGlobalInference": "Use Global inference (auto-select optimal AWS Region)",
+		"awsServiceTier": "Service Tier",
 		"awsServiceTierStandard": "Standard",
-		"awsServiceTierStandardDesc": "效能和成本均衡",
-		"awsServiceTierFlex": "Flex（50% 折扣）",
-		"awsServiceTierFlexDesc": "低成本，非關鍵工作的延遲較高",
-		"awsServiceTierPriority": "Priority（75% 溢價）",
-		"awsServiceTierPriorityDesc": "為關鍵業務應用提供最快效能",
-		"awsServiceTierNote": "服務層級會影響定價和效能。Flex 提供 50% 折扣但延遲較高，Priority 提供 25% 更好的效能但費用溢價 75%。",
+		"awsServiceTierStandardDesc": "Balanced performance and cost",
+		"awsServiceTierFlex": "Flex (50% discount)",
+		"awsServiceTierFlexDesc": "Lower cost, higher latency for non-critical tasks",
+		"awsServiceTierPriority": "Priority (75% premium)",
+		"awsServiceTierPriorityDesc": "Fastest performance for mission-critical applications",
+		"awsServiceTierNote": "Service tiers affect pricing and performance. Flex offers 50% discount with higher latency, Priority offers 25% better performance with 75% premium.",
 		"awsBedrockVpc": {
-			"useCustomVpcEndpoint": "使用自訂 VPC 端點",
-			"vpcEndpointUrlPlaceholder": "輸入 VPC 端點 URL（選填）",
-			"examples": "範例："
+			"useCustomVpcEndpoint": "Use custom VPC endpoint",
+			"vpcEndpointUrlPlaceholder": "Enter VPC Endpoint URL (optional)",
+			"examples": "Examples:"
 		},
-		"enablePromptCaching": "啟用提示快取",
-		"enablePromptCachingTitle": "啟用提示快取以提升支援的模型效能並降低成本。",
-		"cacheUsageNote": "注意：如果您沒有看到快取使用情況，請嘗試選擇其他模型，然後重新選擇您想要的模型。",
-		"vscodeLmModel": "語言模型",
-		"vscodeLmWarning": "注意：透過 VS Code Language Model API 存取的模型可能由供應商封裝或微調，因此其行為可能與直接從一般供應商或路由器使用相同模型時不同。要使用「Language Model」下拉式選單中的模型，請先切換到該模型，然後在 Copilot Chat 提示中點選「接受」；否則可能會出現 400「The requested model is not supported」等錯誤。",
+		"enablePromptCaching": "Enable prompt caching",
+		"enablePromptCachingTitle": "Enable prompt caching to improve performance and reduce costs for supported models.",
+		"cacheUsageNote": "Note: If you don't see cache usage, try selecting a different model and then selecting your desired model again.",
+		"vscodeLmModel": "Language Model",
+		"vscodeLmWarning": "Note: Models accessed via the VS Code Language Model API may be wrapped or fine-tuned by the provider, so behavior can differ from using the same model directly from a typical provider or router. To use a model from the Language Model dropdown, first switch to that model and then click Accept in the Copilot Chat prompt; otherwise you may see an error such as 400 \"The requested model is not supported\".",
 		"googleCloudSetup": {
-			"title": "要使用 Google Cloud Vertex AI，您需要：",
-			"step1": "1. 建立 Google Cloud 帳戶，啟用 Vertex AI API 並啟用所需的 Claude 模型。",
-			"step2": "2. 安裝 Google Cloud CLI 並設定應用程式預設憑證。",
-			"step3": "3. 或建立具有憑證的服務帳戶。"
+			"title": "To use Google Cloud Vertex AI, you need to:",
+			"step1": "1. Create a Google Cloud account, enable the Vertex AI API & enable the desired Claude models.",
+			"step2": "2. Install the Google Cloud CLI & configure application default credentials.",
+			"step3": "3. Or create a service account with credentials."
 		},
-		"googleCloudCredentials": "Google Cloud 憑證",
-		"googleCloudCredentialsPathWarning": "此欄位需要服務帳號金鑰檔案的 JSON 內容，而不是路徑。如果您有路徑，請將其貼到下方的<strong>Google Cloud 金鑰檔案路徑</strong>欄位，或清除此欄位並使用 <code>GOOGLE_APPLICATION_CREDENTIALS</code> 環境變數。",
-		"googleCloudKeyFile": "Google Cloud 金鑰檔案路徑",
-		"googleCloudProjectId": "Google Cloud 專案 ID",
-		"googleCloudRegion": "Google Cloud 區域",
+		"googleCloudCredentials": "Google Cloud Credentials",
+		"googleCloudCredentialsPathWarning": "This field expects the JSON contents of a service-account key file, not a path. If you have a path, paste it into the <strong>Google Cloud Key File Path</strong> field below, or clear this field and use the <code>GOOGLE_APPLICATION_CREDENTIALS</code> environment variable.",
+		"googleCloudKeyFile": "Google Cloud Key File Path",
+		"googleCloudProjectId": "Google Cloud Project ID",
+		"googleCloudRegion": "Google Cloud Region",
 		"lmStudio": {
-			"baseUrl": "基礎 URL（選用）",
-			"modelId": "模型 ID",
-			"speculativeDecoding": "啟用預測性解碼",
-			"draftModelId": "草稿模型 ID",
-			"draftModelDesc": "草稿模型必須來自相同模型系列才能正確運作。",
-			"selectDraftModel": "選擇草稿模型",
-			"noModelsFound": "未找到草稿模型。請確保 LM Studio 以伺服器模式執行。",
-			"description": "LM Studio 允許您在本機電腦執行模型。詳細資訊請參閱快速入門指南。您需要啟動 LM Studio 的本機伺服器功能才能與此擴充功能搭配使用。<span>注意：</span> Zoo Code 使用複雜提示詞，與 Claude 模型搭配最佳。功能較弱的模型可能無法正常運作。"
+			"baseUrl": "Base URL (optional)",
+			"modelId": "Model ID",
+			"speculativeDecoding": "Enable Speculative Decoding",
+			"draftModelId": "Draft Model ID",
+			"draftModelDesc": "Draft model must be from the same model family for speculative decoding to work correctly.",
+			"selectDraftModel": "Select Draft Model",
+			"noModelsFound": "No draft models found. Please ensure LM Studio is running with Server Mode enabled.",
+			"description": "LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their <a>quickstart guide</a>. You will also need to start LM Studio's <b>local server</b> feature to use it with this extension. <span>Note:</span> Zoo Code uses complex prompts and works best with Claude models. Less capable models may not work as expected."
 		},
 		"ollama": {
-			"baseUrl": "基礎 URL（選用）",
-			"modelId": "模型 ID",
-			"apiKey": "Ollama API 金鑰",
-			"apiKeyHelp": "用於已驗證 Ollama 執行個體或雲端服務的選用 API 金鑰。本機安裝請留空。",
-			"numCtx": "上下文視窗大小（num_ctx）",
-			"numCtxHelp": "覆寫模型的預設上下文視窗大小。留空以使用模型的 Modelfile 設定。最小值為 128。",
-			"description": "Ollama 允許您在本機電腦執行模型。請參閱快速入門指南。",
-			"warning": "注意：Zoo Code 使用複雜提示詞，與 Claude 模型搭配最佳。功能較弱的模型可能無法正常運作。"
+			"baseUrl": "Base URL (optional)",
+			"modelId": "Model ID",
+			"apiKey": "Ollama API Key",
+			"apiKeyHelp": "Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations.",
+			"numCtx": "Context Window Size (num_ctx)",
+			"numCtxHelp": "Override the model's default context window size. Leave empty to use the model's Modelfile configuration. Minimum value is 128.",
+			"description": "Ollama allows you to run models locally on your computer. For instructions on how to get started, see their quickstart guide.",
+			"warning": "Note: Zoo Code uses complex prompts and works best with Claude models. Less capable models may not work as expected."
 		},
 		"openRouter": {
 			"providerRouting": {
-				"title": "OpenRouter 供應商路由",
-				"description": "OpenRouter 會將請求路由到適合您模型的最佳可用供應商。預設情況下，請求會在頂尖供應商之間進行負載平衡以最大化正常運作時間。您也可以為此模型選擇特定的供應商。",
-				"learnMore": "了解更多關於供應商路由的資訊"
+				"title": "OpenRouter Provider Routing",
+				"description": "OpenRouter routes requests to the best available providers for your model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
+				"learnMore": "Learn more about provider routing"
 			}
 		},
 		"customModel": {
-			"capabilities": "設定自訂 OpenAI 相容模型的功能和定價。請謹慎設定模型功能，因為這會影響 Zoo Code 的運作方式。",
+			"capabilities": "Configure the capabilities and pricing for your custom OpenAI-compatible model. Be careful when specifying the model capabilities, as they can affect how Zoo Code performs.",
 			"maxTokens": {
-				"label": "最大輸出 Token",
-				"description": "模型能在一則回應中產生的最大 Token 數量。（設為 -1 則由伺服器決定最大值）"
+				"label": "Max Output Tokens",
+				"description": "Maximum number of tokens the model can generate in a response. (Specify -1 to allow the server to set the max tokens.)"
 			},
 			"contextWindow": {
-				"label": "上下文視窗大小",
-				"description": "模型能處理的總 Token 數量（包含輸入和輸出）"
+				"label": "Context Window Size",
+				"description": "Total tokens (input + output) the model can process."
 			},
 			"imageSupport": {
-				"label": "影像支援",
-				"description": "此模型是否能夠處理和理解影像？"
+				"label": "Image Support",
+				"description": "Is this model capable of processing and understanding images?"
 			},
 			"computerUse": {
-				"label": "電腦使用",
-				"description": "此模型是否能夠與瀏覽器互動？（例如 Claude Sonnet）"
+				"label": "Computer Use",
+				"description": "Is this model capable of interacting with a browser?"
 			},
 			"promptCache": {
-				"label": "提示快取",
-				"description": "此模型是否能夠快取提示詞？"
+				"label": "Prompt Caching",
+				"description": "Is this model capable of caching prompts?"
 			},
 			"pricing": {
 				"input": {
-					"label": "輸入價格",
-					"description": "輸入/提示詞每百萬 Token 的費用。這會影響向模型傳送內容和指令時的費用。"
+					"label": "Input Price",
+					"description": "Cost per million tokens in the input/prompt. This affects the cost of sending context and instructions to the model."
 				},
 				"output": {
-					"label": "輸出價格",
-					"description": "模型回應每百萬 Token 的費用。這會影響模型產生內容的費用。"
+					"label": "Output Price",
+					"description": "Cost per million tokens in the model's response. This affects the cost of generated content and completions."
 				},
 				"cacheReads": {
-					"label": "快取讀取價格",
-					"description": "每百萬 Token 的快取讀取費用。當從快取中取得已儲存的回應時，會收取此費用。"
+					"label": "Cache Reads Price",
+					"description": "Cost per million tokens for reading from the cache. This is the price charged when a cached response is retrieved."
 				},
 				"cacheWrites": {
-					"label": "快取寫入價格",
-					"description": "每百萬 Token 的快取寫入費用。當提示首次被儲存至快取時，會收取此費用。"
+					"label": "Cache Writes Price",
+					"description": "Cost per million tokens for writing to the cache. This is the price charged when a prompt is cached for the first time."
 				}
 			},
-			"resetDefaults": "重設為預設值"
+			"resetDefaults": "Reset to Defaults"
 		},
 		"rateLimitSeconds": {
-			"label": "速率限制",
-			"description": "API 請求間的最短時間"
+			"label": "Rate limit",
+			"description": "Minimum time between API requests."
 		},
 		"consecutiveMistakeLimit": {
-			"label": "錯誤和重複限制",
-			"description": "在顯示「Zoo 遇到問題」對話方塊前允許的連續錯誤或重複操作次數。設定為 0 可停用此安全機制（永不觸發）。",
-			"unlimitedDescription": "已啟用無限重試（自動繼續）。對話方塊將永遠不會出現。",
-			"warning": "⚠️ 設定為 0 允許無限重試，這可能會消耗大量 API 使用量"
+			"label": "Error & Repetition Limit",
+			"description": "Number of consecutive errors or repeated actions before showing 'Zoo is having trouble' dialog. Set to 0 to disable this safety mechanism (it will never trigger).",
+			"unlimitedDescription": "Unlimited retries enabled (auto-proceed). The dialog will never appear.",
+			"warning": "⚠️ Setting to 0 allows unlimited retries which may consume significant API usage"
 		},
 		"reasoningEffort": {
-			"label": "模型推理強度",
-			"none": "無",
-			"minimal": "最小（最快）",
-			"low": "低",
-			"medium": "中",
-			"high": "高",
-			"xhigh": "超高"
+			"label": "Model Reasoning Effort",
+			"none": "None",
+			"minimal": "Minimal (Fastest)",
+			"low": "Low",
+			"medium": "Medium",
+			"high": "High",
+			"xhigh": "Extra High"
 		},
 		"verbosity": {
-			"label": "輸出詳細程度",
-			"high": "高",
-			"medium": "中",
-			"low": "低",
-			"description": "控制模型回應的詳細程度。低詳細度產生簡潔的回答，而高詳細度提供詳盡的解釋。"
+			"label": "Output Verbosity",
+			"high": "High",
+			"medium": "Medium",
+			"low": "Low",
+			"description": "Controls how detailed the model's responses are. Low verbosity produces concise answers, while high verbosity provides thorough explanations."
 		},
-		"setReasoningLevel": "啟用推理強度",
+		"setReasoningLevel": "Enable Reasoning Effort",
 		"claudeCode": {
-			"pathLabel": "Claude Code 路徑",
-			"description": "選用的 Claude Code CLI 路徑。若未設定，預設為 'claude'。",
-			"placeholder": "預設：claude",
-			"maxTokensLabel": "最大輸出 Token",
-			"maxTokensDescription": "Claude Code 回應的最大輸出 Token 數量。預設為 8000。"
+			"pathLabel": "Claude Code Path",
+			"description": "Optional path to your Claude Code CLI. Defaults to 'claude' if not set.",
+			"placeholder": "Default: claude",
+			"maxTokensLabel": "Max Output Tokens",
+			"maxTokensDescription": "Maximum number of output tokens for Claude Code responses. Default is 8000."
 		}
 	},
 	"checkpoints": {
 		"timeout": {
-			"label": "檢查點初始化逾時（秒）",
-			"description": "檢查點服務初始化的最長等待時間。預設為 15 秒。範圍：10-60 秒。"
+			"label": "Checkpoint initialization timeout (seconds)",
+			"description": "Maximum time to wait for checkpoint service initialization. Default is 15 seconds. Range: 10-60 seconds."
 		},
 		"enable": {
-			"label": "啟用自動檢查點",
-			"description": "啟用後，Zoo 將在工作執行期間自動建立檢查點，方便檢視變更或回到較早的狀態。 <0>了解更多</0>"
+			"label": "Enable automatic checkpoints",
+			"description": "When enabled, Zoo will automatically create checkpoints during task execution, making it easy to review changes or revert to earlier states. <0>Learn more</0>"
 		}
 	},
 	"notifications": {
 		"sound": {
-			"label": "啟用音效",
-			"description": "啟用後，Zoo 將為通知和事件播放音效。",
-			"volumeLabel": "音量"
+			"label": "Enable sound effects",
+			"description": "When enabled, Zoo will play sound effects for notifications and events.",
+			"volumeLabel": "Volume"
 		},
 		"tts": {
-			"label": "啟用文字轉語音",
-			"description": "啟用後，Zoo 將使用文字轉語音功能朗讀其回應。",
-			"speedLabel": "速度"
+			"label": "Enable text-to-speech",
+			"description": "When enabled, Zoo will read aloud its responses using text-to-speech.",
+			"speedLabel": "Speed"
 		}
 	},
 	"contextManagement": {
-		"description": "控制 AI 上下文視窗中要包含哪些資訊，會影響 Token 用量和回應品質",
+		"description": "Control what information is included in the AI's context window, affecting token usage and response quality",
 		"autoCondenseContextPercent": {
-			"label": "觸發智慧上下文壓縮的閾值",
-			"description": "當上下文視窗達到此閾值時，Zoo 將自動壓縮它。"
+			"label": "Threshold to trigger intelligent context condensing",
+			"description": "When the context window reaches this threshold, Zoo will automatically condense it."
 		},
 		"condensingApiConfiguration": {
-			"label": "上下文壓縮的 API 設定",
-			"description": "選擇用於上下文壓縮操作的 API 設定。留空則使用目前啟用的設定。",
-			"useCurrentConfig": "預設"
+			"label": "API Configuration for Context Condensing",
+			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
+			"useCurrentConfig": "Default"
 		},
 		"customCondensingPrompt": {
-			"label": "自訂上下文壓縮提示",
-			"description": "自訂用於上下文壓縮的系統提示。留空則使用預設提示。",
-			"placeholder": "請在此輸入您的自訂上下文壓縮提示...\n\n您可以參考預設提示的結構：\n- 先前對話\n- 目前工作\n- 主要技術概念\n- 相關檔案與程式碼\n- 問題解決\n- 未完成的任務與後續步驟",
-			"reset": "重設為預設值",
-			"hint": "留空 = 使用預設提示"
+			"label": "Custom Context Condensing Prompt",
+			"description": "Customize the system prompt used for context condensing. Leave empty to use the default prompt.",
+			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
+			"reset": "Reset to Default",
+			"hint": "Empty = use default prompt"
 		},
 		"autoCondenseContext": {
-			"name": "自動觸發智慧上下文壓縮",
-			"description": "啟用時，Zoo 會在達到閾值時自動壓縮上下文。停用時，您仍可手動觸發上下文壓縮。"
+			"name": "Automatically trigger intelligent context condensing",
+			"description": "When enabled, Zoo will automatically condense the context when the threshold is reached. When disabled, you can still manually trigger context condensing."
 		},
 		"openTabs": {
-			"label": "開啟分頁的上下文限制",
-			"description": "上下文中最多包含多少個 VS Code 開啟的分頁。數值越高提供的上下文越多，但 Token 用量也會增加。"
+			"label": "Open tabs context limit",
+			"description": "Maximum number of VSCode open tabs to include in context. Higher values provide more context but increase token usage."
 		},
 		"workspaceFiles": {
-			"label": "工作區檔案的上下文限制",
-			"description": "目前工作目錄中最多包含多少個檔案。數值越高提供的上下文越多，但 Token 用量也會增加。"
+			"label": "Workspace files context limit",
+			"description": "Maximum number of files to include in current working directory details. Higher values provide more context but increase token usage."
 		},
 		"rooignore": {
-			"label": "在清單和搜尋中顯示被 .rooignore 排除的檔案",
-			"description": "啟用後，符合 .rooignore 規則的檔案會在清單中顯示並標示鎖定圖示。停用後，這些檔案將完全從檔案清單和搜尋結果中隱藏。"
+			"label": "Show .rooignore'd files in lists and searches",
+			"description": "When enabled, files matching patterns in .rooignore will be shown in lists with a lock symbol. When disabled, these files will be completely hidden from file lists and searches."
 		},
 		"maxConcurrentFileReads": {
-			"label": "並行檔案讀取限制",
-			"description": "read_file 工具可以同時處理的最大檔案數。較高的值可能會加快讀取多個小檔案的速度，但會增加記憶體使用量。"
+			"label": "Concurrent file reads limit",
+			"description": "Maximum number of files the 'read_file' tool can process concurrently. Higher values may speed up reading multiple small files but increase memory usage."
 		},
 		"maxReadFile": {
-			"label": "檔案讀取自動截斷閾值",
-			"description": "當模型未指定起始/結束值時，Zoo 讀取的行數。如果此數值小於檔案總行數，Zoo 將產生程式碼定義的行號索引。特殊情況：-1 指示 Zoo 讀取整個檔案（不建立索引），0 指示不讀取任何行並僅提供行索引以取得最小上下文。較低的值可最小化初始上下文使用，允許後續精確的行範圍讀取。明確指定起始/結束的請求不受此設定限制。 <0>了解更多</0>",
-			"lines": "行",
-			"always_full_read": "始終讀取整個檔案"
+			"label": "File read auto-truncate threshold",
+			"description": "Zoo reads this number of lines when the model omits start/end values. If this number is less than the file's total, Zoo generates a line number index of code definitions. Special cases: -1 instructs Zoo to read the entire file (without indexing), and 0 instructs it to read no lines and provides line indexes only for minimal context. Lower values minimize initial context usage, enabling precise subsequent line-range reads. Explicit start/end requests are not limited by this setting.",
+			"lines": "lines",
+			"always_full_read": "Always read entire file"
 		},
 		"maxImageFileSize": {
-			"label": "最大圖片檔案大小",
+			"label": "Max image file size",
 			"mb": "MB",
-			"description": "read_file 工具可以處理的影像檔案最大大小（MB）。"
+			"description": "Maximum size (in MB) for image files that can be processed by the read file tool."
 		},
 		"maxTotalImageSize": {
-			"label": "圖片總大小上限",
+			"label": "Max total image size",
 			"mb": "MB",
-			"description": "單次 read_file 操作中處理的所有圖片的最大累計大小限制（MB）。讀取多張圖片時，每張圖片的大小會累加到總大小中。如果包含另一張圖片會超過此限制，則會跳過該圖片。"
+			"description": "Maximum cumulative size limit (in MB) for all images processed in a single read_file operation. When reading multiple images, each image's size is added to the total. If including another image would exceed this limit, it will be skipped."
 		},
 		"diagnostics": {
 			"includeMessages": {
-				"label": "自動在上下文中包含診斷",
-				"description": "啟用後，來自已編輯檔案的診斷訊息（錯誤）將自動包含在上下文中。您隨時可以使用 @problems 手動包含所有工作區診斷。"
+				"label": "Automatically include diagnostics in context",
+				"description": "When enabled, diagnostic messages (errors) from edited files will be automatically included in the context. You can always manually include all workspace diagnostics using @problems."
 			},
 			"maxMessages": {
-				"label": "最大診斷訊息數",
-				"description": "限制納入上下文的診斷訊息（錯誤、警告）數量。設定後只會顯示這麼多診斷，並優先顯示錯誤而非警告。設為 0 表示無限制。",
-				"resetTooltip": "重設為預設值（50）",
-				"unlimitedLabel": "無限制"
+				"label": "Maximum diagnostic messages",
+				"description": "Limits the number of diagnostic messages (errors, warnings) included in the context. When set, only this many diagnostics will be shown, prioritizing errors over warnings. Set to 0 for unlimited diagnostics.",
+				"resetTooltip": "Reset to default value (50)",
+				"unlimitedLabel": "Unlimited"
 			},
 			"delayAfterWrite": {
-				"label": "寫入後延遲以允許診斷程式偵測潛在問題",
-				"description": "在繼續之前寫入檔案後等待的時間，允許診斷工具處理變更並偵測問題。"
+				"label": "Delay after writes to allow diagnostics to detect potential problems",
+				"description": "Time to wait after file writes before proceeding, allowing diagnostic tools to process changes and detect issues."
 			}
 		},
 		"condensingThreshold": {
-			"label": "壓縮觸發閾值",
-			"selectProfile": "設定檔的閾值",
-			"defaultProfile": "全域預設（所有設定檔）",
-			"defaultDescription": "當上下文達到此百分比時，除非有自訂設定，所有設定檔都會自動壓縮。",
-			"profileDescription": "僅此設定檔的自訂閾值（覆寫全域預設）",
-			"inheritDescription": "此設定檔沿用全域預設閾值（{{threshold}}%）",
-			"usesGlobal": "（使用全域 {{threshold}}%）"
+			"label": "Condensing Trigger Threshold",
+			"selectProfile": "Configure threshold for profile",
+			"defaultProfile": "Global Default (all profiles)",
+			"defaultDescription": "When context reaches this percentage, it will be automatically condensed for all profiles unless they have custom settings",
+			"profileDescription": "Custom threshold for this profile only (overrides global default)",
+			"inheritDescription": "This profile inherits the global default threshold ({{threshold}}%)",
+			"usesGlobal": "(uses global {{threshold}}%)"
 		},
 		"includeCurrentTime": {
-			"label": "在上下文中包含目前時間",
-			"description": "啟用後，目前時間和時區資訊將包含在系統提示中。如果模型因時間問題停止工作，請停用此選項。"
+			"label": "Include current time in context",
+			"description": "When enabled, the current time and timezone information will be included in the system prompt. Disable this if models are stopping work due to time concerns."
 		},
 		"includeCurrentCost": {
-			"label": "在上下文中包含目前成本",
-			"description": "啟用後，目前 API 使用成本將包含在系統提示中。如果模型因成本問題停止工作，請停用此選項。"
+			"label": "Include current cost in context",
+			"description": "When enabled, the current API usage cost will be included in the system prompt. Disable this if models are stopping work due to cost concerns."
 		},
 		"maxGitStatusFiles": {
-			"label": "Git 狀態最大檔案數",
-			"description": "git status 上下文中包含的最大檔案條目數。設為 0 會停用。當值 > 0 時，會一律顯示分支資訊。"
+			"label": "Git status max files",
+			"description": "Maximum number of file entries to include in git status context. Set to 0 to disable. Branch info is always shown when > 0."
 		},
 		"enableSubfolderRules": {
-			"label": "啟用子資料夾規則",
-			"description": "遞迴發現並載入子目錄中的 .roo/rules 和 AGENTS.md 檔案。適用於具有每包規則的 monorepo。"
+			"label": "Enable subfolder rules",
+			"description": "Recursively discover and load .roo/rules and AGENTS.md files from subdirectories. Useful for monorepos with per-package rules."
 		}
 	},
 	"terminal": {
 		"basic": {
-			"label": "終端機設定：基本",
-			"description": "基本終端機設定"
+			"label": "Terminal Settings: Basic",
+			"description": "Basic terminal settings"
 		},
 		"advanced": {
-			"label": "終端機設定：進階",
-			"description": "這些設定僅在「使用內嵌終端機」停用時適用。僅影響 VS Code 終端機，可能需要重啟 IDE。"
+			"label": "Terminal Settings: Advanced",
+			"description": "These settings apply only when 'Use Inline Terminal' is disabled. They affect the VS Code terminal only and may require restarting the IDE."
 		},
 		"outputLineLimit": {
-			"label": "終端機輸出限制",
-			"description": "保留首尾行並丟棄中間行以保持在限制內。降低可節省 Token；提高可為 Zoo 提供更多中間細節。Zoo 看到內容被跳過的佔位符。<0>了解更多</0>"
+			"label": "Terminal output limit",
+			"description": "Keeps the first and last lines and drops the middle to stay under the limit. Lower to save tokens; raise to give Zoo more middle detail. Zoo sees a placeholder where the content is skipped.<0>Learn more</0>"
 		},
 		"outputCharacterLimit": {
-			"label": "終端機字元限制",
-			"description": "透過強制限制輸出大小來覆寫行限制以防止記憶體問題。如果超出，保留開頭和結尾並向 Zoo 顯示內容被跳過的佔位符。<0>了解更多</0>"
+			"label": "Terminal character limit",
+			"description": "Overrides the line limit to prevent memory issues by enforcing a hard cap on output size. If exceeded, keeps the beginning and end and shows a placeholder to Zoo where content is skipped. <0>Learn more</0>"
 		},
 		"outputPreviewSize": {
-			"label": "命令輸出預覽大小",
-			"description": "控制 Zoo 直接看到的命令輸出量。完整輸出始終會被儲存，需要時可以存取。",
+			"label": "Command output preview size",
+			"description": "Controls how much command output Zoo sees directly. Full output is always saved and accessible when needed.",
 			"options": {
-				"small": "小 (5KB)",
-				"medium": "中 (10KB)",
-				"large": "大 (20KB)"
+				"small": "Small (5KB)",
+				"medium": "Medium (10KB)",
+				"large": "Large (20KB)"
 			}
 		},
 		"shellIntegrationTimeout": {
-			"label": "終端機 shell 整合逾時",
-			"description": "執行命令前等待 VS Code shell 整合的時間。如果 shell 啟動緩慢或看到 'Shell Integration Unavailable' 錯誤，請提高此值。<0>了解更多</0>"
+			"label": "Terminal shell integration timeout",
+			"description": "How long to wait for VS Code shell integration before running commands. Raise if your shell starts slowly or you see 'Shell Integration Unavailable' errors. <0>Learn more</0>"
 		},
 		"shellIntegrationDisabled": {
-			"label": "使用內嵌終端機（建議）",
-			"description": "在內嵌終端機（聊天）中執行命令以繞過 shell 設定檔/整合，實現更快、更可靠的執行。停用時，Zoo 使用 VS Code 終端機及您的 shell 設定檔、提示和外掛程式。<0>了解更多</0>"
+			"label": "Use Inline Terminal (recommended)",
+			"description": "Run commands in the Inline Terminal (chat) to bypass shell profiles/integration for faster, more reliable runs. When disabled Zoo uses the VS Code terminal with your shell profile, prompts, and plugins. <0>Learn more</0>"
 		},
 		"commandDelay": {
-			"label": "終端機命令延遲",
-			"description": "在每個命令後新增短暫暫停，以便 VS Code 終端機刷新所有輸出（bash/zsh: PROMPT_COMMAND sleep; PowerShell: start-sleep）。僅在看到缺少尾部輸出時使用；否則保持為 0。<0>了解更多</0>"
+			"label": "Terminal command delay",
+			"description": "Adds a short pause after each command so the VS Code terminal can flush all output (bash/zsh: PROMPT_COMMAND sleep; PowerShell: start-sleep). Use only if you see missing tail output; otherwise leave at 0. <0>Learn more</0>"
 		},
 		"powershellCounter": {
-			"label": "啟用 PowerShell 計數器解決方案",
-			"description": "當 PowerShell 輸出遺失或重複時啟用此選項；它會為每個命令附加一個小計數器以穩定輸出。如果輸出已正常，請保持關閉。<0>了解更多</0>"
+			"label": "Enable PowerShell counter workaround",
+			"description": "Turn this on when PowerShell output is missing or duplicated; it appends a tiny counter to each command to stabilize output. Keep this off if output already looks correct. <0>Learn more</0>"
 		},
 		"zshClearEolMark": {
-			"label": "清除 ZSH EOL 標記",
-			"description": "當您在行尾看到零散的 % 或解析看起來錯誤時啟用此選項；它會省略 Zsh 的行尾標記（%）。<0>了解更多</0>"
+			"label": "Clear ZSH EOL mark",
+			"description": "Turn this on when you see stray % at the end of lines or parsing looks wrong; it omits Zsh’s end‑of‑line mark (%). <0>Learn more</0>"
 		},
 		"zshOhMy": {
-			"label": "啟用 Oh My Zsh 整合",
-			"description": "當您的 Oh My Zsh 主題/外掛程式期望 shell 整合時啟用此選項；它會設定 ITERM_SHELL_INTEGRATION_INSTALLED=Yes。關閉此選項以避免設定該變數。<0>了解更多</0>"
+			"label": "Enable Oh My Zsh integration",
+			"description": "Turn this on when your Oh My Zsh theme/plugins expect shell integration; it sets ITERM_SHELL_INTEGRATION_INSTALLED=Yes. Turn this off to avoid setting that variable. <0>Learn more</0>"
 		},
 		"zshP10k": {
-			"label": "啟用 Powerlevel10k 整合",
-			"description": "使用 Powerlevel10k shell 整合時啟用此選項。<0>了解更多</0>"
+			"label": "Enable Powerlevel10k integration",
+			"description": "Turn this on when using Powerlevel10k shell integration. <0>Learn more</0>"
 		},
 		"zdotdir": {
-			"label": "啟用 ZDOTDIR 處理",
-			"description": "當 zsh shell 整合失敗或與您的 dotfiles 衝突時啟用此選項。<0>了解更多</0>"
+			"label": "Enable ZDOTDIR handling",
+			"description": "Turn this on when zsh shell integration fails or conflicts with your dotfiles. <0>Learn more</0>"
 		},
 		"inheritEnv": {
-			"label": "繼承環境變數",
-			"description": "啟用此選項以從父 VS Code 程序繼承環境變數。<0>了解更多</0>"
+			"label": "Inherit environment variables",
+			"description": "Turn this on to inherit environment variables from the parent VS Code process. <0>Learn more</0>"
 		}
 	},
 	"advancedSettings": {
-		"title": "進階設定"
+		"title": "Advanced settings"
 	},
 	"advanced": {
 		"diff": {
-			"label": "透過差異比對編輯",
-			"description": "啟用後，Zoo 可更快速地編輯檔案，並自動拒絕不完整的整檔覆寫",
+			"label": "Enable editing through diffs",
+			"description": "When enabled, Zoo will be able to edit files more quickly and will automatically reject truncated full-file writes",
 			"strategy": {
-				"label": "差異比對策略",
+				"label": "Diff strategy",
 				"options": {
-					"standard": "標準（單一區塊）",
-					"multiBlock": "實驗性：多區塊差異",
-					"unified": "實驗性：統一差異"
+					"standard": "Standard (Single block)",
+					"multiBlock": "Experimental: Multi-block diff",
+					"unified": "Experimental: Unified diff"
 				},
 				"descriptions": {
-					"standard": "標準策略一次只修改一個程式碼區塊。",
-					"unified": "統一差異策略會嘗試多種比對方式，並選擇最佳方案。",
-					"multiBlock": "多區塊策略可在單一請求中更新檔案內的多個程式碼區塊。"
+					"standard": "Standard diff strategy applies changes to a single code block at a time.",
+					"unified": "Unified diff strategy takes multiple approaches to applying diffs and chooses the best approach.",
+					"multiBlock": "Multi-block diff strategy allows updating multiple code blocks in a file in one request."
 				}
 			}
 		},
 		"todoList": {
-			"label": "啟用待辦事項清單工具",
-			"description": "啟用後，Zoo 可以建立和管理待辦事項清單來追蹤任務進度。這有助於將複雜任務組織成可管理的步驟。"
+			"label": "Enable todo list tool",
+			"description": "When enabled, Zoo can create and manage todo lists to track task progress. This helps organize complex tasks into manageable steps."
 		}
 	},
 	"experimental": {
 		"DIFF_STRATEGY_UNIFIED": {
-			"name": "使用實驗性統一差異比對策略",
-			"description": "啟用實驗性的統一差異比對策略。此策略可能減少因模型錯誤而導致的重試次數，但也可能導致意外行為或錯誤的編輯。請務必了解風險，並願意仔細檢查所有變更後再啟用。"
+			"name": "Use experimental unified diff strategy",
+			"description": "Enable the experimental unified diff strategy. This strategy might reduce the number of retries caused by model errors but may cause unexpected behavior or incorrect edits. Only enable if you understand the risks and are willing to carefully review all changes."
 		},
 		"INSERT_BLOCK": {
-			"name": "使用實驗性插入內容工具",
-			"description": "啟用實驗性的插入內容工具，允許 Zoo 直接在指定行號插入內容，而無需產生差異比對。"
+			"name": "Use experimental insert content tool",
+			"description": "Enable the experimental insert content tool, allowing Zoo to insert content at specific line numbers without needing to create a diff."
 		},
 		"CONCURRENT_FILE_READS": {
-			"name": "啟用並行檔案讀取",
-			"description": "啟用後，Zoo 可以在單一請求中讀取多個檔案。停用後，Zoo 必須逐一讀取檔案。在使用能力較弱的模型或希望對檔案存取有更多控制時，停用此功能可能會有所幫助。"
+			"name": "Enable concurrent file reads",
+			"description": "When enabled, Zoo can read multiple files in a single request. When disabled, Zoo must read files one at a time. Disabling this can help when working with less capable models or when you want more control over file access."
 		},
 		"MULTI_SEARCH_AND_REPLACE": {
-			"name": "使用實驗性多區塊差異比對工具",
-			"description": "啟用後，Zoo 將使用多區塊差異比對工具，嘗試在單一請求中更新檔案內的多個程式碼區塊。"
+			"name": "Use experimental multi block diff tool",
+			"description": "When enabled, Zoo will use multi block diff tool. This will try to update multiple code blocks in the file in one request."
 		},
 		"MARKETPLACE": {
-			"name": "啟用 Marketplace",
-			"description": "啟用後，您可以從 Marketplace 安裝 MCP 和自訂模式。"
+			"name": "Enable Marketplace",
+			"description": "When enabled, you can install MCPs and custom modes from the Marketplace."
 		},
 		"PREVENT_FOCUS_DISRUPTION": {
-			"name": "背景編輯",
-			"description": "啟用後可防止編輯器焦點中斷。檔案編輯會在背景進行，不會開啟 diff 檢視或搶奪焦點。您可以在 Zoo 進行變更時繼續不受干擾地工作。檔案可能會在不獲得焦點的情況下開啟以捕獲診斷，或保持完全關閉。"
+			"name": "Background editing",
+			"description": "Prevent editor focus disruption when enabled. File edits happen in the background without opening diff views or stealing focus. You can continue working uninterrupted while Zoo makes changes. Files can be opened without focus to capture diagnostics or kept closed entirely."
 		},
 		"ASSISTANT_MESSAGE_PARSER": {
-			"name": "使用全新訊息解析器",
-			"description": "啟用實驗性的串流訊息解析器。透過更有效率地處理訊息，能顯著提升長回覆的效能。"
+			"name": "Use new message parser",
+			"description": "Enable the experimental streaming message parser that provides significant performance improvements for long assistant responses by processing messages more efficiently."
 		},
 		"NEW_TASK_REQUIRE_TODOS": {
-			"name": "要求新工作提供 'todos' 清單",
-			"description": "啟用後，new_task 工具將需要提供 todos 參數。這可以確保所有新工作都以明確的目標列表開始。停用時（預設），todos 參數保持可選，以實現向後相容。"
+			"name": "Require 'todos' list for new tasks",
+			"description": "When enabled, the new_task tool will require a todos parameter to be provided. This ensures all new tasks start with a clear list of objectives. When disabled (default), the todos parameter remains optional for backward compatibility."
 		},
 		"IMAGE_GENERATION": {
-			"name": "啟用 AI 影像生成",
-			"description": "啟用後，Zoo 可以使用 OpenRouter 的影像生成模型，從文字提示產生影像。需要設定 OpenRouter API 金鑰。",
-			"providerLabel": "供應商",
-			"providerDescription": "選擇用於影像生成的供應商。",
-			"openRouterApiKeyLabel": "OpenRouter API 金鑰",
-			"openRouterApiKeyPlaceholder": "輸入您的 OpenRouter API 金鑰",
-			"getApiKeyText": "取得 API 金鑰請前往",
-			"modelSelectionLabel": "影像生成模型",
-			"modelSelectionDescription": "選擇用於影像生成的模型",
-			"warningMissingKey": "⚠️ 影像生成需要 OpenRouter API 金鑰。請在上方設定。",
-			"successConfigured": "✓ 影像生成已設定完成並準備使用"
+			"name": "Enable AI image generation",
+			"description": "When enabled, Zoo can generate images from text prompts using image generation models.",
+			"providerLabel": "Provider",
+			"providerDescription": "Select which provider to use for image generation.",
+			"openRouterApiKeyLabel": "OpenRouter API Key",
+			"openRouterApiKeyPlaceholder": "Enter your OpenRouter API key",
+			"getApiKeyText": "Get your API key from",
+			"modelSelectionLabel": "Image Generation Model",
+			"modelSelectionDescription": "Select the model to use for image generation",
+			"warningMissingKey": "⚠️ OpenRouter API key is required for OpenRouter image generation. Please configure it above.",
+			"successConfigured": "✓ Image generation is configured and ready to use"
 		},
 		"RUN_SLASH_COMMAND": {
-			"name": "啟用模型啟動的斜線命令",
-			"description": "啟用時，Zoo 可以執行您的斜線命令來執行工作流程。"
+			"name": "Enable model-initiated slash commands",
+			"description": "When enabled, Zoo can run your slash commands to execute workflows."
 		},
 		"CUSTOM_TOOLS": {
-			"name": "啟用自訂工具",
-			"description": "啟用後，Zoo 可以從專案中的 .roo/tools 目錄或全域工具目錄 ~/.roo/tools 載入並使用自訂 TypeScript/JavaScript 工具。注意：這些工具將自動獲得核准。",
-			"toolsHeader": "可用自訂工具",
-			"noTools": "未載入自訂工具。請向專案的 .roo/tools 目錄或全域工具目錄 ~/.roo/tools 新增 .ts 或 .js 檔案。",
-			"refreshButton": "重新整理",
-			"refreshing": "正在重新整理...",
-			"refreshSuccess": "工具重新整理成功",
-			"refreshError": "工具重新整理失敗",
-			"toolParameters": "參數"
+			"name": "Enable custom tools",
+			"description": "When enabled, Zoo can load and use custom TypeScript/JavaScript tools from your project's .roo/tools directory or ~/.roo/tools for global tools. Note: these tools will automatically be auto-approved.",
+			"toolsHeader": "Available Custom Tools",
+			"noTools": "No custom tools loaded. Add .ts or .js files to your project's .roo/tools directory or ~/.roo/tools for global tools.",
+			"refreshButton": "Refresh",
+			"refreshing": "Refreshing...",
+			"refreshSuccess": "Tools refreshed successfully",
+			"refreshError": "Failed to refresh tools",
+			"toolParameters": "Parameters"
 		}
 	},
 	"promptCaching": {
-		"label": "停用提示詞快取",
-		"description": "勾選後，Zoo 將不會為此模型使用提示詞快取。"
+		"label": "Disable prompt caching",
+		"description": "When checked, Zoo will not use prompt caching for this model."
 	},
 	"temperature": {
-		"useCustom": "使用自訂溫度",
-		"description": "控制模型回應的隨機性",
-		"rangeDescription": "較高值使輸出更隨機，較低值更確定"
+		"useCustom": "Use custom temperature",
+		"description": "Controls randomness in the model's responses.",
+		"rangeDescription": "Higher values make output more random, lower values make it more deterministic."
 	},
 	"modelInfo": {
-		"supportsImages": "支援影像",
-		"noImages": "不支援影像",
-		"supportsPromptCache": "支援提示快取",
-		"noPromptCache": "不支援提示快取",
-		"contextWindow": "上下文視窗：",
-		"maxOutput": "最大輸出",
-		"inputPrice": "輸入價格",
-		"outputPrice": "輸出價格",
-		"cacheReadsPrice": "快取讀取價格",
-		"cacheWritesPrice": "快取寫入價格",
-		"enableStreaming": "啟用串流輸出",
-		"enableR1Format": "啟用 R1 模型參數",
-		"enableR1FormatTips": "使用 QWQ 等 R1 模型時必須啟用，以避免發生 400 錯誤",
-		"useAzure": "使用 Azure",
-		"azureApiVersion": "設定 Azure API 版本",
+		"supportsImages": "Supports images",
+		"noImages": "Does not support images",
+		"supportsPromptCache": "Supports prompt caching",
+		"noPromptCache": "Does not support prompt caching",
+		"contextWindow": "Context Window:",
+		"maxOutput": "Max output",
+		"inputPrice": "Input price",
+		"outputPrice": "Output price",
+		"cacheReadsPrice": "Cache reads price",
+		"cacheWritesPrice": "Cache writes price",
+		"enableStreaming": "Enable streaming",
+		"enableR1Format": "Enable R1 model parameters",
+		"enableR1FormatTips": "Must be enabled when using R1 models such as QWQ to prevent 400 errors",
+		"useAzure": "Use Azure",
+		"azureApiVersion": "Set Azure API version",
 		"gemini": {
-			"freeRequests": "* 每分鐘可免費使用 {{count}} 次請求，超過後將依提示詞大小計費。",
-			"pricingDetails": "詳細資訊請參閱定價說明。",
-			"billingEstimate": "* 費用為估算值 - 實際費用取決於提示大小。"
+			"freeRequests": "* Free up to {{count}} requests per minute. After that, billing depends on prompt size.",
+			"pricingDetails": "For more info, see pricing details.",
+			"billingEstimate": "* Billing is an estimate - exact cost depends on prompt size."
 		}
 	},
 	"modelPicker": {
-		"automaticFetch": "此擴充功能會自動從 <serviceLink>{{serviceName}}</serviceLink> 取得最新的可用模型清單。如果不確定要選哪個模型，建議使用 <defaultModelLink>{{defaultModelId}}</defaultModelLink>，這是與 Zoo Code 最佳搭配的模型。您也可以搜尋「free」來檢視目前可用的免費選項。",
-		"label": "模型",
-		"searchPlaceholder": "搜尋",
-		"noMatchFound": "找不到符合的結果",
-		"useCustomModel": "使用自訂模型：{{modelId}}",
-		"simplifiedExplanation": "你可以稍後調整詳細的模型設定。"
+		"automaticFetch": "The extension automatically fetches the latest list of models available on <serviceLink>{{serviceName}}</serviceLink>. If you're unsure which model to choose, Zoo Code works best with <defaultModelLink>{{defaultModelId}}</defaultModelLink>. You can also try searching \"free\" for no-cost options currently available.",
+		"label": "Model",
+		"searchPlaceholder": "Search",
+		"noMatchFound": "No match found",
+		"useCustomModel": "Use custom: {{modelId}}",
+		"simplifiedExplanation": "You can adjust detailed model settings later."
 	},
 	"footer": {
 		"telemetry": {
-			"label": "允許匿名錯誤與使用情況回報",
-			"description": "透過發送匿名使用資料和錯誤回報來協助改善 Zoo Code。此遙測不會收集程式碼、提示詞或個人資訊。查看我們的 <privacyLink>隱私權政策</privacyLink> 以了解更多資訊。"
+			"label": "Allow anonymous error and usage reporting",
+			"description": "Help improve Zoo Code by sending anonymous usage data and error reports. This telemetry does not collect code, prompts or personal information. See our <privacyLink>privacy policy</privacyLink> for more details."
 		},
 		"settings": {
-			"import": "匯入",
-			"export": "匯出",
-			"reset": "重設"
+			"import": "Import",
+			"export": "Export",
+			"reset": "Reset"
 		}
 	},
 	"thinkingBudget": {
-		"maxTokens": "最大 Token 數",
-		"maxThinkingTokens": "最大思考 Token 數"
+		"maxTokens": "Max Tokens",
+		"maxThinkingTokens": "Max Thinking Tokens"
 	},
 	"validation": {
-		"apiKey": "請提供有效的 API 金鑰。",
-		"awsRegion": "請選擇要用於 Amazon Bedrock 的區域。",
-		"googleCloud": "請提供有效的 Google Cloud 專案 ID 和區域。",
-		"modelId": "請提供有效的模型 ID。",
-		"modelSelector": "請提供有效的模型選擇器。",
-		"openAi": "請提供有效的基礎 URL、API 金鑰和模型 ID。",
+		"apiKey": "You must provide a valid API key.",
+		"awsRegion": "You must choose a region to use with Amazon Bedrock.",
+		"googleCloud": "You must provide a valid Google Cloud Project ID and Region.",
+		"modelId": "You must provide a valid model ID.",
+		"modelSelector": "You must provide a valid model selector.",
+		"openAi": "You must provide a valid base URL, API key, and model ID.",
 		"arn": {
-			"invalidFormat": "ARN 格式無效，請檢查格式要求。",
-			"regionMismatch": "警告：您 ARN 中的區域 ({{arnRegion}}) 與您選擇的區域 ({{region}}) 不符，可能導致存取問題。系統將使用 ARN 中指定的區域。"
+			"invalidFormat": "Invalid ARN format. Please check the format requirements.",
+			"regionMismatch": "Warning: The region in your ARN ({{arnRegion}}) does not match your selected region ({{region}}). This may cause access issues. The provider will use the region from the ARN."
 		},
-		"modelAvailability": "您指定的模型 ID ({{modelId}}) 目前無法使用，請選擇其他模型。",
-		"modelDeprecated": "此模型已停用，請選擇其他模型。",
-		"providerNotAllowed": "供應商 '{{provider}}' 不允許用於您的組織。",
-		"modelNotAllowed": "模型 '{{model}}' 不允許用於供應商 '{{provider}}'，此設定已被組織禁止",
-		"profileInvalid": "此設定檔包含您的組織不允許的供應商或模型",
-		"qwenCodeOauthPath": "您必須提供有效的 OAuth 憑證路徑"
+		"modelAvailability": "The model ID ({{modelId}}) you provided is not available. Please choose a different model.",
+		"modelDeprecated": "This model is no longer available. Please select a different model.",
+		"providerNotAllowed": "Provider '{{provider}}' is not allowed by your organization",
+		"modelNotAllowed": "Model '{{model}}' is not allowed for provider '{{provider}}' by your organization",
+		"profileInvalid": "This profile contains a provider or model that is not allowed by your organization",
+		"qwenCodeOauthPath": "You must provide a valid OAuth credentials path."
 	},
 	"placeholders": {
-		"apiKey": "請輸入 API 金鑰...",
-		"profileName": "請輸入設定檔名稱",
-		"accessKey": "請輸入存取金鑰...",
-		"secretKey": "請輸入秘密金鑰...",
-		"sessionToken": "請輸入工作階段權杖...",
-		"credentialsJson": "請輸入憑證 JSON...",
-		"keyFilePath": "請輸入金鑰檔案路徑...",
-		"projectId": "請輸入專案 ID...",
-		"customArn": "請輸入 ARN（例：arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model）",
-		"baseUrl": "請輸入基礎 URL...",
+		"apiKey": "Enter API Key...",
+		"profileName": "Enter profile name",
+		"accessKey": "Enter Access Key...",
+		"secretKey": "Enter Secret Key...",
+		"sessionToken": "Enter Session Token...",
+		"credentialsJson": "Enter Credentials JSON...",
+		"keyFilePath": "Enter Key File Path...",
+		"projectId": "Enter Project ID...",
+		"customArn": "Enter ARN (e.g. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Enter base URL...",
 		"modelId": {
-			"lmStudio": "例：meta-llama-3.1-8b-instruct",
-			"lmStudioDraft": "例：lmstudio-community/llama-3.2-1b-instruct",
-			"ollama": "例：llama3.1"
+			"lmStudio": "e.g. meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "e.g. lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "e.g. llama3.1"
 		},
 		"numbers": {
-			"maxTokens": "例：4096",
-			"contextWindow": "例：128000",
-			"inputPrice": "例：0.0001",
-			"outputPrice": "例：0.0002",
-			"cacheWritePrice": "例：0.00005"
+			"maxTokens": "e.g. 4096",
+			"contextWindow": "e.g. 128000",
+			"inputPrice": "e.g. 0.0001",
+			"outputPrice": "e.g. 0.0002",
+			"cacheWritePrice": "e.g. 0.00005"
 		}
 	},
 	"defaults": {
-		"ollamaUrl": "預設：http://localhost:11434",
-		"lmStudioUrl": "預設：http://localhost:1234",
-		"geminiUrl": "預設：https://generativelanguage.googleapis.com"
+		"ollamaUrl": "Default: http://localhost:11434",
+		"lmStudioUrl": "Default: http://localhost:1234",
+		"geminiUrl": "Default: https://generativelanguage.googleapis.com"
 	},
 	"labels": {
-		"customArn": "自訂 ARN",
-		"useCustomArn": "使用自訂 ARN..."
+		"customArn": "Custom ARN",
+		"useCustomArn": "Use custom ARN..."
 	},
-	"includeMaxOutputTokens": "包含最大輸出 Token 數",
-	"includeMaxOutputTokensDescription": "在 API 請求中傳送最大輸出 Token 參數。某些供應商可能不支援此功能。",
-	"limitMaxTokensDescription": "限制回應中的最大 Token 數量",
-	"maxOutputTokensLabel": "最大輸出 Token 數",
-	"maxTokensGenerateDescription": "回應中產生的最大 Token 數",
+	"includeMaxOutputTokens": "Include max output tokens",
+	"includeMaxOutputTokensDescription": "Send max output tokens parameter in API requests. Some providers may not support this.",
+	"limitMaxTokensDescription": "Limit the maximum number of tokens in the response",
+	"maxOutputTokensLabel": "Max output tokens",
+	"maxTokensGenerateDescription": "Maximum tokens to generate in response",
 	"serviceTier": {
-		"label": "服務層級",
-		"tooltip": "若需更快的 API 請求處理，請嘗試優先處理服務層級。若需較低價格但延遲較高，請嘗試彈性處理層級。",
-		"standard": "標準",
-		"flex": "彈性",
-		"priority": "優先",
-		"pricingTableTitle": "按服務層級定價（每百萬 Token 價格）",
+		"label": "Service tier",
+		"tooltip": "For faster processing of API requests, try the priority processing service tier. For lower prices with higher latency, try the flex processing tier.",
+		"standard": "Standard",
+		"flex": "Flex",
+		"priority": "Priority",
+		"pricingTableTitle": "Pricing by service tier (price per 1M tokens)",
 		"columns": {
-			"tier": "層級",
-			"input": "輸入",
-			"output": "輸出",
-			"cacheReads": "快取讀取"
+			"tier": "Tier",
+			"input": "Input",
+			"output": "Output",
+			"cacheReads": "Cache reads"
 		}
-	},
-	"skills": {
-		"description": "管理為代理提供上下文指令的技能。技能會在與您的任務相關時自動套用。<DocsLink>深入了解</DocsLink>",
-		"workspaceSkills": "工作區技能",
-		"globalSkills": "全域技能",
-		"noWorkspaceSkills": "此專案中還沒有技能。",
-		"noGlobalSkills": "未設定全域技能。建立一個以新增在所有專案中可用的代理功能。",
-		"addSkill": "新增技能",
-		"editSkill": "編輯技能",
-		"deleteSkill": "刪除技能",
-		"configureModes": "模式可用性",
-		"modeAny": "任意模式",
-		"modeCount": "{{count}} 種模式",
-		"deleteDialog": {
-			"title": "刪除技能",
-			"description": "您確定要刪除技能「{{name}}」嗎？此動作無法復原。",
-			"confirm": "刪除",
-			"cancel": "取消"
-		},
-		"modeDialog": {
-			"title": "設定技能模式",
-			"description": "選擇哪些模式可以使用此技能",
-			"intro": "為了保持您的上下文簡潔，我們建議只在需要的模式中提供技能。",
-			"anyMode": "任何模式（隨處可用）",
-			"save": "儲存",
-			"cancel": "取消"
-		},
-		"createDialog": {
-			"title": "建立新技能",
-			"nameLabel": "名稱",
-			"namePlaceholder": "my-skill-name",
-			"descriptionLabel": "說明",
-			"descriptionPlaceholder": "描述何時應使用此技能...",
-			"sourceLabel": "位置",
-			"modeLabel": "模式（選填）",
-			"modePlaceholder": "任何模式",
-			"modeHint": "將此技能限制為特定模式",
-			"modeAny": "任何模式",
-			"create": "建立",
-			"cancel": "取消"
-		},
-		"source": {
-			"global": "全域（在所有專案中可用）",
-			"project": "專案（僅此工作區）"
-		},
-		"validation": {
-			"nameRequired": "名稱為必填",
-			"nameTooLong": "名稱不得超過64個字元",
-			"nameInvalid": "名稱必須為1-64個小寫字母、數字或連字號",
-			"descriptionRequired": "說明為必填",
-			"descriptionTooLong": "說明不得超過1024個字元"
-		},
-		"footer": "使用技能編寫器模式建立您自己的技能，可在 <MarketplaceLink>模式市集</MarketplaceLink> 中取得。"
 	}
 }

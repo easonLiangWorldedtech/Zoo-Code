@@ -10,7 +10,7 @@ import { appendImages } from "@src/utils/imageUtils"
 import { getCostBreakdownIfNeeded } from "@src/utils/costFormatting"
 import { batchConsecutive } from "@src/utils/batchConsecutive"
 
-import type { ClineAsk, ClineSayTool, ClineMessage, ExtensionMessage, AudioType } from "@roo-code/types"
+import type { ClineAsk, ClineSayTool, ClineMessage, ExtensionMessage, AudioType, ParallelTaskType, BGWorkerStateUpdate } from "@roo-code/types"
 import { isRetiredProvider } from "@roo-code/types"
 
 import { findLast } from "@roo/array"
@@ -29,6 +29,7 @@ import { useSelectedModel } from "@src/components/ui/hooks/useSelectedModel"
 import RooHero from "@src/components/welcome/RooHero"
 import RooTips from "@src/components/welcome/RooTips"
 import { StandardTooltip, Button } from "@src/components/ui"
+import { VSCodeDropdown } from "@vscode/webview-ui-toolkit/react"
 
 import TelemetryBanner from "../common/TelemetryBanner"
 import VersionIndicator from "../common/VersionIndicator"
@@ -43,6 +44,7 @@ import { CheckpointWarning } from "./CheckpointWarning"
 import { QueuedMessages } from "./QueuedMessages"
 import { WorktreeSelector } from "./WorktreeSelector"
 import FileChangesPanel from "./FileChangesPanel"
+import { HeartbeatList } from "./WorkerHeartbeatCard"
 import { useScrollLifecycle } from "@src/hooks/useScrollLifecycle"
 
 export interface ChatViewProps {
@@ -86,6 +88,10 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 		messageQueue = [],
 		showWorktreesInHomeScreen,
 		telemetrySetting,
+		parallelTaskEnabled,
+		parallelTaskDefaultMode,
+		workerHeartbeats,
+		workerHeartbeatSettings,
 	} = useExtensionState()
 
 	// Show a WarningRow when the user sends a message with a retired provider.
@@ -96,6 +102,39 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 	useEffect(() => {
 		setShowRetiredProviderWarning(false)
 	}, [providerName])
+
+	// Parallel task state: selected task type for new tasks + bgWorker status
+	const [selectedTaskType, setSelectedTaskType] = useState<ParallelTaskType | "main">(
+		(parallelTaskDefaultMode as ParallelTaskType | "main") ?? "main",
+	)
+	const [activeWorkerCount, setActiveWorkerCount] = useState(0)
+	const [queuedCount, setQueuedCount] = useState(0)
+
+	// Listen for bgWorkerState messages from the extension host.
+	useEffect(() => {
+		const handler = (event: MessageEvent) => {
+			if (typeof event.data !== "object" || event.data === null) return
+			const msg = event.data as ExtensionMessage
+			if (msg.type === "bgWorkerState") {
+				const update = msg.bgWorkerUpdate as BGWorkerStateUpdate | undefined
+				if (update?.activeWorkers != null) setActiveWorkerCount(update.activeWorkers)
+				if (update?.queuedTasks != null) setQueuedCount(update.queuedTasks)
+			}
+		}
+		window.addEventListener("message", handler)
+		return () => window.removeEventListener("message", handler)
+	}, [])
+
+	// Persist selected task type to settings when changed.
+	const handleTaskTypeChange = useCallback((taskType: ParallelTaskType | "main") => {
+		setSelectedTaskType(taskType)
+		vscode.postMessage({
+			type: "updateSettings",
+			updatedSettings: { parallelTaskDefaultMode: taskType === "main" ? undefined : taskType } as any,
+		})
+	}, [])
+
+	const isParallelEnabled = parallelTaskEnabled ?? false
 
 	const messagesRef = useRef(messages)
 
@@ -1760,6 +1799,43 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 					/>
 				</div>
 			)}
+
+			{/* Shared Heartbeat System (Phase 6b) — worker progress cards in chat */}
+			{workerHeartbeats && workerHeartbeats.length > 0 && (
+				<HeartbeatList
+					heartbeats={workerHeartbeats}
+					heartbeatMode={(workerHeartbeatSettings?.mode as "all" | "errors_only" | "none") ?? "all"}
+				/>
+			)}
+
+			{/* Parallel Task Type Selector */}
+			{isParallelEnabled && (
+				<div className="px-[15px] py-2 flex items-center gap-3 border-b border-vscode-panel-border">
+					<span className="text-sm text-vscode-descriptionForeground whitespace-nowrap">
+						{t("settings:parallelTasks.taskSelector.label")}
+					</span>
+					<VSCodeDropdown
+						value={selectedTaskType}
+						onChange={(e: any) => handleTaskTypeChange(e.target.value)}
+						data-testid="chat-task-type-selector"
+						className="w-40">
+						<option value="main">{t("settings:parallelTasks.taskSelector.main")}</option>
+						{(["search", "doc", "commit"] as ParallelTaskType[]).map((tt) => (
+							<option key={tt} value={tt}>
+								{t(`settings:parallelTasks.taskTypes.${tt}`)}
+							</option>
+						))}
+					</VSCodeDropdown>
+					{/* Active workers indicator */}
+					{activeWorkerCount > 0 && (
+						<span className="text-xs text-vscode-descriptionForeground ml-auto">
+							{t("settings:parallelTasks.taskSelector.activeWorkers", { count: activeWorkerCount })}
+							{queuedCount > 0 ? ` · ${queuedCount} queued` : ""}
+						</span>
+					)}
+				</div>
+			)}
+
 			<ChatTextArea
 				ref={textAreaRef}
 				inputValue={inputValue}

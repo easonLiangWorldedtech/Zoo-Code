@@ -220,6 +220,10 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		enhancementApiConfigId: "",
 		hasOpenedModeSelector: false, // Default to false (not opened yet)
 		autoApprovalEnabled: false,
+		parallelTaskEnabled: false,
+		parallelTaskMaxConcurrent: 8,
+		parallelTaskDefaultMode: "main" as "main" | "search" | "doc" | "commit",
+		parallelTaskDagVisualizationLevel: "graph" as "simple" | "graph" | "interactive", // Phase 7j default
 		customModes: [],
 		maxOpenTabsContext: 20,
 		maxWorkspaceFiles: 200,
@@ -265,6 +269,8 @@ export const ExtensionStateContextProvider: React.FC<{ children: React.ReactNode
 		includeCurrentTime: true,
 		includeCurrentCost: true,
 		lockApiConfigAcrossModes: false,
+		workerHeartbeats: [], // Shared Heartbeat System (Phase 6a) — aggregated from BGWorkers
+		workerHeartbeatSettings: { updateIntervalSeconds: 30, mode: "all" }, // Phase 6b default settings
 	})
 
 	const [didHydrateState, setDidHydrateState] = useState(false)

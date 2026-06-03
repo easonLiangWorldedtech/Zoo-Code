@@ -29,6 +29,7 @@ import {
 	ArrowLeft,
 	GitCommitVertical,
 	GraduationCap,
+	Layers,
 } from "lucide-react"
 
 import {
@@ -77,6 +78,7 @@ import { Section } from "./Section"
 import PromptsSettings from "./PromptsSettings"
 import { SlashCommandsSettings } from "./SlashCommandsSettings"
 import { SkillsSettings } from "./SkillsSettings"
+import { ParallelTaskSettings } from "./ParallelTaskSettings"
 import { UISettings } from "./UISettings"
 import ModesView from "../modes/ModesView"
 import McpView from "../mcp/McpView"
@@ -100,6 +102,7 @@ export const sectionNames = [
 	"autoApprove",
 	"slashCommands",
 	"skills",
+	"parallelTasks",
 	"checkpoints",
 	"notifications",
 	"contextManagement",
@@ -514,6 +517,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			{ id: "modes", icon: Users2 },
 			{ id: "skills", icon: GraduationCap },
 			{ id: "slashCommands", icon: SquareSlash },
+			{ id: "parallelTasks", icon: Layers },
 			{ id: "autoApprove", icon: CheckCheck },
 			{ id: "mcp", icon: Server },
 			{ id: "checkpoints", icon: GitCommitVertical },
@@ -806,6 +810,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 
 						{/* Skills Section */}
 						{renderTab === "skills" && <SkillsSettings />}
+
+						{/* Parallel Tasks Section */}
+						{renderTab === "parallelTasks" && (
+							<ParallelTaskSettings setCachedStateField={setCachedStateField as any} />
+						)}
 
 						{/* Checkpoints Section */}
 						{renderTab === "checkpoints" && (

@@ -1,322 +1,488 @@
 {
-	"back": "タスク ビューに戻る",
+	"back": "Back to tasks view",
 	"common": {
-		"save": "保存",
-		"done": "完了",
-		"cancel": "キャンセル",
-		"reset": "リセット",
-		"select": "選択",
-		"add": "ヘッダーを追加",
-		"remove": "削除"
-	},
-	"search": {
-		"placeholder": "設定を検索...",
-		"noResults": "設定が見つかりません"
+		"save": "Save",
+		"done": "Done",
+		"cancel": "Cancel",
+		"reset": "Reset",
+		"select": "Select",
+		"add": "Add Header",
+		"remove": "Remove"
 	},
 	"header": {
-		"title": "設定",
-		"saveButtonTooltip": "変更を保存",
-		"nothingChangedTooltip": "変更なし",
-		"doneButtonTooltip": "未保存の変更を破棄して設定パネルを閉じる"
+		"title": "Settings",
+		"saveButtonTooltip": "Save changes",
+		"nothingChangedTooltip": "Nothing changed",
+		"doneButtonTooltip": "Discard unsaved changes and go back to tasks view"
+	},
+	"search": {
+		"placeholder": "Search settings...",
+		"noResults": "No settings found"
 	},
 	"unsavedChangesDialog": {
-		"title": "未保存の変更",
-		"description": "変更を破棄して続行しますか？",
-		"cancelButton": "キャンセル",
-		"discardButton": "変更を破棄"
+		"title": "Unsaved Changes",
+		"description": "Do you want to discard changes and continue?",
+		"cancelButton": "Cancel",
+		"discardButton": "Discard changes"
 	},
 	"sections": {
-		"providers": "プロバイダー",
-		"modes": "モード",
-		"mcp": "MCPサーバー",
+		"providers": "Providers",
+		"modes": "Modes",
+		"mcp": "MCP Servers",
 		"worktrees": "Worktrees",
-		"autoApprove": "自動承認",
-		"checkpoints": "チェックポイント",
-		"notifications": "通知",
-		"contextManagement": "コンテキスト",
-		"terminal": "ターミナル",
-		"slashCommands": "スラッシュコマンド",
-		"prompts": "プロンプト",
+		"skills": "Skills",
+		"autoApprove": "Auto-Approve",
+		"checkpoints": "Checkpoints",
+		"notifications": "Notifications",
+		"contextManagement": "Context",
+		"terminal": "Terminal",
+		"slashCommands": "Slash Commands",
+		"prompts": "Prompts",
 		"ui": "UI",
-		"experimental": "実験的",
-		"language": "言語",
-		"about": "Zoo Codeについて",
-		"skills": "Skills"
+		"experimental": "Experimental",
+		"language": "Language",
+		"about": "About Zoo Code",
+		"parallelTasks": "Parallel Tasks"
+	},
+	"parallelTasks": {
+		"description": "Configure background workers that run in parallel with your main task. Each worker can use a different model/provider to optimize cost and speed.",
+		"enabled": {
+			"label": "Enable parallel tasks",
+			"description": "When enabled, you can send background tasks that run alongside your main conversation."
+		},
+		"maxConcurrent": {
+			"label": "Maximum concurrent workers",
+			"description": "Number of background workers that can run simultaneously (1-16)."
+		},
+		"taskSelector": {
+			"label": "Task type for new tasks:",
+			"main": "Main task",
+			"activeWorkers": "{{count}} active · ",
+			"queued": "{{count}} queued"
+		},
+		"heartbeatSettings": {
+			"title": "Heartbeat Settings",
+			"description": "Control how background worker progress is displayed in the chat.",
+			"mode": {
+				"label": "Heartbeat mode",
+				"all": "Show all workers",
+				"errorsOnly": "Show errors only",
+				"none": "Hide heartbeats"
+			},
+			"interval": {
+				"label": "Update interval (seconds)",
+				"description": "How often worker progress updates appear in chat. Range: 10-60s."
+			}
+		},
+		"modeMapping": {
+			"title": "Task Type → Model Mapping",
+			"description": "Assign different models to different task types. Leave empty to inherit from main task settings.",
+			"inherit": "Inherit from main task",
+			"modelPlaceholder": "Model ID (e.g., gpt-4o-mini)"
+		},
+		"autoApprove": {
+			"title": "Auto-Approve Per Task Type",
+			"description": "Control which tools background workers can use without approval for each task type.",
+			"permissions": {
+				"readFiles": "Read files",
+				"writeFiles": "Write files",
+				"executeCommands": "Execute commands",
+				"browserActions": "Browser actions"
+			}
+		},
+		"limits": {
+			"title": "Limits Per Task Type",
+			"description": "Set maximum tool calls, cost ($), and tokens per task type. Leave empty to use defaults."
+		},
+		"contextRetention": {
+			"minimal": "Minimal (1 pair)",
+			"moderate": "Moderate (3 pairs)",
+			"full": "Full (8 pairs)"
+		},
+		"notificationMode": {
+			"all": "All",
+			"errorsOnly": "Errors only",
+			"none": "None"
+		},
+		"taskTypes": {
+			"search": "Search",
+			"doc": "Doc",
+			"commit": "Commit",
+			"code": "Code",
+			"debug": "Debug",
+			"general": "General"
+		},
+		"autoDetect": {
+			"label": "Auto-detect task type from message content (Phase 2+)",
+			"description": "Automatically classify background tasks by analyzing the message content."
+		},
+		"panel": {
+			"title": "Parallel Tasks",
+			"enabled": "{{maxConcurrent}} workers max · Background mode active",
+			"disabled": "Parallel tasks disabled — enable in Settings",
+			"activeWorkers": "{{count}} active",
+			"queuedTasks": "{{count}} queued",
+			"noWorkers": "No active background workers",
+			"startTaskHint": "Send a message with 'background' to start one",
+			"footer": "Background tasks run independently of your main conversation",
+			"cancel": "Cancel",
+			"viewResult": "View Result",
+			"toolCalls": "tool calls",
+			"unknown": "Unknown"
+		},
+		"dagViz": {
+			"title": "DAG Visualization Level",
+			"description": "Choose how workflow dependency graphs are visualized in the Task Flow panel.",
+			"level": {
+				"label": "Visualization level",
+				"simple": "Simple (text tree)",
+				"graph": "Graph (SVG diagram) — recommended",
+				"interactive": "Interactive (click-to-select nodes)"
+			}
+		}
 	},
 	"about": {
 		"bugReport": {
-			"label": "バグを見つけましたか？",
-			"link": "GitHubで報告"
+			"label": "Found a bug?",
+			"link": "Report on GitHub"
 		},
 		"featureRequest": {
-			"label": "アイデアがありますか？",
-			"link": "共有してください"
+			"label": "Have an idea?",
+			"link": "Share it with us"
 		},
 		"securityIssue": {
-			"label": "脆弱性を発見しましたか？",
-			"link": "開示プロセスに従ってください"
+			"label": "Discovered a vulnerability?",
+			"link": "Follow our disclosure process"
 		},
-		"community": "ヒントが欲しいですか、または他のZoo Codeユーザーと交流したいですか？<redditLink>reddit.com/r/ZooCode</redditLink>または<discordLink>discord.gg/VxfP4Vx3gX</discordLink>に参加してください",
-		"contactAndCommunity": "お問い合わせとコミュニティ",
-		"manageSettings": "設定を管理",
+		"community": "Want tips or to just hang out with other Zoo Code users? Join <redditLink>reddit.com/r/ZooCode</redditLink> or <discordLink>discord.gg/VxfP4Vx3gX</discordLink>",
+		"contactAndCommunity": "Contact & Community",
+		"manageSettings": "Manage Settings",
 		"debugMode": {
-			"label": "デバッグモードを有効にする",
-			"description": "デバッグモードを有効にすると、タスクヘッダーにAPI会話履歴とUIメッセージをフォーマットされたJSONとして一時ファイルで表示するための追加ボタンが表示されます。"
+			"label": "Enable debug mode",
+			"description": "Enable debug mode to show additional buttons in the task header for viewing API conversation history and UI messages as prettified JSON in temporary files."
 		}
 	},
 	"slashCommands": {
-		"description": "スラッシュコマンドを管理して、カスタムワークフローやアクションを素早く実行します。<DocsLink>詳細はこちら</DocsLink>",
-		"workspaceCommands": "ワークスペースコマンド",
-		"globalCommands": "グローバルコマンド",
-		"noWorkspaceCommands": "このプロジェクトにはまだコマンドがありません。",
-		"noGlobalCommands": "グローバルコマンドはまだありません。",
-		"addCommand": "スラッシュコマンドを追加",
-		"editCommand": "コマンドを編集",
-		"deleteCommand": "コマンドを削除",
+		"description": "Slash commands are shortcuts for reusable workflows and actions to be used on demand (like creating a PR, running a set of tasks, etc). <DocsLink>Learn more</DocsLink>",
+		"workspaceCommands": "Workspace Commands",
+		"globalCommands": "Global Commands",
+		"noWorkspaceCommands": "No commands in this project yet.",
+		"noGlobalCommands": "No global commands yet.",
+		"addCommand": "Add Slash Command",
+		"editCommand": "Edit command",
+		"deleteCommand": "Delete command",
 		"deleteDialog": {
-			"title": "コマンドを削除",
-			"description": "コマンド \"{{name}}\" を削除してもよろしいですか？このアクションは取り消せません。",
-			"confirm": "削除",
-			"cancel": "キャンセル"
+			"title": "Delete Command",
+			"description": "Are you sure you want to delete the command \"{{name}}\"? This action cannot be undone.",
+			"confirm": "Delete",
+			"cancel": "Cancel"
 		},
 		"createDialog": {
-			"title": "新しいスラッシュコマンドを作成",
-			"nameLabel": "名前",
+			"title": "Create New Slash Command",
+			"nameLabel": "Name",
 			"namePlaceholder": "my-command-name",
-			"nameHint": "小文字、数字、ハイフン、アンダースコアのみ",
-			"sourceLabel": "場所",
-			"create": "作成",
-			"cancel": "キャンセル"
+			"nameHint": "Lowercase letters, numbers, hyphens and underscores only",
+			"sourceLabel": "Location",
+			"create": "Create",
+			"cancel": "Cancel"
 		},
 		"source": {
-			"global": "グローバル（すべてのワークスペースで利用可能）",
-			"project": "ワークスペース"
+			"global": "Global (available in all workspaces)",
+			"project": "Workspace"
 		},
 		"validation": {
-			"nameRequired": "名前は必須です",
-			"nameTooLong": "名前は64文字以下である必要があります",
-			"nameInvalid": "名前は文字、数字、ハイフン、アンダースコアのみを含める必要があります"
+			"nameRequired": "Name is required",
+			"nameTooLong": "Name must be 64 characters or less",
+			"nameInvalid": "Name must contain only letters, numbers, hyphens, and underscores"
 		},
-		"footer": "スラッシュコマンドを使用して、頻繁に使用するプロンプトとワークフローにすばやくアクセスします。"
+		"footer": "Use slash commands for quick access to frequently used prompts and workflows."
+	},
+	"skills": {
+		"description": "Skills encapsulate contextual instructions and workflows, which the agent can load on-demand. They can include general instructions, specific workflows and even scripts to be run as needed. <DocsLink>Learn more</DocsLink>",
+		"workspaceSkills": "Workspace Skills",
+		"globalSkills": "Global Skills",
+		"noWorkspaceSkills": "No skills in this project yet.",
+		"noGlobalSkills": "No global skills yet.",
+		"addSkill": "Add Skill",
+		"editSkill": "Edit skill",
+		"deleteSkill": "Delete skill",
+		"configureModes": "Mode availability",
+		"modeAny": "Any mode",
+		"modeCount": "{{count}} modes",
+		"deleteDialog": {
+			"title": "Delete Skill",
+			"description": "Are you sure you want to delete the skill \"{{name}}\"? This action cannot be undone.",
+			"confirm": "Delete",
+			"cancel": "Cancel"
+		},
+		"modeDialog": {
+			"title": "Configure Skill Modes",
+			"description": "Choose which modes can use this skill",
+			"intro": "To keep your context light, we recommend only making skills available for the modes that need them.",
+			"anyMode": "Any mode (available everywhere)",
+			"save": "Save",
+			"cancel": "Cancel"
+		},
+		"createDialog": {
+			"title": "Create New Skill",
+			"nameLabel": "Name",
+			"namePlaceholder": "my-skill-name (Lowercase letters, numbers, and hyphens only)",
+			"descriptionLabel": "Description",
+			"descriptionPlaceholder": "Describe when this skill should be used and its contents...",
+			"sourceLabel": "Location",
+			"modeLabel": "Mode (optional)",
+			"modePlaceholder": "Any mode",
+			"modeAny": "Any mode",
+			"modeHint": "Restrict this skill to a specific mode",
+			"create": "Create",
+			"cancel": "Cancel"
+		},
+		"source": {
+			"global": "Global (available in all projects)",
+			"project": "Project (this workspace only)"
+		},
+		"validation": {
+			"nameRequired": "Name is required",
+			"nameTooLong": "Name must be 64 characters or less",
+			"nameInvalid": "Name must be 1-64 lowercase letters, numbers, or hyphens",
+			"descriptionRequired": "Description is required",
+			"descriptionTooLong": "Description must be 1024 characters or less"
+		},
+		"footer": "Create your own skills with the Skill Writer mode, available in the <MarketplaceLink>Modes Marketplace</MarketplaceLink>."
+	},
+	"ui": {
+		"collapseThinking": {
+			"label": "Collapse Thinking messages by default",
+			"description": "When enabled, thinking blocks will be collapsed by default until you interact with them"
+		},
+		"requireCtrlEnterToSend": {
+			"label": "Require {{primaryMod}}+Enter to send messages",
+			"description": "When enabled, you must press {{primaryMod}}+Enter to send messages instead of just Enter"
+		},
+		"chatFontSize": {
+			"label": "Chat font size",
+			"description": "Set the font size (in pixels) for the Zoo Code chat. Leave at the default to match VS Code's font size.",
+			"reset": "Use VS Code default"
+		}
 	},
 	"prompts": {
-		"description": "プロンプトの強化、コードの説明、問題の修正などの迅速なアクションに使用されるサポートプロンプトを設定します。これらのプロンプトは、Rooが一般的な開発タスクでより良いサポートを提供するのに役立ちます。"
+		"description": "Configure support prompts that are used for quick actions like enhancing prompts, explaining code, and fixing issues. These prompts help Zoo provide better assistance for common development tasks."
 	},
 	"codeIndex": {
-		"title": "コードベースのインデックス作成",
-		"enableLabel": "コードベースのインデックス作成を有効化",
-		"enableDescription": "コードのインデックス作成を有効にして、検索とコンテキストの理解を向上させます",
-		"providerLabel": "埋め込みプロバイダー",
-		"selectProviderPlaceholder": "プロバイダーを選択",
+		"title": "Codebase Indexing",
+		"description": "Configure codebase indexing settings to enable semantic search of your project. <0>Learn more</0>",
+		"statusTitle": "Status",
+		"enableLabel": "Enable Codebase Indexing",
+		"enableDescription": "Enable code indexing for improved search and context understanding",
+		"settingsTitle": "Indexing Settings",
+		"disabledMessage": "Codebase indexing is currently disabled. Enable it in the global settings to configure indexing options.",
+		"providerLabel": "Embeddings Provider",
+		"embedderProviderLabel": "Embedder Provider",
+		"selectProviderPlaceholder": "Select provider",
 		"openaiProvider": "OpenAI",
 		"ollamaProvider": "Ollama",
 		"geminiProvider": "Gemini",
-		"geminiApiKeyLabel": "APIキー：",
-		"geminiApiKeyPlaceholder": "Gemini APIキーを入力してください",
-		"vercelAiGatewayProvider": "Vercel AI Gateway",
-		"vercelAiGatewayApiKeyLabel": "APIキー",
-		"vercelAiGatewayApiKeyPlaceholder": "Vercel AI GatewayのAPIキーを入力してください",
-		"bedrockProvider": "Amazon Bedrock",
-		"bedrockRegionLabel": "AWS リージョン",
-		"bedrockRegionPlaceholder": "us-east-1",
-		"bedrockProfileLabel": "AWS プロファイル",
-		"bedrockProfilePlaceholder": "default",
-		"bedrockProfileDescription": "~/.aws/credentials の AWS プロファイル名（必須）。",
-		"openRouterProvider": "OpenRouter",
-		"openRouterApiKeyLabel": "OpenRouter APIキー",
-		"openRouterApiKeyPlaceholder": "OpenRouter APIキーを入力してください",
-		"openRouterProviderRoutingLabel": "OpenRouterプロバイダールーティング",
-		"openRouterProviderRoutingDescription": "OpenRouterは、埋め込みモデルに最適な利用可能なプロバイダーにリクエストをルーティングします。デフォルトでは、稼働時間を最大化するために、リクエストはトッププロバイダー間で負荷分散されます。ただし、このモデルに使用する特定のプロバイダーを選択することもできます。",
+		"geminiApiKeyLabel": "API Key:",
+		"geminiApiKeyPlaceholder": "Enter your Gemini API key",
 		"mistralProvider": "Mistral",
-		"mistralApiKeyLabel": "APIキー:",
-		"mistralApiKeyPlaceholder": "Mistral APIキーを入力してください",
-		"openaiCompatibleProvider": "OpenAI互換",
-		"openAiKeyLabel": "OpenAI APIキー",
-		"openAiKeyPlaceholder": "OpenAI APIキーを入力してください",
-		"openAiCompatibleBaseUrlLabel": "ベースURL",
-		"openAiCompatibleApiKeyLabel": "APIキー",
-		"openAiCompatibleApiKeyPlaceholder": "APIキーを入力してください",
-		"openAiCompatibleModelDimensionLabel": "埋め込みディメンション：",
-		"modelDimensionLabel": "モデルディメンション",
-		"openAiCompatibleModelDimensionPlaceholder": "例：1536",
-		"openAiCompatibleModelDimensionDescription": "モデルの埋め込みディメンション（出力サイズ）。この値についてはプロバイダーのドキュメントを確認してください。一般的な値：384、768、1536、3072。",
-		"modelLabel": "モデル",
-		"selectModelPlaceholder": "モデルを選択",
-		"ollamaUrlLabel": "Ollama URL：",
+		"mistralApiKeyLabel": "API Key:",
+		"mistralApiKeyPlaceholder": "Enter your Mistral API key",
+		"vercelAiGatewayProvider": "Vercel AI Gateway",
+		"vercelAiGatewayApiKeyLabel": "API Key",
+		"vercelAiGatewayApiKeyPlaceholder": "Enter your Vercel AI Gateway API key",
+		"bedrockProvider": "Amazon Bedrock",
+		"bedrockRegionLabel": "AWS Region",
+		"bedrockRegionPlaceholder": "us-east-1",
+		"bedrockProfileLabel": "AWS Profile",
+		"bedrockProfilePlaceholder": "default",
+		"bedrockProfileDescription": "AWS profile name from ~/.aws/credentials (required).",
+		"openRouterProvider": "OpenRouter",
+		"openRouterApiKeyLabel": "OpenRouter API Key",
+		"openRouterApiKeyPlaceholder": "Enter your OpenRouter API key",
+		"openRouterProviderRoutingLabel": "OpenRouter Provider Routing",
+		"openRouterProviderRoutingDescription": "OpenRouter routes requests to the best available providers for your embedding model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
+		"openaiCompatibleProvider": "OpenAI Compatible",
+		"openAiKeyLabel": "OpenAI API Key",
+		"openAiKeyPlaceholder": "Enter your OpenAI API key",
+		"openAiCompatibleBaseUrlLabel": "Base URL",
+		"openAiCompatibleApiKeyLabel": "API Key",
+		"openAiCompatibleApiKeyPlaceholder": "Enter your API key",
+		"openAiCompatibleModelDimensionLabel": "Embedding Dimension:",
+		"modelDimensionLabel": "Model Dimension",
+		"openAiCompatibleModelDimensionPlaceholder": "e.g., 1536",
+		"openAiCompatibleModelDimensionDescription": "The embedding dimension (output size) for your model. Check your provider's documentation for this value. Common values: 384, 768, 1536, 3072.",
+		"modelLabel": "Model",
+		"modelPlaceholder": "Enter model name",
+		"selectModel": "Select a model",
+		"selectModelPlaceholder": "Select model",
+		"ollamaUrlLabel": "Ollama URL:",
+		"ollamaBaseUrlLabel": "Ollama Base URL",
 		"qdrantUrlLabel": "Qdrant URL",
-		"qdrantKeyLabel": "Qdrantキー：",
-		"startIndexingButton": "開始",
-		"clearIndexDataButton": "インデックスクリア",
-		"unsavedSettingsMessage": "インデックス作成プロセスを開始する前に設定を保存してください。",
+		"qdrantKeyLabel": "Qdrant Key:",
+		"qdrantApiKeyLabel": "Qdrant API Key",
+		"qdrantApiKeyPlaceholder": "Enter your Qdrant API key (optional)",
+		"setupConfigLabel": "Setup",
+		"advancedConfigLabel": "Advanced Configuration",
+		"searchMinScoreLabel": "Search Score Threshold",
+		"searchMinScoreDescription": "Minimum similarity score (0.0-1.0) required for search results. Lower values return more results but may be less relevant. Higher values return fewer but more relevant results.",
+		"searchMinScoreResetTooltip": "Reset to default value (0.4)",
+		"searchMaxResultsLabel": "Maximum Search Results",
+		"searchMaxResultsDescription": "Maximum number of search results to return when querying the codebase index. Higher values provide more context but may include less relevant results.",
+		"resetToDefault": "Reset to default",
+		"startIndexingButton": "Start Indexing",
+		"clearIndexDataButton": "Clear Index Data",
+		"unsavedSettingsMessage": "Please save your settings before starting the indexing process.",
 		"clearDataDialog": {
-			"title": "本当によろしいですか？",
-			"description": "この操作は元に戻せません。コードベースのインデックスデータが完全に削除されます。",
-			"cancelButton": "キャンセル",
-			"confirmButton": "データをクリア"
+			"title": "Are you sure?",
+			"description": "This action cannot be undone. This will permanently delete your codebase index data.",
+			"cancelButton": "Cancel",
+			"confirmButton": "Clear Data"
 		},
-		"description": "プロジェクトのセマンティック検索を有効にするためのコードベースインデックス設定を構成します。<0>詳細はこちら</0>",
-		"statusTitle": "ステータス",
-		"settingsTitle": "インデックス設定",
-		"disabledMessage": "コードベースインデックスは現在無効になっています。グローバル設定で有効にしてインデックスオプションを構成してください。",
-		"embedderProviderLabel": "エンベッダープロバイダー",
-		"modelPlaceholder": "モデル名を入力",
-		"selectModel": "モデルを選択",
-		"ollamaBaseUrlLabel": "Ollama ベースURL",
-		"qdrantApiKeyLabel": "Qdrant APIキー",
-		"qdrantApiKeyPlaceholder": "Qdrant APIキーを入力（オプション）",
-		"setupConfigLabel": "設定",
 		"ollamaUrlPlaceholder": "http://localhost:11434",
 		"openAiCompatibleBaseUrlPlaceholder": "https://api.example.com",
 		"modelDimensionPlaceholder": "1536",
 		"qdrantUrlPlaceholder": "http://localhost:6333",
-		"saveError": "設定の保存に失敗しました",
-		"modelDimensions": "({{dimension}} 次元)",
-		"saveSuccess": "設定が正常に保存されました",
-		"saving": "保存中...",
-		"saveSettings": "保存",
+		"saveError": "Failed to save settings",
+		"modelDimensions": "({{dimension}} dimensions)",
+		"saveSuccess": "Settings saved successfully",
+		"saving": "Saving...",
+		"saveSettings": "Save",
 		"indexingStatuses": {
-			"standby": "スタンバイ",
-			"indexing": "インデックス中",
-			"indexed": "インデックス済み",
-			"error": "エラー"
+			"standby": "Standby",
+			"indexing": "Indexing",
+			"indexed": "Indexed",
+			"error": "Error"
 		},
-		"close": "閉じる",
+		"close": "Close",
 		"validation": {
-			"invalidQdrantUrl": "無効なQdrant URL",
-			"invalidOllamaUrl": "無効なOllama URL",
-			"invalidBaseUrl": "無効なベースURL",
-			"qdrantUrlRequired": "Qdrant URL が必要です",
-			"openaiApiKeyRequired": "OpenAI APIキーが必要です",
-			"modelSelectionRequired": "モデルの選択が必要です",
-			"apiKeyRequired": "APIキーが必要です",
-			"modelIdRequired": "モデルIDが必要です",
-			"modelDimensionRequired": "モデルの次元が必要です",
-			"geminiApiKeyRequired": "Gemini APIキーが必要です",
-			"mistralApiKeyRequired": "Mistral APIキーが必要です",
-			"vercelAiGatewayApiKeyRequired": "Vercel AI Gateway APIキーが必要です",
-			"bedrockRegionRequired": "AWS リージョンは必須です",
-			"bedrockProfileRequired": "AWS プロファイルは必須です",
-			"ollamaBaseUrlRequired": "OllamaのベースURLが必要です",
-			"baseUrlRequired": "ベースURLが必要です",
-			"modelDimensionMinValue": "モデルの次元は0より大きくなければなりません",
-			"openRouterApiKeyRequired": "OpenRouter APIキーが必要です"
+			"qdrantUrlRequired": "Qdrant URL is required",
+			"invalidQdrantUrl": "Invalid Qdrant URL",
+			"invalidOllamaUrl": "Invalid Ollama URL",
+			"invalidBaseUrl": "Invalid base URL",
+			"openaiApiKeyRequired": "OpenAI API key is required",
+			"modelSelectionRequired": "Model selection is required",
+			"apiKeyRequired": "API key is required",
+			"modelIdRequired": "Model ID is required",
+			"modelDimensionRequired": "Model dimension is required",
+			"geminiApiKeyRequired": "Gemini API key is required",
+			"mistralApiKeyRequired": "Mistral API key is required",
+			"vercelAiGatewayApiKeyRequired": "Vercel AI Gateway API key is required",
+			"bedrockRegionRequired": "AWS region is required",
+			"bedrockProfileRequired": "AWS profile is required",
+			"openRouterApiKeyRequired": "OpenRouter API key is required",
+			"ollamaBaseUrlRequired": "Ollama base URL is required",
+			"baseUrlRequired": "Base URL is required",
+			"modelDimensionMinValue": "Model dimension must be greater than 0"
 		},
-		"optional": "オプション",
-		"advancedConfigLabel": "詳細設定",
-		"searchMinScoreLabel": "検索スコアのしきい値",
-		"searchMinScoreDescription": "検索結果に必要な最小類似度スコア（0.0-1.0）。値を低くするとより多くの結果が返されますが、関連性が低くなる可能性があります。値を高くすると返される結果は少なくなりますが、より関連性が高くなります。",
-		"searchMinScoreResetTooltip": "デフォルト値（0.4）にリセット",
-		"searchMaxResultsLabel": "最大検索結果数",
-		"searchMaxResultsDescription": "コードベースインデックスをクエリする際に返される検索結果の最大数。値を高くするとより多くのコンテキストが提供されますが、関連性の低い結果が含まれる可能性があります。",
-		"resetToDefault": "デフォルトにリセット",
-		"stopIndexingButton": "インデックス作成を停止",
-		"stoppingButton": "停止中...",
-		"workspaceToggleLabel": "このワークスペースのインデックス作成を有効にする",
-		"workspaceDisabledMessage": "インデックス作成は設定済みですが、このワークスペースでは有効になっていません。",
-		"autoEnableDefaultLabel": "新しいワークスペースのインデックス作成を自動的に有効にする"
+		"optional": "optional",
+		"stopIndexingButton": "Stop Indexing",
+		"stoppingButton": "Stopping...",
+		"workspaceToggleLabel": "Enable indexing for this workspace",
+		"workspaceDisabledMessage": "Indexing is configured but not enabled for this workspace.",
+		"autoEnableDefaultLabel": "Auto-enable indexing for new workspaces"
 	},
 	"autoApprove": {
-		"toggleShortcut": "<SettingsLink>IDEの環境設定</SettingsLink>で、この設定のグローバルショートカットを設定できます。",
-		"description": "Rooが承認なしで自動的に操作を実行できるようにします。AIを完全に信頼し、関連するセキュリティリスクを理解している場合にのみ、これらの設定を有効にしてください。",
-		"enabled": "自動承認が有効",
-		"toggleAriaLabel": "自動承認の切り替え",
-		"disabledAriaLabel": "自動承認が無効です - 最初にオプションを選択してください",
+		"description": "Run these actions without asking for permission. Only enable for actions you fully trust and if you understand the security risks.",
+		"toggleShortcut": "You can configure a keyboard shortcut for this setting <SettingsLink>in your IDE preferences</SettingsLink>.",
+		"enabled": "Auto-Approve Enabled",
 		"readOnly": {
-			"label": "読み取り",
-			"description": "有効にすると、Rooは承認ボタンをクリックすることなく、自動的にディレクトリの内容を表示してファイルを読み取ります。",
+			"label": "Read",
+			"description": "When enabled, Zoo will automatically view directory contents and read files without requiring you to click the Approve button.",
 			"outsideWorkspace": {
-				"label": "ワークスペース外のファイルを含める",
-				"description": "Rooが承認なしで現在のワークスペース外のファイルを読み取ることを許可します。"
+				"label": "Include files outside workspace",
+				"description": "Allow Zoo to read files outside the current workspace without requiring approval."
 			}
 		},
 		"write": {
-			"label": "書き込み",
-			"description": "承認なしで自動的にファイルを作成・編集",
-			"delayLabel": "診断が潜在的な問題を検出できるよう、書き込み後に遅延を設ける",
+			"label": "Write",
+			"description": "Automatically create and edit files without requiring approval",
+			"delayLabel": "Delay after writes to allow diagnostics to detect potential problems",
 			"outsideWorkspace": {
-				"label": "ワークスペース外のファイルを含める",
-				"description": "Rooが承認なしで現在のワークスペース外のファイルを作成・編集することを許可します。"
+				"label": "Include files outside workspace",
+				"description": "Allow Zoo to create and edit files outside the current workspace without requiring approval."
 			},
 			"protected": {
-				"label": "保護されたファイルを含める",
-				"description": "Rooが保護されたファイル（.rooignoreや.roo/設定ファイルなど）を承認なしで作成・編集することを許可します。"
+				"label": "Include protected files",
+				"description": "Allow Zoo to create and edit protected files (like .rooignore and .roo/ configuration files) without requiring approval."
 			}
 		},
 		"mcp": {
 			"label": "MCP",
-			"description": "MCPサーバービューで個々のMCPツールの自動承認を有効にします（この設定とツールの「常に許可」チェックボックスの両方が必要）"
+			"description": "Enable auto-approval of individual MCP tools in the MCP Servers view (requires both this setting and the tool's individual \"Always allow\" checkbox)"
 		},
 		"modeSwitch": {
-			"label": "モード",
-			"description": "承認なしで自動的に異なるモード間を切り替え"
+			"label": "Mode",
+			"description": "Automatically switch between different modes without requiring approval"
 		},
 		"subtasks": {
-			"label": "サブタスク",
-			"description": "承認なしでサブタスクの作成と完了を許可"
+			"label": "Subtasks",
+			"description": "Allow creation and completion of subtasks without requiring approval"
 		},
 		"followupQuestions": {
-			"label": "質問",
-			"description": "設定された時間が経過すると、フォローアップ質問の最初の提案回答を自動的に選択します",
-			"timeoutLabel": "最初の回答を自動選択するまでの待機時間"
+			"label": "Question",
+			"description": "Automatically select the first suggested answer for follow-up questions after the configured timeout",
+			"timeoutLabel": "Time to wait before auto-selecting the first answer"
 		},
 		"execute": {
-			"label": "実行",
-			"description": "承認なしで自動的に許可されたターミナルコマンドを実行",
-			"allowedCommands": "許可された自動実行コマンド",
-			"allowedCommandsDescription": "「実行操作を常に承認」が有効な場合に自動実行できるコマンドプレフィックス。すべてのコマンドを許可するには * を追加します（注意して使用してください）。",
-			"deniedCommands": "拒否されたコマンド",
-			"deniedCommandsDescription": "承認を求めることなく自動的に拒否されるコマンドプレフィックス。許可されたコマンドとの競合がある場合、最長プレフィックスマッチが優先されます。すべてのコマンドを拒否するには * を追加します。",
-			"commandPlaceholder": "コマンドプレフィックスを入力（例：'git '）",
-			"deniedCommandPlaceholder": "拒否するコマンドプレフィックスを入力（例：'rm -rf'）",
-			"addButton": "追加",
-			"autoDenied": "プレフィックス `{{prefix}}` を持つコマンドはユーザーによって禁止されています。別のコマンドを実行してこの制限を回避しないでください。"
+			"label": "Execute",
+			"description": "Automatically execute allowed terminal commands without requiring approval",
+			"allowedCommands": "Allowed Auto-Execute Commands",
+			"allowedCommandsDescription": "Command prefixes that can be auto-executed when \"Always approve execute operations\" is enabled. Add * to allow all commands (use with caution).",
+			"deniedCommands": "Denied Commands",
+			"deniedCommandsDescription": "Command prefixes that will be automatically denied without asking for approval. In case of conflicts with allowed commands, the longest prefix match takes precedence. Add * to deny all commands.",
+			"commandPlaceholder": "Enter command prefix (e.g., 'git ')",
+			"deniedCommandPlaceholder": "Enter command prefix to deny (e.g., 'rm -rf')",
+			"addButton": "Add",
+			"autoDenied": "Commands with the prefix `{{prefix}}` have been forbidden by the user. Do not bypass this restriction by running another command."
 		},
 		"apiRequestLimit": {
-			"title": "最大リクエスト数",
-			"unlimited": "無制限"
+			"title": "Max Count",
+			"unlimited": "Unlimited"
 		},
-		"selectOptionsFirst": "自動承認を有効にするには、以下のオプションを少なくとも1つ選択してください",
 		"apiCostLimit": {
-			"unlimited": "無制限",
-			"title": "最大料金"
+			"title": "Max Cost",
+			"unlimited": "Unlimited"
 		},
 		"maxLimits": {
-			"description": "これらの上限まで自動的にリクエストを行い、その後継続の承認を求めます。"
-		}
+			"description": "Automatically make requests up to these limits before asking for approval to continue."
+		},
+		"toggleAriaLabel": "Toggle auto-approval",
+		"disabledAriaLabel": "Auto-approval disabled - select options first",
+		"selectOptionsFirst": "Select at least one option below to enable auto-approval"
 	},
 	"providers": {
-		"providerDocumentation": "{{provider}}のドキュメント",
-		"configProfile": "設定プロファイル",
-		"description": "異なるAPI設定を保存して、プロバイダーと設定をすばやく切り替えることができます。",
-		"apiProvider": "APIプロバイダー",
-		"apiProviderDocs": "プロバイダードキュメント",
-		"model": "モデル",
-		"nameEmpty": "名前を空にすることはできません",
-		"nameExists": "この名前のプロファイルは既に存在します",
-		"deleteProfile": "プロファイルを削除",
-		"invalidArnFormat": "無効なARN形式です。上記の例を確認してください。",
-		"enterNewName": "新しい名前を入力してください",
-		"addProfile": "プロファイルを追加",
-		"renameProfile": "プロファイル名を変更",
-		"newProfile": "新しい構成プロファイル",
-		"enterProfileName": "プロファイル名を入力",
-		"createProfile": "プロファイルを作成",
-		"cannotDeleteOnlyProfile": "唯一のプロファイルは削除できません",
-		"searchPlaceholder": "プロファイルを検索",
-		"searchProviderPlaceholder": "プロバイダーを検索",
-		"noProviderMatchFound": "プロバイダーが見つかりません",
-		"noMatchFound": "一致するプロファイルが見つかりません",
-		"retiredProviderMessage": "このプロバイダーは現在利用できません。続行するには、サポートされているプロバイダーを選択してください。",
-		"vscodeLmDescription": "VS Code言語モデルAPIを使用すると、他のVS Code拡張機能（GitHub Copilotなど）が提供するモデルを実行できます。最も簡単な方法は、VS Code MarketplaceからCopilotおよびCopilot Chat拡張機能をインストールすることです。",
-		"awsCustomArnUse": "使用したいモデルの有効なAmazon Bedrock ARNを入力してください。形式の例:",
-		"awsCustomArnDesc": "ARN内のリージョンが上で選択したAWSリージョンと一致していることを確認してください。",
-		"openRouterApiKey": "OpenRouter APIキー",
-		"getOpenRouterApiKey": "OpenRouter APIキーを取得",
-		"vercelAiGatewayApiKey": "Vercel AI Gateway APIキー",
-		"getVercelAiGatewayApiKey": "Vercel AI Gateway APIキーを取得",
-		"opencodeGoApiKey": "Opencode Go APIキー",
-		"getOpencodeGoApiKey": "Opencode Go APIキーを取得",
-		"apiKeyStorageNotice": "APIキーはVSCodeのシークレットストレージに安全に保存されます",
+		"providerDocumentation": "{{provider}} documentation",
+		"configProfile": "Configuration Profile",
+		"description": "Save different API configurations to quickly switch between providers and settings.",
+		"apiProvider": "API Provider",
+		"apiProviderDocs": "Provider Docs",
+		"model": "Model",
+		"nameEmpty": "Name cannot be empty",
+		"nameExists": "A profile with this name already exists",
+		"deleteProfile": "Delete Profile",
+		"invalidArnFormat": "Invalid ARN format. Please check the examples above.",
+		"enterNewName": "Enter new name",
+		"addProfile": "Add Profile",
+		"renameProfile": "Rename Profile",
+		"newProfile": "New Configuration Profile",
+		"enterProfileName": "Enter profile name",
+		"createProfile": "Create Profile",
+		"cannotDeleteOnlyProfile": "Cannot delete the only profile",
+		"searchPlaceholder": "Search profiles",
+		"searchProviderPlaceholder": "Search providers",
+		"noProviderMatchFound": "No providers found",
+		"noMatchFound": "No matching profiles found",
+		"retiredProviderMessage": "This provider is no longer available. Select a supported provider to continue.",
+		"vscodeLmDescription": " The VS Code Language Model API allows you to run models provided by other VS Code extensions (including but not limited to GitHub Copilot). The easiest way to get started is to install the Copilot and Copilot Chat extensions from the VS Code Marketplace.",
+		"awsCustomArnUse": "Enter a valid Amazon Bedrock ARN for the model you want to use. Format examples:",
+		"awsCustomArnDesc": "Make sure the region in the ARN matches your selected AWS Region above.",
+		"openRouterApiKey": "OpenRouter API Key",
+		"getOpenRouterApiKey": "Get OpenRouter API Key",
+		"vercelAiGatewayApiKey": "Vercel AI Gateway API Key",
+		"getVercelAiGatewayApiKey": "Get Vercel AI Gateway API Key",
+		"opencodeGoApiKey": "Opencode Go API Key",
+		"getOpencodeGoApiKey": "Get Opencode Go API Key",
+		"apiKeyStorageNotice": "API keys are stored securely in VSCode's Secret Storage",
 		"openAiCodexRateLimits": {
 			"title": "Usage Limits for Codex{{planLabel}}",
 			"loading": "Loading usage limits...",
@@ -348,679 +514,611 @@
 				"minutes": "{{minutes}}m limit"
 			}
 		},
-		"useCustomBaseUrl": "カスタムベースURLを使用",
-		"useReasoning": "推論を有効化",
-		"useHostHeader": "カスタムHostヘッダーを使用",
-		"customHeaders": "カスタムヘッダー",
-		"headerName": "ヘッダー名",
-		"headerValue": "ヘッダー値",
-		"noCustomHeaders": "カスタムヘッダーが定義されていません。+ ボタンをクリックして追加してください。",
-		"unboundApiKey": "Unbound API キー",
-		"getUnboundApiKey": "Unbound APIキーを取得",
-		"requestyApiKey": "Requesty APIキー",
+		"useCustomBaseUrl": "Use custom base URL",
+		"useReasoning": "Enable reasoning",
+		"useHostHeader": "Use custom Host header",
+		"customHeaders": "Custom Headers",
+		"headerName": "Header name",
+		"headerValue": "Header value",
+		"noCustomHeaders": "No custom headers defined. Click the + button to add one.",
+		"unboundApiKey": "Unbound API Key",
+		"getUnboundApiKey": "Get Unbound API Key",
+		"requestyApiKey": "Requesty API Key",
 		"refreshModels": {
-			"label": "モデルを更新",
-			"hint": "最新のモデルを表示するには設定を再度開いてください。",
-			"loading": "モデルリストを更新中...",
-			"success": "モデルリストが正常に更新されました！",
-			"error": "モデルリストの更新に失敗しました。もう一度お試しください。"
+			"label": "Refresh Models",
+			"hint": "Please reopen the settings to see the latest models.",
+			"loading": "Refreshing models list...",
+			"success": "Models list refreshed successfully!",
+			"error": "Failed to refresh models list. Please try again."
 		},
-		"getRequestyApiKey": "Requesty APIキーを取得",
-		"getRequestyBaseUrl": "ベースURL",
-		"requestyUseCustomBaseUrl": "カスタムベースURLを使用する",
-		"anthropicApiKey": "Anthropic APIキー",
-		"getAnthropicApiKey": "Anthropic APIキーを取得",
-		"anthropicUseAuthToken": "Anthropic APIキーをX-Api-Keyの代わりにAuthorizationヘッダーとして渡す",
-		"anthropic1MContextBetaLabel": "1Mコンテキストウィンドウを有効にする（ベータ版）",
-		"anthropic1MContextBetaDescription": "Claude Sonnet 4.x / Claude Opus 4.6のコンテキストウィンドウを100万トークンに拡張します",
-		"awsBedrock1MContextBetaLabel": "1Mコンテキストウィンドウを有効にする（ベータ版）",
-		"awsBedrock1MContextBetaDescription": "Claude Sonnet 4.x / Claude Opus 4.6のコンテキストウィンドウを100万トークンに拡張します",
-		"vertex1MContextBetaLabel": "1Mコンテキストウィンドウを有効にする（ベータ版）",
-		"vertex1MContextBetaDescription": "Claude Sonnet 4.x / Claude Opus 4.6のコンテキストウィンドウを100万トークンに拡張します",
-		"basetenApiKey": "Baseten APIキー",
-		"getBasetenApiKey": "Baseten APIキーを取得",
-		"poeApiKey": "Poe APIキー",
-		"getPoeApiKey": "Poe APIキーを取得",
-		"poeBaseUrl": "Poe ベースURL",
-		"fireworksApiKey": "Fireworks APIキー",
-		"getFireworksApiKey": "Fireworks APIキーを取得",
-		"deepSeekApiKey": "DeepSeek APIキー",
-		"getDeepSeekApiKey": "DeepSeek APIキーを取得",
-		"moonshotApiKey": "Moonshot APIキー",
-		"getMoonshotApiKey": "Moonshot APIキーを取得",
-		"moonshotBaseUrl": "Moonshot エントリーポイント",
-		"zaiApiKey": "Z AI APIキー",
-		"getZaiApiKey": "Z AI APIキーを取得",
-		"zaiEntrypoint": "Z AI エントリーポイント",
-		"zaiEntrypointDescription": "お住まいの地域に応じて適切な API エントリーポイントを選択してください。中国にお住まいの場合は open.bigmodel.cn を選択してください。それ以外の場合は api.z.ai を選択してください。",
-		"minimaxApiKey": "MiniMax APIキー",
-		"getMiniMaxApiKey": "MiniMax APIキーを取得",
-		"minimaxBaseUrl": "MiniMax エントリーポイント",
-		"mimoApiKey": "MiMo APIキー",
-		"getMimoApiKey": "MiMo APIキーを取得",
-		"mimoBaseUrl": "MiMo エントリーポイント",
-		"mimoBaseUrlSingapore": "トークンプラン - シンガポール（デフォルト）",
-		"mimoBaseUrlChina": "トークンプラン - 中国",
-		"mimoBaseUrlEurope": "トークンプラン - ヨーロッパ（AMS）",
-		"mimoBaseUrlPayg": "従量課金",
-		"geminiApiKey": "Gemini APIキー",
-		"getSambaNovaApiKey": "SambaNova APIキーを取得",
-		"sambaNovaApiKey": "SambaNova APIキー",
-		"getGeminiApiKey": "Gemini APIキーを取得",
-		"openAiApiKey": "OpenAI APIキー",
-		"apiKey": "APIキー",
-		"openAiBaseUrl": "ベースURL",
-		"getOpenAiApiKey": "OpenAI APIキーを取得",
-		"mistralApiKey": "Mistral APIキー",
-		"getMistralApiKey": "Mistral / Codestral APIキーを取得",
-		"codestralBaseUrl": "Codestral ベースURL（オプション）",
-		"codestralBaseUrlDesc": "Codestralモデルの代替URLを設定します。",
-		"xaiApiKey": "xAI APIキー",
-		"getXaiApiKey": "xAI APIキーを取得",
-		"litellmApiKey": "LiteLLM APIキー",
-		"litellmBaseUrl": "LiteLLM ベースURL",
-		"awsCredentials": "AWS認証情報",
-		"awsProfile": "AWSプロファイル",
-		"awsApiKey": "Amazon Bedrock APIキー",
-		"awsProfileName": "AWSプロファイル名",
-		"awsAccessKey": "AWSアクセスキー",
-		"awsSecretKey": "AWSシークレットキー",
-		"awsSessionToken": "AWSセッショントークン",
-		"awsRegion": "AWSリージョン",
-		"awsCrossRegion": "クロスリージョン推論を使用",
-		"awsGlobalInference": "グローバル推論を使用する（最適なAWSリージョンを自動選択）",
-		"awsServiceTier": "サービスティア",
+		"getRequestyApiKey": "Create new Requesty API Key",
+		"getRequestyBaseUrl": "Base URL",
+		"requestyUseCustomBaseUrl": "Use custom base URL",
+		"anthropicApiKey": "Anthropic API Key",
+		"getAnthropicApiKey": "Get Anthropic API Key",
+		"anthropicUseAuthToken": "Pass Anthropic API Key as Authorization header instead of X-Api-Key",
+		"anthropic1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"anthropic1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"awsBedrock1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"awsBedrock1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"vertex1MContextBetaLabel": "Enable 1M context window (Beta)",
+		"vertex1MContextBetaDescription": "Extends context window to 1 million tokens for Claude Sonnet 4.x / Claude Opus 4.6",
+		"basetenApiKey": "Baseten API Key",
+		"getBasetenApiKey": "Get Baseten API Key",
+		"poeApiKey": "Poe API Key",
+		"getPoeApiKey": "Get Poe API Key",
+		"poeBaseUrl": "Poe Base URL",
+		"fireworksApiKey": "Fireworks API Key",
+		"getFireworksApiKey": "Get Fireworks API Key",
+		"deepSeekApiKey": "DeepSeek API Key",
+		"getDeepSeekApiKey": "Get DeepSeek API Key",
+		"moonshotApiKey": "Moonshot API Key",
+		"getMoonshotApiKey": "Get Moonshot API Key",
+		"moonshotBaseUrl": "Moonshot Entrypoint",
+		"minimaxApiKey": "MiniMax API Key",
+		"getMiniMaxApiKey": "Get MiniMax API Key",
+		"minimaxBaseUrl": "MiniMax Entrypoint",
+		"mimoApiKey": "MiMo API Key",
+		"getMimoApiKey": "Get MiMo API Key",
+		"mimoBaseUrl": "MiMo Entrypoint",
+		"mimoBaseUrlSingapore": "Token Plan - Singapore (Default)",
+		"mimoBaseUrlChina": "Token Plan - China",
+		"mimoBaseUrlEurope": "Token Plan - Europe (AMS)",
+		"mimoBaseUrlPayg": "Pay-as-you-go",
+		"zaiApiKey": "Z AI API Key",
+		"getZaiApiKey": "Get Z AI API Key",
+		"zaiEntrypoint": "Z AI Entrypoint",
+		"zaiEntrypointDescription": "Please select the appropriate API entrypoint based on your location. If you are in China, choose open.bigmodel.cn. Otherwise, choose api.z.ai.",
+		"geminiApiKey": "Gemini API Key",
+		"getSambaNovaApiKey": "Get SambaNova API Key",
+		"sambaNovaApiKey": "SambaNova API Key",
+		"getGeminiApiKey": "Get Gemini API Key",
+		"openAiApiKey": "OpenAI API Key",
+		"apiKey": "API Key",
+		"openAiBaseUrl": "Base URL",
+		"getOpenAiApiKey": "Get OpenAI API Key",
+		"mistralApiKey": "Mistral API Key",
+		"getMistralApiKey": "Get Mistral / Codestral API Key",
+		"codestralBaseUrl": "Codestral Base URL (Optional)",
+		"codestralBaseUrlDesc": "Set an alternative URL for the Codestral model.",
+		"xaiApiKey": "xAI API Key",
+		"getXaiApiKey": "Get xAI API Key",
+		"litellmApiKey": "LiteLLM API Key",
+		"litellmBaseUrl": "LiteLLM Base URL",
+		"awsCredentials": "AWS Credentials",
+		"awsProfile": "AWS Profile",
+		"awsApiKey": "Amazon Bedrock API Key",
+		"awsProfileName": "AWS Profile Name",
+		"awsAccessKey": "AWS Access Key",
+		"awsSecretKey": "AWS Secret Key",
+		"awsSessionToken": "AWS Session Token",
+		"awsRegion": "AWS Region",
+		"awsCrossRegion": "Use cross-region inference",
+		"awsGlobalInference": "Use Global inference (auto-select optimal AWS Region)",
+		"awsServiceTier": "Service Tier",
 		"awsServiceTierStandard": "Standard",
-		"awsServiceTierStandardDesc": "バランスの取れたパフォーマンスとコスト",
-		"awsServiceTierFlex": "Flex（50%割引）",
-		"awsServiceTierFlexDesc": "低コスト、非クリティカルなタスクのレイテンシが高い",
-		"awsServiceTierPriority": "Priority（75%プレミアム）",
-		"awsServiceTierPriorityDesc": "ミッションクリティカルなアプリケーション向けの最速パフォーマンス",
-		"awsServiceTierNote": "サービスティアは価格とパフォーマンスに影響します。Flexは50%割引でレイテンシが高く、Priorityは25%優れたパフォーマンスで75%のプレミアムです。",
+		"awsServiceTierStandardDesc": "Balanced performance and cost",
+		"awsServiceTierFlex": "Flex (50% discount)",
+		"awsServiceTierFlexDesc": "Lower cost, higher latency for non-critical tasks",
+		"awsServiceTierPriority": "Priority (75% premium)",
+		"awsServiceTierPriorityDesc": "Fastest performance for mission-critical applications",
+		"awsServiceTierNote": "Service tiers affect pricing and performance. Flex offers 50% discount with higher latency, Priority offers 25% better performance with 75% premium.",
 		"awsBedrockVpc": {
-			"useCustomVpcEndpoint": "カスタムVPCエンドポイントを使用",
-			"vpcEndpointUrlPlaceholder": "VPCエンドポイントURLを入力（任意）",
-			"examples": "例："
+			"useCustomVpcEndpoint": "Use custom VPC endpoint",
+			"vpcEndpointUrlPlaceholder": "Enter VPC Endpoint URL (optional)",
+			"examples": "Examples:"
 		},
-		"enablePromptCaching": "プロンプトキャッシュを有効化",
-		"enablePromptCachingTitle": "サポートされているモデルのパフォーマンスを向上させ、コストを削減するためにプロンプトキャッシュを有効化します。",
-		"cacheUsageNote": "注意：キャッシュの使用が表示されない場合は、別のモデルを選択してから希望のモデルを再度選択してみてください。",
-		"vscodeLmModel": "言語モデル",
-		"vscodeLmWarning": "注意: VS Code Language Model API を通じて利用されるモデルは、プロバイダーによってラップまたは微調整されている場合があります。したがって、一般的なプロバイダーやルーターから同じモデルを直接使用する場合と挙動が異なることがあります。『Language Model』ドロップダウンのモデルを使用するには、まずそのモデルに切り替え、Copilot Chat のプロンプトで『承認』をクリックしてください。そうしないと、400『The requested model is not supported』などのエラーが表示されることがあります。",
+		"enablePromptCaching": "Enable prompt caching",
+		"enablePromptCachingTitle": "Enable prompt caching to improve performance and reduce costs for supported models.",
+		"cacheUsageNote": "Note: If you don't see cache usage, try selecting a different model and then selecting your desired model again.",
+		"vscodeLmModel": "Language Model",
+		"vscodeLmWarning": "Note: Models accessed via the VS Code Language Model API may be wrapped or fine-tuned by the provider, so behavior can differ from using the same model directly from a typical provider or router. To use a model from the Language Model dropdown, first switch to that model and then click Accept in the Copilot Chat prompt; otherwise you may see an error such as 400 \"The requested model is not supported\".",
 		"googleCloudSetup": {
-			"title": "Google Cloud Vertex AIを使用するには：",
-			"step1": "1. Google Cloudアカウントを作成し、Vertex AI APIを有効にして、希望するClaudeモデルを有効にします。",
-			"step2": "2. Google Cloud CLIをインストールし、アプリケーションのデフォルト認証情報を設定します。",
-			"step3": "3. または、認証情報付きのサービスアカウントを作成します。"
+			"title": "To use Google Cloud Vertex AI, you need to:",
+			"step1": "1. Create a Google Cloud account, enable the Vertex AI API & enable the desired Claude models.",
+			"step2": "2. Install the Google Cloud CLI & configure application default credentials.",
+			"step3": "3. Or create a service account with credentials."
 		},
-		"googleCloudCredentials": "Google Cloud認証情報",
-		"googleCloudCredentialsPathWarning": "このフィールドは、パスではなく、サービスアカウントキーファイルのJSON内容を期待します。パスをお持ちの場合は、下の<strong>Google Cloudキーファイルパス</strong>フィールドに貼り付けるか、このフィールドをクリアして<code>GOOGLE_APPLICATION_CREDENTIALS</code>環境変数を使用してください。",
-		"googleCloudKeyFile": "Google Cloudキーファイルパス",
-		"googleCloudProjectId": "Google Cloudプロジェクトid",
-		"googleCloudRegion": "Google Cloudリージョン",
+		"googleCloudCredentials": "Google Cloud Credentials",
+		"googleCloudCredentialsPathWarning": "This field expects the JSON contents of a service-account key file, not a path. If you have a path, paste it into the <strong>Google Cloud Key File Path</strong> field below, or clear this field and use the <code>GOOGLE_APPLICATION_CREDENTIALS</code> environment variable.",
+		"googleCloudKeyFile": "Google Cloud Key File Path",
+		"googleCloudProjectId": "Google Cloud Project ID",
+		"googleCloudRegion": "Google Cloud Region",
 		"lmStudio": {
-			"baseUrl": "ベースURL（オプション）",
-			"modelId": "モデルID",
-			"speculativeDecoding": "推論デコーディングを有効化",
-			"draftModelId": "ドラフトモデルID",
-			"draftModelDesc": "推論デコーディングが正しく機能するには、ドラフトモデルは同じモデルファミリーから選択する必要があります。",
-			"selectDraftModel": "ドラフトモデルを選択",
-			"noModelsFound": "ドラフトモデルが見つかりません。LM Studioがサーバーモードで実行されていることを確認してください。",
-			"description": "LM Studioを使用すると、ローカルコンピューターでモデルを実行できます。始め方については、<a>クイックスタートガイド</a>をご覧ください。また、この拡張機能で使用するには、LM Studioの<b>ローカルサーバー</b>機能を起動する必要があります。<span>注意：</span>Zoo Codeは複雑なプロンプトを使用し、Claudeモデルで最適に動作します。能力の低いモデルは期待通りに動作しない場合があります。"
+			"baseUrl": "Base URL (optional)",
+			"modelId": "Model ID",
+			"speculativeDecoding": "Enable Speculative Decoding",
+			"draftModelId": "Draft Model ID",
+			"draftModelDesc": "Draft model must be from the same model family for speculative decoding to work correctly.",
+			"selectDraftModel": "Select Draft Model",
+			"noModelsFound": "No draft models found. Please ensure LM Studio is running with Server Mode enabled.",
+			"description": "LM Studio allows you to run models locally on your computer. For instructions on how to get started, see their <a>quickstart guide</a>. You will also need to start LM Studio's <b>local server</b> feature to use it with this extension. <span>Note:</span> Zoo Code uses complex prompts and works best with Claude models. Less capable models may not work as expected."
 		},
 		"ollama": {
-			"baseUrl": "ベースURL（オプション）",
-			"modelId": "モデルID",
-			"apiKey": "Ollama APIキー",
-			"apiKeyHelp": "認証されたOllamaインスタンスやクラウドサービス用のオプションAPIキー。ローカルインストールの場合は空のままにしてください。",
-			"numCtx": "コンテキストウィンドウサイズ (num_ctx)",
-			"numCtxHelp": "モデルのデフォルトのコンテキストウィンドウサイズを上書きします。モデルのModelfile構成を使用するには、空のままにします。最小値は128です。",
-			"description": "Ollamaを使用すると、ローカルコンピューターでモデルを実行できます。始め方については、クイックスタートガイドをご覧ください。",
-			"warning": "注意：Zoo Codeは複雑なプロンプトを使用し、Claudeモデルで最適に動作します。能力の低いモデルは期待通りに動作しない場合があります。"
+			"baseUrl": "Base URL (optional)",
+			"modelId": "Model ID",
+			"apiKey": "Ollama API Key",
+			"apiKeyHelp": "Optional API key for authenticated Ollama instances or cloud services. Leave empty for local installations.",
+			"numCtx": "Context Window Size (num_ctx)",
+			"numCtxHelp": "Override the model's default context window size. Leave empty to use the model's Modelfile configuration. Minimum value is 128.",
+			"description": "Ollama allows you to run models locally on your computer. For instructions on how to get started, see their quickstart guide.",
+			"warning": "Note: Zoo Code uses complex prompts and works best with Claude models. Less capable models may not work as expected."
 		},
 		"openRouter": {
 			"providerRouting": {
-				"title": "OpenRouterプロバイダールーティング",
-				"description": "OpenRouterはあなたのモデルに最適な利用可能なプロバイダーにリクエストを転送します。デフォルトでは、稼働時間を最大化するために、リクエストはトッププロバイダー間でロードバランスされます。ただし、このモデルに使用する特定のプロバイダーを選択することもできます。",
-				"learnMore": "プロバイダールーティングについて詳しく知る"
+				"title": "OpenRouter Provider Routing",
+				"description": "OpenRouter routes requests to the best available providers for your model. By default, requests are load balanced across the top providers to maximize uptime. However, you can choose a specific provider to use for this model.",
+				"learnMore": "Learn more about provider routing"
 			}
 		},
 		"customModel": {
-			"capabilities": "カスタムOpenAI互換モデルの機能と価格を設定します。モデルの機能はZoo Codeのパフォーマンスに影響を与える可能性があるため、慎重に指定してください。",
+			"capabilities": "Configure the capabilities and pricing for your custom OpenAI-compatible model. Be careful when specifying the model capabilities, as they can affect how Zoo Code performs.",
 			"maxTokens": {
-				"label": "最大出力トークン",
-				"description": "モデルが生成できる応答の最大トークン数。（サーバーが最大トークンを設定できるようにするには-1を指定します。）"
+				"label": "Max Output Tokens",
+				"description": "Maximum number of tokens the model can generate in a response. (Specify -1 to allow the server to set the max tokens.)"
 			},
 			"contextWindow": {
-				"label": "コンテキストウィンドウサイズ",
-				"description": "モデルが処理できる総トークン数（入力＋出力）。"
+				"label": "Context Window Size",
+				"description": "Total tokens (input + output) the model can process."
 			},
 			"imageSupport": {
-				"label": "画像サポート",
-				"description": "このモデルは画像の処理と理解が可能ですか？"
+				"label": "Image Support",
+				"description": "Is this model capable of processing and understanding images?"
 			},
 			"computerUse": {
-				"label": "コンピューター使用",
-				"description": "このモデルはブラウザとの対話が可能ですか？"
+				"label": "Computer Use",
+				"description": "Is this model capable of interacting with a browser?"
 			},
 			"promptCache": {
-				"label": "プロンプトキャッシュ",
-				"description": "このモデルはプロンプトのキャッシュが可能ですか？"
+				"label": "Prompt Caching",
+				"description": "Is this model capable of caching prompts?"
 			},
 			"pricing": {
 				"input": {
-					"label": "入力価格",
-					"description": "入力/プロンプトの100万トークンあたりのコスト。これはモデルにコンテキストと指示を送信するコストに影響します。"
+					"label": "Input Price",
+					"description": "Cost per million tokens in the input/prompt. This affects the cost of sending context and instructions to the model."
 				},
 				"output": {
-					"label": "出力価格",
-					"description": "モデルの応答の100万トークンあたりのコスト。これは生成されたコンテンツと補完のコストに影響します。"
+					"label": "Output Price",
+					"description": "Cost per million tokens in the model's response. This affects the cost of generated content and completions."
 				},
 				"cacheReads": {
-					"label": "キャッシュ読み取り価格",
-					"description": "キャッシュからの読み取りの100万トークンあたりのコスト。これはキャッシュされた応答を取得する際に課金される価格です。"
+					"label": "Cache Reads Price",
+					"description": "Cost per million tokens for reading from the cache. This is the price charged when a cached response is retrieved."
 				},
 				"cacheWrites": {
-					"label": "キャッシュ書き込み価格",
-					"description": "キャッシュへの書き込みの100万トークンあたりのコスト。これはプロンプトが初めてキャッシュされる際に課金される価格です。"
+					"label": "Cache Writes Price",
+					"description": "Cost per million tokens for writing to the cache. This is the price charged when a prompt is cached for the first time."
 				}
 			},
-			"resetDefaults": "デフォルトにリセット"
+			"resetDefaults": "Reset to Defaults"
 		},
 		"rateLimitSeconds": {
-			"label": "レート制限",
-			"description": "APIリクエスト間の最小時間。"
+			"label": "Rate limit",
+			"description": "Minimum time between API requests."
 		},
 		"consecutiveMistakeLimit": {
-			"label": "エラーと繰り返しの制限",
-			"description": "「Rooが問題を抱えています」ダイアログを表示するまでの連続エラーまたは繰り返しアクションの数。この安全機構を無効にするには0に設定します（トリガーされません）。",
-			"unlimitedDescription": "無制限のリトライが有効です（自動進行）。ダイアログは表示されません。",
-			"warning": "⚠️ 0に設定すると無制限のリトライが可能になり、API使用量が大幅に増加する可能性があります"
+			"label": "Error & Repetition Limit",
+			"description": "Number of consecutive errors or repeated actions before showing 'Zoo is having trouble' dialog. Set to 0 to disable this safety mechanism (it will never trigger).",
+			"unlimitedDescription": "Unlimited retries enabled (auto-proceed). The dialog will never appear.",
+			"warning": "⚠️ Setting to 0 allows unlimited retries which may consume significant API usage"
 		},
 		"reasoningEffort": {
-			"label": "モデル推論の労力",
-			"none": "なし",
-			"minimal": "最小 (最速)",
-			"high": "高",
-			"xhigh": "非常に高い",
-			"medium": "中",
-			"low": "低"
+			"label": "Model Reasoning Effort",
+			"none": "None",
+			"minimal": "Minimal (Fastest)",
+			"low": "Low",
+			"medium": "Medium",
+			"high": "High",
+			"xhigh": "Extra High"
 		},
 		"verbosity": {
-			"label": "出力の冗長性",
-			"high": "高",
-			"medium": "中",
-			"low": "低",
-			"description": "モデルの応答の詳細度を制御します。冗長性が低いと簡潔な回答が生成され、高いと詳細な説明が提供されます。"
+			"label": "Output Verbosity",
+			"high": "High",
+			"medium": "Medium",
+			"low": "Low",
+			"description": "Controls how detailed the model's responses are. Low verbosity produces concise answers, while high verbosity provides thorough explanations."
 		},
-		"setReasoningLevel": "推論労力を有効にする",
+		"setReasoningLevel": "Enable Reasoning Effort",
 		"claudeCode": {
-			"pathLabel": "クロードコードパス",
-			"description": "Claude Code CLIへのオプションパス。設定されていない場合、デフォルトは「claude」です。",
-			"placeholder": "デフォルト：claude",
-			"maxTokensLabel": "最大出力トークン",
-			"maxTokensDescription": "Claude Codeレスポンスの最大出力トークン数。デフォルトは8000です。"
+			"pathLabel": "Claude Code Path",
+			"description": "Optional path to your Claude Code CLI. Defaults to 'claude' if not set.",
+			"placeholder": "Default: claude",
+			"maxTokensLabel": "Max Output Tokens",
+			"maxTokensDescription": "Maximum number of output tokens for Claude Code responses. Default is 8000."
 		}
 	},
 	"checkpoints": {
 		"timeout": {
-			"label": "チェックポイント初期化タイムアウト（秒）",
-			"description": "チェックポイントサービスの初期化を待つ最大時間。デフォルトは15秒。範囲：10～60秒。"
+			"label": "Checkpoint initialization timeout (seconds)",
+			"description": "Maximum time to wait for checkpoint service initialization. Default is 15 seconds. Range: 10-60 seconds."
 		},
 		"enable": {
-			"label": "自動チェックポイントを有効化",
-			"description": "有効にすると、Rooはタスク実行中に自動的にチェックポイントを作成し、変更の確認や以前の状態への復帰を容易にします。 <0>詳細情報</0>"
+			"label": "Enable automatic checkpoints",
+			"description": "When enabled, Zoo will automatically create checkpoints during task execution, making it easy to review changes or revert to earlier states. <0>Learn more</0>"
 		}
 	},
 	"notifications": {
 		"sound": {
-			"label": "サウンドエフェクトを有効化",
-			"description": "有効にすると、Rooは通知やイベントのためにサウンドエフェクトを再生します。",
-			"volumeLabel": "音量"
+			"label": "Enable sound effects",
+			"description": "When enabled, Zoo will play sound effects for notifications and events.",
+			"volumeLabel": "Volume"
 		},
 		"tts": {
-			"label": "音声合成を有効化",
-			"description": "有効にすると、Rooは音声合成を使用して応答を音声で読み上げます。",
-			"speedLabel": "速度"
+			"label": "Enable text-to-speech",
+			"description": "When enabled, Zoo will read aloud its responses using text-to-speech.",
+			"speedLabel": "Speed"
 		}
 	},
 	"contextManagement": {
-		"description": "AIのコンテキストウィンドウに含まれる情報を制御し、token使用量とレスポンスの品質に影響します",
+		"description": "Control what information is included in the AI's context window, affecting token usage and response quality",
 		"autoCondenseContextPercent": {
-			"label": "インテリジェントなコンテキスト圧縮をトリガーするしきい値",
-			"description": "コンテキストウィンドウがこのしきい値に達すると、Rooは自動的に圧縮します。"
+			"label": "Threshold to trigger intelligent context condensing",
+			"description": "When the context window reaches this threshold, Zoo will automatically condense it."
 		},
 		"condensingApiConfiguration": {
-			"label": "コンテキスト圧縮用のAPI設定",
-			"description": "コンテキスト圧縮操作に使用するAPI設定を選択します。選択しない場合は現在のアクティブな設定が使用されます。",
-			"useCurrentConfig": "現在の設定を使用"
+			"label": "API Configuration for Context Condensing",
+			"description": "Select which API configuration to use for context condensing operations. Leave unselected to use the current active configuration.",
+			"useCurrentConfig": "Default"
 		},
 		"customCondensingPrompt": {
-			"label": "カスタムコンテキスト圧縮プロンプト",
-			"description": "コンテキスト圧縮に使用するシステムプロンプトをカスタマイズします。空のままにするとデフォルトのプロンプトが使用されます。",
-			"placeholder": "ここにカスタム圧縮プロンプトを入力してください...\n\nデフォルトプロンプトと同じ構造を使用できます：\n- 過去の会話\n- 現在の作業\n- 重要な技術的概念\n- 関連するファイルとコード\n- 問題解決\n- 保留中のタスクと次のステップ",
-			"reset": "デフォルトにリセット",
-			"hint": "空 = デフォルトプロンプトを使用"
+			"label": "Custom Context Condensing Prompt",
+			"description": "Customize the system prompt used for context condensing. Leave empty to use the default prompt.",
+			"placeholder": "Enter your custom condensing prompt here...\n\nYou can use the same structure as the default prompt:\n- Previous Conversation\n- Current Work\n- Key Technical Concepts\n- Relevant Files and Code\n- Problem Solving\n- Pending Tasks and Next Steps",
+			"reset": "Reset to Default",
+			"hint": "Empty = use default prompt"
 		},
 		"autoCondenseContext": {
-			"name": "インテリジェントなコンテキスト圧縮を自動的にトリガーする",
-			"description": "有効にすると、Rooは閾値に達したときに自動的にコンテキストを圧縮します。無効にすると、手動でコンテキスト圧縮をトリガーできます。"
+			"name": "Automatically trigger intelligent context condensing",
+			"description": "When enabled, Zoo will automatically condense the context when the threshold is reached. When disabled, you can still manually trigger context condensing."
 		},
 		"openTabs": {
-			"label": "オープンタブコンテキスト制限",
-			"description": "コンテキストに含めるVSCodeオープンタブの最大数。高い値はより多くのコンテキストを提供しますが、token使用量が増加します。"
+			"label": "Open tabs context limit",
+			"description": "Maximum number of VSCode open tabs to include in context. Higher values provide more context but increase token usage."
 		},
 		"workspaceFiles": {
-			"label": "ワークスペースファイルコンテキスト制限",
-			"description": "現在の作業ディレクトリの詳細に含めるファイルの最大数。高い値はより多くのコンテキストを提供しますが、token使用量が増加します。"
+			"label": "Workspace files context limit",
+			"description": "Maximum number of files to include in current working directory details. Higher values provide more context but increase token usage."
 		},
 		"rooignore": {
-			"label": "リストと検索で.rooignoreファイルを表示",
-			"description": "有効にすると、.rooignoreのパターンに一致するファイルがロックシンボル付きでリストに表示されます。無効にすると、これらのファイルはファイルリストや検索から完全に非表示になります。"
-		},
-		"maxReadFile": {
-			"label": "ファイル読み込み自動切り詰めしきい値",
-			"description": "モデルが開始/終了の値を指定しない場合、Rooはこの行数を読み込みます。この数がファイルの総行数より少ない場合、Rooはコード定義の行番号インデックスを生成します。特殊なケース：-1はRooにファイル全体を読み込むよう指示し（インデックス作成なし）、0は行を読み込まず最小限のコンテキストのために行インデックスのみを提供するよう指示します。低い値は初期コンテキスト使用量を最小限に抑え、後続の正確な行範囲の読み込みを可能にします。明示的な開始/終了の要求はこの設定による制限を受けません。",
-			"lines": "行",
-			"always_full_read": "常にファイル全体を読み込む"
+			"label": "Show .rooignore'd files in lists and searches",
+			"description": "When enabled, files matching patterns in .rooignore will be shown in lists with a lock symbol. When disabled, these files will be completely hidden from file lists and searches."
 		},
 		"maxConcurrentFileReads": {
-			"label": "同時ファイル読み取り制限",
-			"description": "read_file ツールが同時に処理できるファイルの最大数。値を高くすると複数の小さなファイルの読み取りが速くなる可能性がありますが、メモリ使用量が増加します。"
+			"label": "Concurrent file reads limit",
+			"description": "Maximum number of files the 'read_file' tool can process concurrently. Higher values may speed up reading multiple small files but increase memory usage."
+		},
+		"maxReadFile": {
+			"label": "File read auto-truncate threshold",
+			"description": "Zoo reads this number of lines when the model omits start/end values. If this number is less than the file's total, Zoo generates a line number index of code definitions. Special cases: -1 instructs Zoo to read the entire file (without indexing), and 0 instructs it to read no lines and provides line indexes only for minimal context. Lower values minimize initial context usage, enabling precise subsequent line-range reads. Explicit start/end requests are not limited by this setting.",
+			"lines": "lines",
+			"always_full_read": "Always read entire file"
+		},
+		"maxImageFileSize": {
+			"label": "Max image file size",
+			"mb": "MB",
+			"description": "Maximum size (in MB) for image files that can be processed by the read file tool."
+		},
+		"maxTotalImageSize": {
+			"label": "Max total image size",
+			"mb": "MB",
+			"description": "Maximum cumulative size limit (in MB) for all images processed in a single read_file operation. When reading multiple images, each image's size is added to the total. If including another image would exceed this limit, it will be skipped."
 		},
 		"diagnostics": {
 			"includeMessages": {
-				"label": "診断を自動的にコンテキストに含める",
-				"description": "有効にすると、編集されたファイルからの診断メッセージ（エラー）が自動的にコンテキストに含まれます。@problemsを使用して、いつでも手動ですべてのワークスペース診断を含めることができます。"
+				"label": "Automatically include diagnostics in context",
+				"description": "When enabled, diagnostic messages (errors) from edited files will be automatically included in the context. You can always manually include all workspace diagnostics using @problems."
 			},
 			"maxMessages": {
-				"label": "最大診断メッセージ数",
-				"description": "ファイルごとに含める診断メッセージの最大数。この制限は、自動インクルード（チェックボックスが有効な場合）と手動の@problemsメンションの両方に適用されます。値を高くするとより多くのコンテキストが提供されますが、トークンの使用量が増加します。",
-				"resetTooltip": "デフォルト値（50）にリセット",
-				"unlimitedLabel": "無制限"
+				"label": "Maximum diagnostic messages",
+				"description": "Limits the number of diagnostic messages (errors, warnings) included in the context. When set, only this many diagnostics will be shown, prioritizing errors over warnings. Set to 0 for unlimited diagnostics.",
+				"resetTooltip": "Reset to default value (50)",
+				"unlimitedLabel": "Unlimited"
 			},
 			"delayAfterWrite": {
-				"label": "書き込み後に診断が潜在的な問題を検出できるように遅延させる",
-				"description": "ファイルの書き込み後に処理を続行するまでの待機時間。これにより、診断ツールが変更を処理して問題を検出できます。"
+				"label": "Delay after writes to allow diagnostics to detect potential problems",
+				"description": "Time to wait after file writes before proceeding, allowing diagnostic tools to process changes and detect issues."
 			}
 		},
 		"condensingThreshold": {
-			"label": "圧縮トリガーしきい値",
-			"selectProfile": "プロファイルのしきい値を設定",
-			"defaultProfile": "グローバルデフォルト（全プロファイル）",
-			"defaultDescription": "コンテキストがこの割合に達すると、カスタム設定がない限り、すべてのプロファイルで自動的に圧縮されます",
-			"profileDescription": "このプロファイルのみのカスタムしきい値（グローバルデフォルトを上書き）",
-			"inheritDescription": "このプロファイルはグローバルデフォルトしきい値を継承します（{{threshold}}%）",
-			"usesGlobal": "（グローバル {{threshold}}% を使用）"
-		},
-		"maxImageFileSize": {
-			"label": "最大画像ファイルサイズ",
-			"mb": "MB",
-			"description": "read fileツールで処理できる画像ファイルの最大サイズ（MB単位）。"
-		},
-		"maxTotalImageSize": {
-			"label": "最大合計画像サイズ",
-			"mb": "MB",
-			"description": "単一のread_file操作で処理されるすべての画像の累積サイズ制限（MB単位）。複数の画像を読み取る際、各画像のサイズが合計に加算されます。別の画像を含めるとこの制限を超える場合、その画像はスキップされます。"
+			"label": "Condensing Trigger Threshold",
+			"selectProfile": "Configure threshold for profile",
+			"defaultProfile": "Global Default (all profiles)",
+			"defaultDescription": "When context reaches this percentage, it will be automatically condensed for all profiles unless they have custom settings",
+			"profileDescription": "Custom threshold for this profile only (overrides global default)",
+			"inheritDescription": "This profile inherits the global default threshold ({{threshold}}%)",
+			"usesGlobal": "(uses global {{threshold}}%)"
 		},
 		"includeCurrentTime": {
-			"label": "現在の時刻をコンテキストに含める",
-			"description": "有効にすると、現在の時刻とタイムゾーン情報がシステムプロンプトに含まれます。モデルが時間に関する懸念で動作を停止する場合は無効にしてください。"
+			"label": "Include current time in context",
+			"description": "When enabled, the current time and timezone information will be included in the system prompt. Disable this if models are stopping work due to time concerns."
 		},
 		"includeCurrentCost": {
-			"label": "現在のコストをコンテキストに含める",
-			"description": "有効にすると、現在のAPI使用コストがシステムプロンプトに含まれます。モデルがコストに関する懸念で動作を停止する場合は無効にしてください。"
+			"label": "Include current cost in context",
+			"description": "When enabled, the current API usage cost will be included in the system prompt. Disable this if models are stopping work due to cost concerns."
 		},
 		"maxGitStatusFiles": {
-			"label": "Gitステータス最大ファイル数",
-			"description": "gitステータスコンテキストに含めるファイルエントリの最大数。無効にするには0に設定します。ブランチ情報とコミットは、> 0の場合に常に表示されます。"
+			"label": "Git status max files",
+			"description": "Maximum number of file entries to include in git status context. Set to 0 to disable. Branch info is always shown when > 0."
 		},
 		"enableSubfolderRules": {
-			"label": "サブフォルダルールを有効化",
-			"description": "サブディレクトリから.roo/rulesとAGENTS.mdファイルを再帰的に検出してロードします。パッケージごとのルールを持つモノレポに便利です。"
+			"label": "Enable subfolder rules",
+			"description": "Recursively discover and load .roo/rules and AGENTS.md files from subdirectories. Useful for monorepos with per-package rules."
 		}
 	},
 	"terminal": {
 		"basic": {
-			"label": "ターミナル設定：基本",
-			"description": "基本的なターミナル設定"
+			"label": "Terminal Settings: Basic",
+			"description": "Basic terminal settings"
 		},
 		"advanced": {
-			"label": "ターミナル設定：詳細",
-			"description": "これらの設定は、「インラインターミナルを使用」が無効の場合にのみ適用されます。VS Code ターミナルのみに影響し、IDE の再起動が必要になる場合があります。"
+			"label": "Terminal Settings: Advanced",
+			"description": "These settings apply only when 'Use Inline Terminal' is disabled. They affect the VS Code terminal only and may require restarting the IDE."
 		},
 		"outputLineLimit": {
-			"label": "ターミナル出力制限",
-			"description": "制限内に収めるため最初と最後の行を保持し、中間を削除します。トークンを節約するには下げる；Rooに中間の詳細を与えるには上げる。Rooはコンテンツがスキップされた箇所にプレースホルダーを表示します。<0>詳細情報</0>"
+			"label": "Terminal output limit",
+			"description": "Keeps the first and last lines and drops the middle to stay under the limit. Lower to save tokens; raise to give Zoo more middle detail. Zoo sees a placeholder where the content is skipped.<0>Learn more</0>"
 		},
 		"outputCharacterLimit": {
-			"label": "ターミナル文字制限",
-			"description": "出力サイズにハードキャップを適用してメモリ問題を防ぐため、行制限を上書きします。超過した場合、最初と最後を保持し、コンテンツがスキップされた箇所にRooにプレースホルダーを表示します。<0>詳細情報</0>"
+			"label": "Terminal character limit",
+			"description": "Overrides the line limit to prevent memory issues by enforcing a hard cap on output size. If exceeded, keeps the beginning and end and shows a placeholder to Zoo where content is skipped. <0>Learn more</0>"
 		},
 		"outputPreviewSize": {
-			"label": "コマンド出力プレビューサイズ",
-			"description": "Rooが直接確認できるコマンド出力の量を制御します。完全な出力は常に保存され、必要に応じてアクセス可能です。",
+			"label": "Command output preview size",
+			"description": "Controls how much command output Zoo sees directly. Full output is always saved and accessible when needed.",
 			"options": {
-				"small": "小 (5KB)",
-				"medium": "中 (10KB)",
-				"large": "大 (20KB)"
+				"small": "Small (5KB)",
+				"medium": "Medium (10KB)",
+				"large": "Large (20KB)"
 			}
 		},
 		"shellIntegrationTimeout": {
-			"label": "ターミナルシェル統合タイムアウト",
-			"description": "コマンドを実行する前�����VS Codeシェル統合を待機する時間。シェルが遅く起動する場合や「シェル統合が利用できません」というエラーが表示される場合は、この値を増やしてください。<0>詳細</0>"
+			"label": "Terminal shell integration timeout",
+			"description": "How long to wait for VS Code shell integration before running commands. Raise if your shell starts slowly or you see 'Shell Integration Unavailable' errors. <0>Learn more</0>"
 		},
 		"shellIntegrationDisabled": {
-			"label": "インラインターミナルを使用（推奨）",
-			"description": "より高速で信頼性の高い実行のため、シェルプロファイル/統合をバイパスしてインラインターミナル（チャット）でコマンドを実行します。無効にすると、Zoo はシェルプロファイル、プロンプト、プラグインと共に VS Code ターミナルを使用します。<0>詳細情報</0>"
+			"label": "Use Inline Terminal (recommended)",
+			"description": "Run commands in the Inline Terminal (chat) to bypass shell profiles/integration for faster, more reliable runs. When disabled Zoo uses the VS Code terminal with your shell profile, prompts, and plugins. <0>Learn more</0>"
 		},
 		"commandDelay": {
-			"label": "ターミナルコマンド遅延",
-			"description": "VS Codeターミナルがすべての出力をフラッシュできるよう、各コマンド後に短い一時停止を追加します（bash/zsh: PROMPT_COMMAND sleep; PowerShell: start-sleep）。末尾出力が欠落している場合のみ使用；それ以外は0のままにします。<0>詳細情報</0>"
+			"label": "Terminal command delay",
+			"description": "Adds a short pause after each command so the VS Code terminal can flush all output (bash/zsh: PROMPT_COMMAND sleep; PowerShell: start-sleep). Use only if you see missing tail output; otherwise leave at 0. <0>Learn more</0>"
 		},
 		"powershellCounter": {
-			"label": "PowerShellカウンターの回避策を有効にする",
-			"description": "PowerShellの出力が欠落または重複している場合にこれをオンにします。出力を安定させるために各コマンドに小さなカウンターを追加します。出力がすでに正しい場合はオフのままにします。<0>詳細情報</0>"
+			"label": "Enable PowerShell counter workaround",
+			"description": "Turn this on when PowerShell output is missing or duplicated; it appends a tiny counter to each command to stabilize output. Keep this off if output already looks correct. <0>Learn more</0>"
 		},
 		"zshClearEolMark": {
-			"label": "ZSH EOLマークをクリア",
-			"description": "行末に迷子の%が表示されたり、解析が間違っているように見える場合にこれをオンにします。Zshの行末マーク（%）を省略します。<0>詳細情報</0>"
+			"label": "Clear ZSH EOL mark",
+			"description": "Turn this on when you see stray % at the end of lines or parsing looks wrong; it omits Zsh’s end‑of‑line mark (%). <0>Learn more</0>"
 		},
 		"zshOhMy": {
-			"label": "Oh My Zsh統合を有効にする",
-			"description": "Oh My Zshのテーマ/プラグインがシェル統合を期待している場合にこれをオンにします。ITERM_SHELL_INTEGRATION_INSTALLED=Yesを設定します。その変数を設定しないようにするにはオフにします。<0>詳細情報</0>"
+			"label": "Enable Oh My Zsh integration",
+			"description": "Turn this on when your Oh My Zsh theme/plugins expect shell integration; it sets ITERM_SHELL_INTEGRATION_INSTALLED=Yes. Turn this off to avoid setting that variable. <0>Learn more</0>"
 		},
 		"zshP10k": {
-			"label": "Powerlevel10k統合を有効にする",
-			"description": "Powerlevel10kシェル統合を使用している場合にこれをオンにします。<0>詳細情報</0>"
+			"label": "Enable Powerlevel10k integration",
+			"description": "Turn this on when using Powerlevel10k shell integration. <0>Learn more</0>"
 		},
 		"zdotdir": {
-			"label": "ZDOTDIR処理を有効にする",
-			"description": "zshシェル統合が失敗したり、ドットファイルと競合したりする場合にこれをオンにします。<0>詳細情報</0>"
+			"label": "Enable ZDOTDIR handling",
+			"description": "Turn this on when zsh shell integration fails or conflicts with your dotfiles. <0>Learn more</0>"
 		},
 		"inheritEnv": {
-			"label": "環境変数を継承",
-			"description": "親VS Codeプロセスから環境変数を継承するには、これをオンにします。<0>詳細情報</0>"
+			"label": "Inherit environment variables",
+			"description": "Turn this on to inherit environment variables from the parent VS Code process. <0>Learn more</0>"
 		}
 	},
 	"advancedSettings": {
-		"title": "詳細設定"
+		"title": "Advanced settings"
 	},
 	"advanced": {
 		"diff": {
-			"label": "diff経由の編集を有効化",
-			"description": "有効にすると、Rooはファイルをより迅速に編集でき、切り詰められた全ファイル書き込みを自動的に拒否します。",
+			"label": "Enable editing through diffs",
+			"description": "When enabled, Zoo will be able to edit files more quickly and will automatically reject truncated full-file writes",
 			"strategy": {
-				"label": "Diff戦略",
+				"label": "Diff strategy",
 				"options": {
-					"standard": "標準（単一ブロック）",
-					"multiBlock": "実験的：マルチブロックdiff",
-					"unified": "実験的：統合diff"
+					"standard": "Standard (Single block)",
+					"multiBlock": "Experimental: Multi-block diff",
+					"unified": "Experimental: Unified diff"
 				},
 				"descriptions": {
-					"standard": "標準diff戦略は一度に1つのコードブロックに変更を適用します。",
-					"unified": "統合diff戦略はdiffを適用するための複数のアプローチを取り、最良のアプローチを選択します。",
-					"multiBlock": "マルチブロックdiff戦略は、1つのリクエストでファイル内の複数のコードブロックを更新できます。"
+					"standard": "Standard diff strategy applies changes to a single code block at a time.",
+					"unified": "Unified diff strategy takes multiple approaches to applying diffs and chooses the best approach.",
+					"multiBlock": "Multi-block diff strategy allows updating multiple code blocks in a file in one request."
 				}
 			}
 		},
 		"todoList": {
-			"label": "ToDoリストツールを有効にする",
-			"description": "有効にすると、Rooはタスクの進捗を追跡するためのToDoリストを作成・管理できます。これにより、複雑なタスクを管理しやすいステップに整理できます。"
+			"label": "Enable todo list tool",
+			"description": "When enabled, Zoo can create and manage todo lists to track task progress. This helps organize complex tasks into manageable steps."
 		}
 	},
 	"experimental": {
 		"DIFF_STRATEGY_UNIFIED": {
-			"name": "実験的な統合diff戦略を使用する",
-			"description": "実験的な統合diff戦略を有効にします。この戦略はモデルエラーによる再試行の回数を減らす可能性がありますが、予期しない動作や不正確な編集を引き起こす可能性があります。リスクを理解し、すべての変更を注意深く確認する準備がある場合にのみ有効にしてください。"
+			"name": "Use experimental unified diff strategy",
+			"description": "Enable the experimental unified diff strategy. This strategy might reduce the number of retries caused by model errors but may cause unexpected behavior or incorrect edits. Only enable if you understand the risks and are willing to carefully review all changes."
 		},
 		"INSERT_BLOCK": {
-			"name": "実験的なコンテンツ挿入ツールを使用する",
-			"description": "実験的なコンテンツ挿入ツールを有効にし、Rooがdiffを作成せずに特定の行番号にコンテンツを挿入できるようにします。"
-		},
-		"MULTI_SEARCH_AND_REPLACE": {
-			"name": "実験的なマルチブロックdiffツールを使用する",
-			"description": "有効にすると、Rooはマルチブロックdiffツールを使用します。これにより、1つのリクエストでファイル内の複数のコードブロックを更新しようとします。"
+			"name": "Use experimental insert content tool",
+			"description": "Enable the experimental insert content tool, allowing Zoo to insert content at specific line numbers without needing to create a diff."
 		},
 		"CONCURRENT_FILE_READS": {
-			"name": "並行ファイル読み取りを有効にする",
-			"description": "有効にすると、Rooは1回のリクエストで複数のファイル を読み取ることができます。無効にすると、Rooはファイルを1つずつ読み取る必要があります。能力の低いモデルで作業する場合や、ファイルアクセスをより細かく制御したい場合は、無効にすると役立ちます。"
+			"name": "Enable concurrent file reads",
+			"description": "When enabled, Zoo can read multiple files in a single request. When disabled, Zoo must read files one at a time. Disabling this can help when working with less capable models or when you want more control over file access."
+		},
+		"MULTI_SEARCH_AND_REPLACE": {
+			"name": "Use experimental multi block diff tool",
+			"description": "When enabled, Zoo will use multi block diff tool. This will try to update multiple code blocks in the file in one request."
 		},
 		"MARKETPLACE": {
-			"name": "Marketplaceを有効にする",
-			"description": "有効にすると、MarketplaceからMCPとカスタムモードをインストールできます。"
+			"name": "Enable Marketplace",
+			"description": "When enabled, you can install MCPs and custom modes from the Marketplace."
 		},
 		"PREVENT_FOCUS_DISRUPTION": {
-			"name": "バックグラウンド編集",
-			"description": "有効にすると、エディターのフォーカス中断を防ぎます。ファイル編集は差分ビューを開いたりフォーカスを奪ったりすることなく、バックグラウンドで行われます。Rooが変更を行っている間も中断されることなく作業を続けることができます。ファイルは診断をキャプチャするためにフォーカスなしで開くか、完全に閉じたままにできます。"
+			"name": "Background editing",
+			"description": "Prevent editor focus disruption when enabled. File edits happen in the background without opening diff views or stealing focus. You can continue working uninterrupted while Zoo makes changes. Files can be opened without focus to capture diagnostics or kept closed entirely."
 		},
 		"ASSISTANT_MESSAGE_PARSER": {
-			"name": "新しいメッセージパーサーを使う",
-			"description": "実験的なストリーミングメッセージパーサーを有効にします。長い回答をより効率的に処理し、遅延を減らします。"
+			"name": "Use new message parser",
+			"description": "Enable the experimental streaming message parser that provides significant performance improvements for long assistant responses by processing messages more efficiently."
 		},
 		"NEW_TASK_REQUIRE_TODOS": {
-			"name": "新しいタスクには'todos'リストを必須にする",
-			"description": "有効にすると、new_taskツールはtodosパラメータの提供が必須になります。これにより、すべての新しいタスクが明確な目的のリストで開始されることが保証されます。無効（デフォルト）の場合、下位互換性のためにtodosパラメータはオプションのままです。"
+			"name": "Require 'todos' list for new tasks",
+			"description": "When enabled, the new_task tool will require a todos parameter to be provided. This ensures all new tasks start with a clear list of objectives. When disabled (default), the todos parameter remains optional for backward compatibility."
 		},
 		"IMAGE_GENERATION": {
-			"providerLabel": "プロバイダー",
-			"providerDescription": "画像生成に使用するプロバイダーを選択",
-			"name": "AI画像生成を有効にする",
-			"description": "有効にすると、RooはOpenRouterの画像生成モデルを使用してテキストプロンプトから画像を生成できます。OpenRouter APIキーの設定が必要です。",
-			"openRouterApiKeyLabel": "OpenRouter APIキー",
-			"openRouterApiKeyPlaceholder": "OpenRouter APIキーを入力してください",
-			"getApiKeyText": "APIキーを取得する場所",
-			"modelSelectionLabel": "画像生成モデル",
-			"modelSelectionDescription": "画像生成に使用するモデルを選択",
-			"warningMissingKey": "⚠️ 画像生成にはOpenRouter APIキーが必要です。上記で設定してください。",
-			"successConfigured": "✓ 画像生成が設定され、使用準備完了です"
+			"name": "Enable AI image generation",
+			"description": "When enabled, Zoo can generate images from text prompts using image generation models.",
+			"providerLabel": "Provider",
+			"providerDescription": "Select which provider to use for image generation.",
+			"openRouterApiKeyLabel": "OpenRouter API Key",
+			"openRouterApiKeyPlaceholder": "Enter your OpenRouter API key",
+			"getApiKeyText": "Get your API key from",
+			"modelSelectionLabel": "Image Generation Model",
+			"modelSelectionDescription": "Select the model to use for image generation",
+			"warningMissingKey": "⚠️ OpenRouter API key is required for OpenRouter image generation. Please configure it above.",
+			"successConfigured": "✓ Image generation is configured and ready to use"
 		},
 		"RUN_SLASH_COMMAND": {
-			"name": "モデル開始スラッシュコマンドを有効にする",
-			"description": "有効にすると、Rooがワークフローを実行するためにあなたのスラッシュコマンドを実行できます。"
+			"name": "Enable model-initiated slash commands",
+			"description": "When enabled, Zoo can run your slash commands to execute workflows."
 		},
 		"CUSTOM_TOOLS": {
-			"name": "カスタムツールを有効化",
-			"description": "有効にすると、Rooはプロジェクトの.roo/toolsディレクトリまたはグローバルツール用の~/.roo/toolsからカスタムTypeScript/JavaScriptツールを読み込んで使用できます。注意：これらのツールは自動的に承認されます。",
-			"toolsHeader": "利用可能なカスタムツール",
-			"noTools": "カスタムツールが読み込まれていません。プロジェクトの.roo/toolsディレクトリまたはグローバルツール用の~/.roo/toolsに.tsまたは.jsファイルを追加してください。",
-			"refreshButton": "更新",
-			"refreshing": "更新中...",
-			"refreshSuccess": "ツールが正常に更新されました",
-			"refreshError": "ツールの更新に失敗しました",
-			"toolParameters": "パラメーター"
+			"name": "Enable custom tools",
+			"description": "When enabled, Zoo can load and use custom TypeScript/JavaScript tools from your project's .roo/tools directory or ~/.roo/tools for global tools. Note: these tools will automatically be auto-approved.",
+			"toolsHeader": "Available Custom Tools",
+			"noTools": "No custom tools loaded. Add .ts or .js files to your project's .roo/tools directory or ~/.roo/tools for global tools.",
+			"refreshButton": "Refresh",
+			"refreshing": "Refreshing...",
+			"refreshSuccess": "Tools refreshed successfully",
+			"refreshError": "Failed to refresh tools",
+			"toolParameters": "Parameters"
 		}
 	},
 	"promptCaching": {
-		"label": "プロンプトキャッシュを無効化",
-		"description": "チェックすると、Rooはこのモデルに対してプロンプトキャッシュを使用しません。"
+		"label": "Disable prompt caching",
+		"description": "When checked, Zoo will not use prompt caching for this model."
 	},
 	"temperature": {
-		"useCustom": "カスタム温度を使用",
-		"description": "モデルの応答のランダム性を制御します。",
-		"rangeDescription": "高い値は出力をよりランダムに、低い値はより決定論的にします。"
+		"useCustom": "Use custom temperature",
+		"description": "Controls randomness in the model's responses.",
+		"rangeDescription": "Higher values make output more random, lower values make it more deterministic."
 	},
 	"modelInfo": {
-		"supportsImages": "画像をサポート",
-		"noImages": "画像をサポートしていません",
-		"supportsPromptCache": "プロンプトキャッシュをサポート",
-		"noPromptCache": "プロンプトキャッシュをサポートしていません",
-		"contextWindow": "コンテキストウィンドウ:",
-		"maxOutput": "最大出力",
-		"inputPrice": "入力価格",
-		"outputPrice": "出力価格",
-		"cacheReadsPrice": "キャッシュ読み取り価格",
-		"cacheWritesPrice": "キャッシュ書き込み価格",
-		"enableStreaming": "ストリーミングを有効化",
-		"enableR1Format": "R1モデルパラメータを有効にする",
-		"enableR1FormatTips": "QWQなどのR1モデルを使用する際には、有効にする必要があります。400エラーを防ぐために",
-		"useAzure": "Azureを使用",
-		"azureApiVersion": "Azure APIバージョンを設定",
+		"supportsImages": "Supports images",
+		"noImages": "Does not support images",
+		"supportsPromptCache": "Supports prompt caching",
+		"noPromptCache": "Does not support prompt caching",
+		"contextWindow": "Context Window:",
+		"maxOutput": "Max output",
+		"inputPrice": "Input price",
+		"outputPrice": "Output price",
+		"cacheReadsPrice": "Cache reads price",
+		"cacheWritesPrice": "Cache writes price",
+		"enableStreaming": "Enable streaming",
+		"enableR1Format": "Enable R1 model parameters",
+		"enableR1FormatTips": "Must be enabled when using R1 models such as QWQ to prevent 400 errors",
+		"useAzure": "Use Azure",
+		"azureApiVersion": "Set Azure API version",
 		"gemini": {
-			"freeRequests": "* 1分間あたり{{count}}リクエストまで無料。それ以降は、プロンプトサイズに応じて課金されます。",
-			"pricingDetails": "詳細は価格情報をご覧ください。",
-			"billingEstimate": "* 課金は見積もりです - 正確な費用はプロンプトのサイズによって異なります。"
+			"freeRequests": "* Free up to {{count}} requests per minute. After that, billing depends on prompt size.",
+			"pricingDetails": "For more info, see pricing details.",
+			"billingEstimate": "* Billing is an estimate - exact cost depends on prompt size."
 		}
 	},
 	"modelPicker": {
-		"automaticFetch": "拡張機能は<serviceLink>{{serviceName}}</serviceLink>で利用可能な最新のモデルリストを自動的に取得します。どのモデルを選ぶべきか迷っている場合、Zoo Codeは<defaultModelLink>{{defaultModelId}}</defaultModelLink>で最適に動作します。また、「free」で検索すると、現在利用可能な無料オプションを見つけることができます。",
-		"label": "モデル",
-		"searchPlaceholder": "検索",
-		"noMatchFound": "一致するものが見つかりません",
-		"useCustomModel": "カスタムを使用: {{modelId}}",
-		"simplifiedExplanation": "詳細なモデル設定は後で調整できます。"
+		"automaticFetch": "The extension automatically fetches the latest list of models available on <serviceLink>{{serviceName}}</serviceLink>. If you're unsure which model to choose, Zoo Code works best with <defaultModelLink>{{defaultModelId}}</defaultModelLink>. You can also try searching \"free\" for no-cost options currently available.",
+		"label": "Model",
+		"searchPlaceholder": "Search",
+		"noMatchFound": "No match found",
+		"useCustomModel": "Use custom: {{modelId}}",
+		"simplifiedExplanation": "You can adjust detailed model settings later."
 	},
 	"footer": {
 		"telemetry": {
-			"label": "匿名のエラーと使用状況レポートを許可",
-			"description": "匿名の使用データとエラーレポートを送信してZoo Codeの改善にご協力ください。このテレメトリはコード、プロンプト、個人情報を収集しません。詳細については<privacyLink>プライバシーポリシー</privacyLink>をご覧ください。"
+			"label": "Allow anonymous error and usage reporting",
+			"description": "Help improve Zoo Code by sending anonymous usage data and error reports. This telemetry does not collect code, prompts or personal information. See our <privacyLink>privacy policy</privacyLink> for more details."
 		},
 		"settings": {
-			"import": "インポート",
-			"export": "エクスポート",
-			"reset": "リセット"
+			"import": "Import",
+			"export": "Export",
+			"reset": "Reset"
 		}
 	},
 	"thinkingBudget": {
-		"maxTokens": "最大 tokens",
-		"maxThinkingTokens": "最大思考 tokens"
+		"maxTokens": "Max Tokens",
+		"maxThinkingTokens": "Max Thinking Tokens"
 	},
 	"validation": {
-		"apiKey": "有効なAPIキーを入力してください。",
-		"awsRegion": "Amazon Bedrockを使用するにはリージョンを選択してください。",
-		"googleCloud": "有効なGoogle CloudプロジェクトIDとリージョンを入力してください。",
-		"modelId": "有効なモデルIDを入力してください。",
-		"modelSelector": "有効なモデルセレクターを入力してください。",
-		"openAi": "有効なベースURL、APIキー、モデルIDを入力してください。",
+		"apiKey": "You must provide a valid API key.",
+		"awsRegion": "You must choose a region to use with Amazon Bedrock.",
+		"googleCloud": "You must provide a valid Google Cloud Project ID and Region.",
+		"modelId": "You must provide a valid model ID.",
+		"modelSelector": "You must provide a valid model selector.",
+		"openAi": "You must provide a valid base URL, API key, and model ID.",
 		"arn": {
-			"invalidFormat": "ARNの形式が無効です。フォーマット要件を確認してください。",
-			"regionMismatch": "警告：ARN内のリージョン（{{arnRegion}}）が選択したリージョン（{{region}}）と一致しません。これによりアクセスの問題が発生する可能性があります。プロバイダーはARNのリージョンを使用します。"
+			"invalidFormat": "Invalid ARN format. Please check the format requirements.",
+			"regionMismatch": "Warning: The region in your ARN ({{arnRegion}}) does not match your selected region ({{region}}). This may cause access issues. The provider will use the region from the ARN."
 		},
-		"modelAvailability": "指定されたモデルID（{{modelId}}）は利用できません。別のモデルを選択してください。",
-		"modelDeprecated": "このモデルは利用できなくなりました。別のモデルを選択してください。",
-		"providerNotAllowed": "プロバイダー「{{provider}}」は組織によって許可されていません",
-		"modelNotAllowed": "モデル「{{model}}」はプロバイダー「{{provider}}」に対して組織によって許可されていません",
-		"profileInvalid": "このプロファイルには、組織によって許可されていないプロバイダーまたはモデルが含まれています",
-		"qwenCodeOauthPath": "有効なOAuth認証情報のパスを提供する必要があります"
+		"modelAvailability": "The model ID ({{modelId}}) you provided is not available. Please choose a different model.",
+		"modelDeprecated": "This model is no longer available. Please select a different model.",
+		"providerNotAllowed": "Provider '{{provider}}' is not allowed by your organization",
+		"modelNotAllowed": "Model '{{model}}' is not allowed for provider '{{provider}}' by your organization",
+		"profileInvalid": "This profile contains a provider or model that is not allowed by your organization",
+		"qwenCodeOauthPath": "You must provide a valid OAuth credentials path."
 	},
 	"placeholders": {
-		"apiKey": "API キーを入力...",
-		"profileName": "プロファイル名を入力",
-		"accessKey": "アクセスキーを入力...",
-		"secretKey": "シークレットキーを入力...",
-		"sessionToken": "セッショントークンを入力...",
-		"credentialsJson": "認証情報 JSON を入力...",
-		"keyFilePath": "キーファイルのパスを入力...",
-		"projectId": "プロジェクト ID を入力...",
-		"customArn": "ARN を入力（例：arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model）",
-		"baseUrl": "ベース URL を入力...",
+		"apiKey": "Enter API Key...",
+		"profileName": "Enter profile name",
+		"accessKey": "Enter Access Key...",
+		"secretKey": "Enter Secret Key...",
+		"sessionToken": "Enter Session Token...",
+		"credentialsJson": "Enter Credentials JSON...",
+		"keyFilePath": "Enter Key File Path...",
+		"projectId": "Enter Project ID...",
+		"customArn": "Enter ARN (e.g. arn:aws:bedrock:us-east-1:123456789012:foundation-model/my-model)",
+		"baseUrl": "Enter base URL...",
 		"modelId": {
-			"lmStudio": "例：meta-llama-3.1-8b-instruct",
-			"lmStudioDraft": "例：lmstudio-community/llama-3.2-1b-instruct",
-			"ollama": "例：llama3.1"
+			"lmStudio": "e.g. meta-llama-3.1-8b-instruct",
+			"lmStudioDraft": "e.g. lmstudio-community/llama-3.2-1b-instruct",
+			"ollama": "e.g. llama3.1"
 		},
 		"numbers": {
-			"maxTokens": "例：4096",
-			"contextWindow": "例：128000",
-			"inputPrice": "例：0.0001",
-			"outputPrice": "例：0.0002",
-			"cacheWritePrice": "例：0.00005"
+			"maxTokens": "e.g. 4096",
+			"contextWindow": "e.g. 128000",
+			"inputPrice": "e.g. 0.0001",
+			"outputPrice": "e.g. 0.0002",
+			"cacheWritePrice": "e.g. 0.00005"
 		}
 	},
 	"defaults": {
-		"ollamaUrl": "デフォルト：http://localhost:11434",
-		"lmStudioUrl": "デフォルト：http://localhost:1234",
-		"geminiUrl": "デフォルト：https://generativelanguage.googleapis.com"
+		"ollamaUrl": "Default: http://localhost:11434",
+		"lmStudioUrl": "Default: http://localhost:1234",
+		"geminiUrl": "Default: https://generativelanguage.googleapis.com"
 	},
 	"labels": {
-		"customArn": "カスタム ARN",
-		"useCustomArn": "カスタム ARN を使用..."
+		"customArn": "Custom ARN",
+		"useCustomArn": "Use custom ARN..."
 	},
-	"includeMaxOutputTokens": "最大出力トークンを含める",
-	"includeMaxOutputTokensDescription": "APIリクエストで最大出力トークンパラメータを送信します。一部のプロバイダーはこれをサポートしていない場合があります。",
-	"limitMaxTokensDescription": "レスポンスの最大トークン数を制限する",
-	"maxOutputTokensLabel": "最大出力トークン",
-	"maxTokensGenerateDescription": "レスポンスで生成する最大トークン数",
+	"includeMaxOutputTokens": "Include max output tokens",
+	"includeMaxOutputTokensDescription": "Send max output tokens parameter in API requests. Some providers may not support this.",
+	"limitMaxTokensDescription": "Limit the maximum number of tokens in the response",
+	"maxOutputTokensLabel": "Max output tokens",
+	"maxTokensGenerateDescription": "Maximum tokens to generate in response",
 	"serviceTier": {
-		"label": "サービスティア",
-		"tooltip": "APIリクエストをより速く処理するには、優先処理サービスティアをお試しください。低価格でレイテンシが高い場合は、フレックス処理ティアをお試しください。",
-		"standard": "標準",
-		"flex": "フレックス",
-		"priority": "優先",
-		"pricingTableTitle": "サービスティア別料金（100万トークンあたりの価格）",
+		"label": "Service tier",
+		"tooltip": "For faster processing of API requests, try the priority processing service tier. For lower prices with higher latency, try the flex processing tier.",
+		"standard": "Standard",
+		"flex": "Flex",
+		"priority": "Priority",
+		"pricingTableTitle": "Pricing by service tier (price per 1M tokens)",
 		"columns": {
-			"tier": "ティア",
-			"input": "入力",
-			"output": "出力",
-			"cacheReads": "キャッシュ読み取り"
+			"tier": "Tier",
+			"input": "Input",
+			"output": "Output",
+			"cacheReads": "Cache reads"
 		}
-	},
-	"ui": {
-		"collapseThinking": {
-			"label": "デフォルトで思考メッセージを折りたたむ",
-			"description": "有効にすると、操作するまで思考ブロックがデフォルトで折りたたまれます"
-		},
-		"requireCtrlEnterToSend": {
-			"label": "メッセージを送信するには{{primaryMod}}+Enterが必要",
-			"description": "有効にすると、Enterだけでなく{{primaryMod}}+Enterを押してメッセージを送信する必要があります"
-		},
-		"chatFontSize": {
-			"label": "チャットのフォントサイズ",
-			"description": "Zoo Code チャットのフォントサイズ（ピクセル単位）を設定します。VS Code のフォントサイズに合わせるには既定値のままにしてください。",
-			"reset": "VS Code の既定値を使用"
-		}
-	},
-	"skills": {
-		"description": "エージェントにコンテキスト指示を提供するスキルを管理します。スキルはタスクに関連する場合に自動的に適用されます。<DocsLink>詳細を見る</DocsLink>",
-		"workspaceSkills": "ワークスペーススキル",
-		"globalSkills": "グローバルスキル",
-		"noWorkspaceSkills": "このプロジェクトにはまだスキルがありません。",
-		"noGlobalSkills": "グローバルスキルが設定されていません。すべてのプロジェクトで利用可能なエージェント機能を追加するには、作成してください。",
-		"addSkill": "スキルを追加",
-		"editSkill": "スキルを編集",
-		"deleteSkill": "スキルを削除",
-		"configureModes": "モード可用性",
-		"modeAny": "任意のモード",
-		"modeCount": "{{count}} モード",
-		"deleteDialog": {
-			"title": "スキルを削除",
-			"description": "スキル「{{name}}」を削除してもよろしいですか？この操作は元に戻せません。",
-			"confirm": "削除",
-			"cancel": "キャンセル"
-		},
-		"modeDialog": {
-			"title": "スキルモードを設定",
-			"description": "このスキルを使用できるモードを選択します",
-			"intro": "コンテキストを軽く保つために、必要なモードのみでスキルを利用可能にすることをお勧めします。",
-			"anyMode": "任意のモード（どこでも利用可能）",
-			"save": "保存",
-			"cancel": "キャンセル"
-		},
-		"createDialog": {
-			"title": "新しいスキルを作成",
-			"nameLabel": "名前",
-			"namePlaceholder": "my-skill-name",
-			"descriptionLabel": "説明",
-			"descriptionPlaceholder": "このスキルをいつ使用するか説明してください...",
-			"sourceLabel": "場所",
-			"modeLabel": "モード（オプション）",
-			"modePlaceholder": "全てのモード",
-			"modeHint": "このスキルを特定のモードに制限する",
-			"modeAny": "全てのモード",
-			"create": "作成",
-			"cancel": "キャンセル"
-		},
-		"source": {
-			"global": "グローバル（すべてのプロジェクトで利用可能）",
-			"project": "プロジェクト（このワークスペースのみ）"
-		},
-		"validation": {
-			"nameRequired": "名前は必須です",
-			"nameTooLong": "名前は64文字以内である必要があります",
-			"nameInvalid": "名前は1〜64文字の小文字、数字、またはハイフンである必要があります",
-			"descriptionRequired": "説明は必須です",
-			"descriptionTooLong": "説明は1024文字以内である必要があります"
-		},
-		"footer": "スキルライターモードで独自のスキルを作成します。<MarketplaceLink>モードマーケットプレイス</MarketplaceLink>で入手可能です。"
 	}
 }
