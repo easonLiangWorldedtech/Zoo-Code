@@ -374,6 +374,7 @@ describe("MimoHandler", () => {
 				expect.objectContaining({
 					extra_body: { thinking: { type: "enabled" } },
 				}),
+				expect.any(Object),
 			)
 		})
 

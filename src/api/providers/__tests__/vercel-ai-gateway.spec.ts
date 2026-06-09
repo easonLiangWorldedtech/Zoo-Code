@@ -206,6 +206,7 @@ describe("VercelAiGatewayHandler", () => {
 				expect.objectContaining({
 					temperature: customTemp,
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -221,6 +222,7 @@ describe("VercelAiGatewayHandler", () => {
 				expect.objectContaining({
 					temperature: VERCEL_AI_GATEWAY_DEFAULT_TEMPERATURE,
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -251,6 +253,7 @@ describe("VercelAiGatewayHandler", () => {
 				expect.objectContaining({
 					max_completion_tokens: 64000, // max tokens for sonnet 4
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -329,6 +332,7 @@ describe("VercelAiGatewayHandler", () => {
 							}),
 						]),
 					}),
+					expect.any(Object),
 				)
 			})
 
@@ -346,6 +350,7 @@ describe("VercelAiGatewayHandler", () => {
 					expect.objectContaining({
 						tool_choice: "auto",
 					}),
+					expect.any(Object),
 				)
 			})
 
@@ -363,6 +368,7 @@ describe("VercelAiGatewayHandler", () => {
 					expect.objectContaining({
 						parallel_tool_calls: true,
 					}),
+					expect.any(Object),
 				)
 			})
 
@@ -380,6 +386,7 @@ describe("VercelAiGatewayHandler", () => {
 						tools: expect.any(Array),
 						parallel_tool_calls: true,
 					}),
+					expect.any(Object),
 				)
 			})
 
@@ -479,6 +486,7 @@ describe("VercelAiGatewayHandler", () => {
 					expect.objectContaining({
 						stream_options: { include_usage: true },
 					}),
+					expect.any(Object),
 				)
 			})
 		})
@@ -582,6 +590,44 @@ describe("VercelAiGatewayHandler", () => {
 					temperature: 0.9,
 				}),
 			)
+		})
+	})
+
+	describe("abortSignal support", () => {
+		beforeEach(() => {
+			mockCreate.mockImplementation(async () => ({
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						choices: [{ delta: { content: "Test response" } }],
+						usage: null,
+					}
+					yield {
+						choices: [{ delta: {} }],
+						usage: { prompt_tokens: 10, completion_tokens: 5 },
+					}
+				},
+			}))
+		})
+
+		it("should pass abortSignal to streamText when provided in metadata", async () => {
+			const handler = new VercelAiGatewayHandler({
+				...mockOptions,
+				vercelAiGatewayModelId: "anthropic/claude-sonnet-4",
+			})
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			for await (const _chunk of handler.createMessage("system prompt", [], {
+				taskId: "test",
+				abortSignal: mockAbortSignal,
+			})) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
 		})
 	})
 })

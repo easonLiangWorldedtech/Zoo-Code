@@ -370,7 +370,7 @@ describe("OpenAiHandler", () => {
 			}
 			// Assert the mockCreate was called with reasoning_effort
 			expect(mockCreate).toHaveBeenCalled()
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs.reasoning_effort).toBe("high")
 		})
 
@@ -387,7 +387,7 @@ describe("OpenAiHandler", () => {
 			}
 			// Assert the mockCreate was called without reasoning_effort
 			expect(mockCreate).toHaveBeenCalled()
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs.reasoning_effort).toBeUndefined()
 		})
 
@@ -405,7 +405,7 @@ describe("OpenAiHandler", () => {
 			for await (const _chunk of stream) {
 			}
 			expect(mockCreate).toHaveBeenCalled()
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs).not.toHaveProperty("temperature")
 		})
 
@@ -416,7 +416,7 @@ describe("OpenAiHandler", () => {
 			for await (const _chunk of stream) {
 			}
 			expect(mockCreate).toHaveBeenCalled()
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs).not.toHaveProperty("temperature")
 		})
 
@@ -426,7 +426,7 @@ describe("OpenAiHandler", () => {
 			for await (const _chunk of stream) {
 			}
 			expect(mockCreate).toHaveBeenCalled()
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs.temperature).toBe(0.5)
 		})
 
@@ -436,7 +436,7 @@ describe("OpenAiHandler", () => {
 			for await (const _chunk of stream) {
 			}
 			expect(mockCreate).toHaveBeenCalled()
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs.temperature).toBe(DEEP_SEEK_DEFAULT_TEMPERATURE)
 		})
 
@@ -447,7 +447,7 @@ describe("OpenAiHandler", () => {
 			for await (const _chunk of stream) {
 			}
 			expect(mockCreate).toHaveBeenCalled()
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs.temperature).toBe(0)
 		})
 
@@ -468,7 +468,7 @@ describe("OpenAiHandler", () => {
 			}
 			// Assert the mockCreate was called with max_tokens
 			expect(mockCreate).toHaveBeenCalled()
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs.max_completion_tokens).toBe(4096)
 		})
 
@@ -489,7 +489,7 @@ describe("OpenAiHandler", () => {
 			}
 			// Assert the mockCreate was called without max_tokens
 			expect(mockCreate).toHaveBeenCalled()
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs.max_completion_tokens).toBeUndefined()
 		})
 
@@ -510,7 +510,7 @@ describe("OpenAiHandler", () => {
 			}
 			// Assert the mockCreate was called without max_tokens
 			expect(mockCreate).toHaveBeenCalled()
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs.max_completion_tokens).toBeUndefined()
 		})
 
@@ -532,7 +532,7 @@ describe("OpenAiHandler", () => {
 			}
 			// Assert the mockCreate was called with user-configured modelMaxTokens (32000), not model default maxTokens (4096)
 			expect(mockCreate).toHaveBeenCalled()
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs.max_completion_tokens).toBe(32000)
 		})
 
@@ -554,7 +554,7 @@ describe("OpenAiHandler", () => {
 			}
 			// Assert the mockCreate was called with model default maxTokens (4096) as fallback
 			expect(mockCreate).toHaveBeenCalled()
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs.max_completion_tokens).toBe(4096)
 		})
 	})
@@ -701,7 +701,7 @@ describe("OpenAiHandler", () => {
 			)
 
 			// Verify max_tokens is NOT included when not explicitly set
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs).not.toHaveProperty("max_completion_tokens")
 		})
 
@@ -750,7 +750,7 @@ describe("OpenAiHandler", () => {
 			)
 
 			// Verify max_tokens is NOT included when not explicitly set
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs).not.toHaveProperty("max_completion_tokens")
 		})
 
@@ -767,7 +767,7 @@ describe("OpenAiHandler", () => {
 			)
 
 			// Verify max_tokens is NOT included when includeMaxTokens is not set
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs).not.toHaveProperty("max_completion_tokens")
 		})
 	})
@@ -1023,7 +1023,7 @@ describe("OpenAiHandler", () => {
 			)
 
 			// Verify max_tokens is NOT included
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs).not.toHaveProperty("max_completion_tokens")
 		})
 
@@ -1067,7 +1067,7 @@ describe("OpenAiHandler", () => {
 			)
 
 			// Verify stream is not set
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs).not.toHaveProperty("stream")
 		})
 
@@ -1169,7 +1169,7 @@ describe("OpenAiHandler", () => {
 			)
 
 			// Verify max_tokens is NOT included when includeMaxTokens is false
-			const callArgs = mockCreate.mock.calls[0][0]
+			const callArgs = mockCreate.mock.calls[0][1]
 			expect(callArgs).not.toHaveProperty("max_completion_tokens")
 		})
 
@@ -1197,6 +1197,52 @@ describe("OpenAiHandler", () => {
 				}),
 				{ path: "/models/chat/completions" },
 			)
+		})
+
+		describe("abortSignal support", () => {
+			it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+				const handler = new OpenAiHandler(mockOptions)
+				const systemPrompt = "You are a helpful assistant."
+				const messages: Anthropic.Messages.MessageParam[] = [
+					{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
+				]
+
+				const controller = new AbortController()
+				const mockAbortSignal = controller.signal
+
+				for await (const _chunk of handler.createMessage(systemPrompt, messages, {
+					taskId: "test",
+					abortSignal: mockAbortSignal,
+				})) {
+					break
+				}
+				for await (const _chunk of handler.createMessage(systemPrompt, messages)) {
+					break
+				}
+
+				expect(mockCreate).toHaveBeenCalled()
+				const callArgs = mockCreate.mock.calls[0][1]
+				expect(callArgs?.signal).toBe(mockAbortSignal)
+			})
+
+			it("should not include signal when abortSignal is not provided", async () => {
+				const handler = new OpenAiHandler(mockOptions)
+				const systemPrompt = "You are a helpful assistant."
+				const messages: Anthropic.Messages.MessageParam[] = [
+					{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
+				]
+
+				for await (const _chunk of handler.createMessage(systemPrompt, messages)) {
+					break
+				}
+				for await (const _chunk of handler.createMessage(systemPrompt, messages)) {
+					break
+				}
+
+				expect(mockCreate).toHaveBeenCalled()
+				const callArgs = mockCreate.mock.calls[0][1]
+				expect(callArgs?.signal).toBeUndefined()
+			})
 		})
 	})
 })

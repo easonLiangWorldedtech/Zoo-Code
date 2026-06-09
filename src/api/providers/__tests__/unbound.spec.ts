@@ -88,6 +88,7 @@ describe("UnboundHandler", () => {
 					mode: "architect",
 				},
 			}),
+			expect.any(Object),
 		)
 	})
 })

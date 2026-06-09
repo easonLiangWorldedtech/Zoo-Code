@@ -190,6 +190,7 @@ describe("RequestyHandler", () => {
 					stream_options: { include_usage: true },
 					temperature: 0,
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -261,6 +262,7 @@ describe("RequestyHandler", () => {
 						]),
 						tool_choice: "auto",
 					}),
+					expect.any(Object),
 				)
 			})
 
@@ -380,6 +382,65 @@ describe("RequestyHandler", () => {
 			mockCreate.mockRejectedValue(new Error("Unexpected error"))
 
 			await expect(handler.completePrompt("test prompt")).rejects.toThrow("Unexpected error")
+		})
+	})
+
+	describe("abortSignal support", () => {
+		const mockStream = {
+			async *[Symbol.asyncIterator]() {
+				yield {
+					id: "test-id",
+					choices: [{ delta: { content: "test response" } }],
+				}
+			},
+		}
+
+		beforeEach(() => {
+			mockCreate.mockResolvedValue(mockStream)
+		})
+
+		it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+			const handler = new RequestyHandler(mockOptions)
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
+			]
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			for await (const _chunk of handler.createMessage(systemPrompt, messages, {
+				taskId: "test",
+				abortSignal: mockAbortSignal,
+			})) {
+				break
+			}
+			for await (const _chunk of handler.createMessage(systemPrompt, messages)) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should not include signal when abortSignal is not provided", async () => {
+			const handler = new RequestyHandler(mockOptions)
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
+			]
+
+			for await (const _chunk of handler.createMessage(systemPrompt, messages)) {
+				break
+			}
+			for await (const _chunk of handler.createMessage(systemPrompt, messages)) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
 		})
 	})
 })
