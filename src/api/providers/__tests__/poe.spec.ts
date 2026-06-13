@@ -194,6 +194,7 @@ describe("PoeHandler", () => {
 					reasoningBudgetTokens: 4096,
 				},
 			})
+			expect(callArgs.abortSignal).toBe(undefined)
 			expect(callArgs.maxOutputTokens).toBe(modelMaxTokens - 4096)
 
 			expect(chunks).toContainEqual({ type: "reasoning", text: "Let me think..." })
@@ -229,6 +230,7 @@ describe("PoeHandler", () => {
 							reasoningSummary: "auto",
 						},
 					},
+					abortSignal: undefined,
 				}),
 			)
 		})
@@ -302,6 +304,87 @@ describe("PoeHandler", () => {
 					prompt: "complete this",
 				}),
 			)
+		})
+
+		it("should pass abortSignal to generateText when provided in metadata", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+
+			mockGenerateText.mockResolvedValue({ text: "generated response" })
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			await handler.completePrompt("complete this", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockGenerateText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+
+			mockGenerateText.mockResolvedValue({ text: "generated response" })
+
+			await handler.completePrompt("complete this")
+
+			const callArgs = mockGenerateText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBeUndefined()
+		})
+	})
+
+	describe("abortSignal support", () => {
+		it("should pass abortSignal to streamText when provided in metadata", async () => {
+			const handler = new PoeHandler({
+				poeApiKey: "key",
+				apiModelId: "openai/gpt-4o",
+			})
+
+			const fullStream = (async function* () {
+				yield { type: "text-delta", text: "Answer" }
+			})()
+
+			mockStreamText.mockReturnValue({
+				fullStream,
+				usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
+			})
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "Hello!" }], {
+				taskId: "test",
+				abortSignal: mockAbortSignal,
+			})) {
+				break
+			}
+
+			expect(mockStreamText).toHaveBeenCalled()
+			const callArgs = mockStreamText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const handler = new PoeHandler({
+				poeApiKey: "key",
+				apiModelId: "openai/gpt-4o",
+			})
+
+			const fullStream = (async function* () {
+				yield { type: "text-delta", text: "Answer" }
+			})()
+
+			mockStreamText.mockReturnValue({
+				fullStream,
+				usage: Promise.resolve({ inputTokens: 0, outputTokens: 0 }),
+			})
+
+			for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "Hello!" }])) {
+				break
+			}
+
+			expect(mockStreamText).toHaveBeenCalled()
+			const callArgs = mockStreamText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBeUndefined()
 		})
 	})
 })

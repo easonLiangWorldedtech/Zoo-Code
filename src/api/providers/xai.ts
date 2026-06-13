@@ -126,9 +126,8 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 
 		let stream: AsyncIterable<any>
 		try {
-			stream = (await this.client.responses.create({
-				...requestBody,
-				stream: true,
+			stream = (await this.client.responses.create(requestBody, {
+				signal: metadata?.abortSignal,
 			} as any)) as unknown as AsyncIterable<any>
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
@@ -141,15 +140,18 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 		yield* processResponsesApiStream(stream, normalizeUsage)
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		const model = this.getModel()
 
 		try {
-			const response = await this.client.responses.create({
-				model: model.id,
-				input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
-				store: false,
-			})
+			const response = (await this.client.responses.create(
+				{
+					model: model.id,
+					input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
+					store: false,
+				},
+				{ signal: metadata?.abortSignal },
+			)) as any
 
 			// output_text is a convenience field on the Responses API response
 			return response.output_text || ""

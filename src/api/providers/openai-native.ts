@@ -410,8 +410,16 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		systemPrompt?: string,
 		messages?: Anthropic.Messages.MessageParam[],
 	): ApiStream {
-		// Create AbortController for cancellation
+		// Create AbortController for cancellation and external abort signal support
 		this.abortController = new AbortController()
+
+		// Listen for external abort signal from metadata and forward to internal controller
+		const externalAbortSignal = metadata?.abortSignal
+		if (externalAbortSignal) {
+			externalAbortSignal.addEventListener("abort", () => {
+				this.abortController?.abort()
+			})
+		}
 
 		// Build per-request headers using taskId when available, falling back to sessionId
 		const taskId = metadata?.taskId
@@ -446,8 +454,17 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 				}
 			}
 		} catch (sdkErr: any) {
-			// For errors, fallback to manual SSE via fetch
-			yield* this.makeResponsesApiRequest(requestBody, model, metadata, systemPrompt, messages)
+			// For errors, fallback to manual SSE via fetch.
+			// Pass the existing controller's signal so the fallback request remains cancellable
+			// by the same external abort signal wired in executeRequest.
+			yield* this.makeResponsesApiRequest(
+				requestBody,
+				model,
+				metadata,
+				systemPrompt,
+				messages,
+				this.abortController?.signal,
+			)
 		} finally {
 			this.abortController = undefined
 		}
@@ -553,13 +570,17 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		metadata?: ApiHandlerCreateMessageMetadata,
 		systemPrompt?: string,
 		messages?: Anthropic.Messages.MessageParam[],
+		existingSignal?: AbortSignal,
 	): ApiStream {
 		const apiKey = this.options.openAiNativeApiKey ?? "not-provided"
 		const baseUrl = this.options.openAiNativeBaseUrl || "https://api.openai.com"
 		const url = `${baseUrl}/v1/responses`
 
-		// Create AbortController for cancellation
-		this.abortController = new AbortController()
+		// Reuse existing controller/signal from executeRequest if provided, otherwise create a new one.
+		// This ensures the fallback request remains cancellable by the same external abort signal.
+		if (!existingSignal) {
+			this.abortController = new AbortController()
+		}
 
 		// Build per-request headers using taskId when available, falling back to sessionId
 		const taskId = metadata?.taskId
@@ -576,7 +597,7 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 					"User-Agent": userAgent,
 				},
 				body: JSON.stringify(requestBody),
-				signal: this.abortController.signal,
+				signal: existingSignal ?? this.abortController?.signal,
 			})
 
 			if (!response.ok) {

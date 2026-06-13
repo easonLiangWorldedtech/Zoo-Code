@@ -237,7 +237,9 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 			parallel_tool_calls: metadata?.parallelToolCalls ?? true,
 		}
 
-		const stream = await this.callApiWithRetry(() => client.chat.completions.create(requestOptions))
+		const stream = await this.callApiWithRetry(() =>
+			client.chat.completions.create(requestOptions, { signal: metadata?.abortSignal }),
+		)
 
 		let fullContent = ""
 
@@ -327,7 +329,7 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 		return { id, info }
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		await this.ensureAuthenticated()
 		const client = this.ensureClient()
 		const model = this.getModel()
@@ -338,7 +340,11 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 			max_completion_tokens: model.info.maxTokens,
 		}
 
-		const response = await this.callApiWithRetry(() => client.chat.completions.create(requestOptions))
+		const response = await this.callApiWithRetry(() =>
+			client.chat.completions.create(requestOptions, {
+				signal: metadata?.abortSignal,
+			}),
+		)
 
 		return response.choices[0]?.message.content || ""
 	}

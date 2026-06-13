@@ -156,6 +156,33 @@ describe("GeminiHandler", () => {
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("")
 		})
+
+		it("should pass abortSignal to generateContent when provided in metadata", async () => {
+			const mockGenerateContent = vitest.fn().mockResolvedValue({
+				text: "Test response",
+			})
+			;(handler["client"].models as any).generateContent = mockGenerateContent
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			await handler.completePrompt("Test prompt", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockGenerateContent.mock.calls[0][0]
+			expect(callArgs.config?.abortSignal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const mockGenerateContent = vitest.fn().mockResolvedValue({
+				text: "Test response",
+			})
+			;(handler["client"].models as any).generateContent = mockGenerateContent
+
+			await handler.completePrompt("Test prompt")
+
+			const callArgs = mockGenerateContent.mock.calls[0][0]
+			expect(callArgs.config?.abortSignal).toBeUndefined()
+		})
 	})
 
 	describe("getModel", () => {
@@ -364,6 +391,50 @@ describe("GeminiHandler", () => {
 
 			// Telemetry should have been captured before the error was thrown
 			expect(mockCaptureException).toHaveBeenCalled()
+		})
+	})
+
+	describe("abortSignal support", () => {
+		it("should pass abortSignal to generateContentStream when provided in metadata", async () => {
+			const mockGenerateContentStream = vitest.fn().mockResolvedValue({
+				[Symbol.asyncIterator]: async function* () {
+					yield { text: "Hello" }
+				},
+			})
+
+			handler["client"].models.generateContentStream = mockGenerateContentStream
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "Hello!" }], {
+				taskId: "test",
+				abortSignal: mockAbortSignal,
+			})) {
+				break
+			}
+
+			expect(mockGenerateContentStream).toHaveBeenCalled()
+			const callArgs = mockGenerateContentStream.mock.calls[0][0]
+			expect(callArgs.config?.abortSignal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const mockGenerateContentStream = vitest.fn().mockResolvedValue({
+				[Symbol.asyncIterator]: async function* () {
+					yield { text: "Hello" }
+				},
+			})
+
+			handler["client"].models.generateContentStream = mockGenerateContentStream
+
+			for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "Hello!" }])) {
+				break
+			}
+
+			expect(mockGenerateContentStream).toHaveBeenCalled()
+			const callArgs = mockGenerateContentStream.mock.calls[0][0]
+			expect(callArgs.config?.abortSignal).toBeUndefined()
 		})
 	})
 })

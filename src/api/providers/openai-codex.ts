@@ -188,7 +188,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		// Make the request with retry on auth failure
 		for (let attempt = 0; attempt < 2; attempt++) {
 			try {
-				yield* this.executeRequest(requestBody, model, accessToken, metadata?.taskId)
+				yield* this.executeRequest(requestBody, model, accessToken, metadata?.taskId, metadata)
 				return
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error)
@@ -345,9 +345,18 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		model: OpenAiCodexModel,
 		accessToken: string,
 		taskId?: string,
+		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
-		// Create AbortController for cancellation
+		// Create AbortController for cancellation and external abort signal support
 		this.abortController = new AbortController()
+
+		// Listen for external abort signal from metadata and forward to internal controller
+		const externalAbortSignal = metadata?.abortSignal
+		if (externalAbortSignal) {
+			externalAbortSignal.addEventListener("abort", () => {
+				this.abortController?.abort()
+			})
+		}
 
 		try {
 			// Prefer OpenAI SDK streaming (same approach as openai-native) so event handling

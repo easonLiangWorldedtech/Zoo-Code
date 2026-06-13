@@ -205,9 +205,36 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
-		const client = this.ensureClient()
 		const { id: modelId } = await this.fetchModel()
 		const useR1Format = modelId.toLowerCase().includes("deepseek-r1")
+
+		// Create a per-request Ollama client since the SDK doesn't support abortSignal in options.
+		// We listen to metadata.abortSignal and call client.abort() when it fires.
+		const requestClient = new Ollama({
+			host: this.options.ollamaBaseUrl || "http://localhost:11434",
+		})
+
+		// Add API key if provided
+		if (this.options.ollamaApiKey) {
+			;(requestClient as any).config = {
+				...((requestClient as any).config ?? {}),
+				headers: { Authorization: `Bearer ${this.options.ollamaApiKey}` },
+			}
+		}
+
+		// Wire external abort signal to per-request client's abort() method
+		const externalAbortSignal = metadata?.abortSignal
+		if (externalAbortSignal) {
+			if (externalAbortSignal.aborted) {
+				requestClient.abort()
+			} else {
+				const abortListener = () => {
+					requestClient.abort()
+					externalAbortSignal.removeEventListener("abort", abortListener)
+				}
+				externalAbortSignal.addEventListener("abort", abortListener, { once: true })
+			}
+		}
 
 		const ollamaMessages: Message[] = [
 			{ role: "system", content: systemPrompt },
@@ -234,14 +261,14 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 				chatOptions.num_ctx = this.options.ollamaNumCtx
 			}
 
-			// Create the actual API request promise
-			const stream = await client.chat({
+			// Create the actual API request promise (use per-request client, not signal in options)
+			const stream = await requestClient.chat({
 				model: modelId,
 				messages: ollamaMessages,
 				stream: true,
 				options: chatOptions,
 				tools: this.convertToolsToOllama(metadata?.tools),
-			})
+			} as any)
 
 			let totalInputTokens = 0
 			let totalOutputTokens = 0
@@ -344,35 +371,59 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
+		// Create a per-request Ollama client since the SDK doesn't support abortSignal in options.
+		const requestClient = new Ollama({
+			host: this.options.ollamaBaseUrl || "http://localhost:11434",
+		})
+
+		if (this.options.ollamaApiKey) {
+			;(requestClient as any).config = {
+				headers: { Authorization: `Bearer ${this.options.ollamaApiKey}` },
+			}
+		}
+
+		// Wire external abort signal to per-request client's abort() method
+		const externalAbortSignal = metadata?.abortSignal
+		if (externalAbortSignal) {
+			if (externalAbortSignal.aborted) {
+				requestClient.abort()
+			} else {
+				const abortListener = () => {
+					requestClient.abort()
+					externalAbortSignal.removeEventListener("abort", abortListener)
+				}
+				externalAbortSignal.addEventListener("abort", abortListener, { once: true })
+			}
+		}
+
 		try {
-			const client = this.ensureClient()
 			const { id: modelId } = await this.fetchModel()
 			const useR1Format = modelId.toLowerCase().includes("deepseek-r1")
 
-			// Build options object conditionally
 			const chatOptions: OllamaChatOptions = {
 				temperature: this.options.modelTemperature ?? (useR1Format ? DEEP_SEEK_DEFAULT_TEMPERATURE : 0),
 			}
 
-			// Only include num_ctx if explicitly set via ollamaNumCtx
 			if (this.options.ollamaNumCtx !== undefined) {
 				chatOptions.num_ctx = this.options.ollamaNumCtx
 			}
 
-			const response = await client.chat({
+			const response = await requestClient.chat({
 				model: modelId,
 				messages: [{ role: "user", content: prompt }],
 				stream: false,
 				options: chatOptions,
-			})
+			} as any)
 
-			return response.message?.content || ""
+			return ((response as any).message?.content as string) || ""
 		} catch (error) {
 			if (error instanceof Error) {
 				throw new Error(`Ollama completion error: ${error.message}`)
 			}
 			throw error
+		} finally {
+			requestClient.abort()
 		}
 	}
 }

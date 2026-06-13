@@ -175,9 +175,12 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 								case "claude-haiku-4-5-20251001":
 								case "claude-3-haiku-20240307":
 									betas.push("prompt-caching-2024-07-31")
-									return { headers: { "anthropic-beta": betas.join(",") } }
+									return {
+										headers: { "anthropic-beta": betas.join(",") },
+										signal: metadata?.abortSignal,
+									}
 								default:
-									return undefined
+									return { signal: metadata?.abortSignal }
 							}
 						})(),
 					)
@@ -208,6 +211,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 					}
 					stream = (await this.client.messages.create(
 						requestParams as Anthropic.Messages.MessageCreateParamsStreaming,
+						{ signal: metadata?.abortSignal },
 					)) as any
 				} catch (error) {
 					TelemetryService.instance.captureException(
@@ -397,19 +401,22 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 		}
 	}
 
-	async completePrompt(prompt: string) {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata) {
 		let { id: model, temperature } = this.getModel()
 
 		let message
 		try {
-			message = await this.client.messages.create({
-				model,
-				max_tokens: ANTHROPIC_DEFAULT_MAX_TOKENS,
-				thinking: undefined,
-				temperature,
-				messages: [{ role: "user", content: prompt }],
-				stream: false,
-			})
+			message = await this.client.messages.create(
+				{
+					model,
+					max_tokens: ANTHROPIC_DEFAULT_MAX_TOKENS,
+					thinking: undefined,
+					temperature,
+					messages: [{ role: "user", content: prompt }],
+					stream: false,
+				},
+				metadata?.abortSignal ? { signal: metadata.abortSignal } : undefined,
+			)
 		} catch (error) {
 			TelemetryService.instance.captureException(
 				new ApiProviderError(

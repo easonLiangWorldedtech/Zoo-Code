@@ -496,4 +496,44 @@ describe("MistralHandler", () => {
 			await expect(handler.completePrompt("Test prompt")).rejects.toThrow("Mistral completion error: API Error")
 		})
 	})
+
+	describe("abortSignal support", () => {
+		it("should pass abortSignal to chat.stream when provided in metadata", async () => {
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			mockCreate.mockImplementation(async () => ({
+				[Symbol.asyncIterator]: async function* () {
+					yield { data: { choices: [{ delta: { content: "test" } }] } }
+				},
+			}))
+
+			for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "Hello!" }], {
+				taskId: "test",
+				abortSignal: mockAbortSignal,
+			})) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][0]
+			expect(callArgs.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			mockCreate.mockImplementation(async () => ({
+				[Symbol.asyncIterator]: async function* () {
+					yield { data: { choices: [{ delta: { content: "test" } }] } }
+				},
+			}))
+
+			for await (const _chunk of handler.createMessage("system", [{ role: "user", content: "Hello!" }])) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][0]
+			expect(callArgs.signal).toBeUndefined()
+		})
+	})
 })

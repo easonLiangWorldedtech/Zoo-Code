@@ -218,6 +218,31 @@ describe("MiniMaxHandler", () => {
 			await expect(handler.completePrompt("test prompt")).rejects.toThrow()
 		})
 
+		it("should pass abortSignal to messages.create when provided in metadata", async () => {
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			mockCreate.mockResolvedValueOnce({
+				content: [{ type: "text", text: "Test response" }],
+			})
+
+			await handler.completePrompt("test prompt", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			mockCreate.mockResolvedValueOnce({
+				content: [{ type: "text", text: "Test response" }],
+			})
+
+			await handler.completePrompt("test prompt")
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
+		})
+
 		it("createMessage should yield text content from stream", async () => {
 			const testContent = "This is test content from MiniMax stream"
 
@@ -303,6 +328,9 @@ describe("MiniMaxHandler", () => {
 					messages: expect.any(Array),
 					stream: true,
 				}),
+				expect.objectContaining({
+					signal: undefined,
+				}),
 			)
 		})
 
@@ -321,6 +349,9 @@ describe("MiniMaxHandler", () => {
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({
 					temperature: 1,
+				}),
+				expect.objectContaining({
+					signal: undefined,
 				}),
 			)
 		})
@@ -476,6 +507,59 @@ describe("MiniMaxHandler", () => {
 		it("should correctly configure MiniMax-M2 model properties with updated context window", () => {
 			const model = minimaxModels["MiniMax-M2"]
 			expect(model.contextWindow).toBe(204_800)
+		})
+	})
+
+	describe("abortSignal support", () => {
+		it("should pass abortSignal to messages.create when provided in metadata", async () => {
+			const handler = new MiniMaxHandler({
+				minimaxApiKey: "test-key",
+				apiModelId: "MiniMax-M2.7",
+			})
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			mockCreate.mockResolvedValueOnce({
+				[Symbol.asyncIterator]: async function* () {
+					yield { type: "message_start", message: { usage: { input_tokens: 10, output_tokens: 5 } } }
+				},
+			})
+
+			for await (const _chunk of handler.createMessage(
+				"system",
+				[{ role: "user", content: [{ type: "text", text: "Hello!" }] }],
+				{ taskId: "test", abortSignal: mockAbortSignal },
+			)) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const handler = new MiniMaxHandler({
+				minimaxApiKey: "test-key",
+				apiModelId: "MiniMax-M2.7",
+			})
+
+			mockCreate.mockResolvedValueOnce({
+				[Symbol.asyncIterator]: async function* () {
+					yield { type: "message_start", message: { usage: { input_tokens: 10, output_tokens: 5 } } }
+				},
+			})
+
+			for await (const _chunk of handler.createMessage("system", [
+				{ role: "user", content: [{ type: "text", text: "Hello!" }] },
+			])) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
 		})
 	})
 })

@@ -469,7 +469,7 @@ describe("ZAiHandler", () => {
 					stream: true,
 					stream_options: { include_usage: true },
 				}),
-				undefined,
+				expect.any(Object),
 			)
 		})
 	})
@@ -500,6 +500,7 @@ describe("ZAiHandler", () => {
 					model: "glm-5.1",
 					max_tokens: 40_000,
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -540,6 +541,7 @@ describe("ZAiHandler", () => {
 					model: "glm-5.1",
 					max_tokens: 100_000,
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -570,6 +572,7 @@ describe("ZAiHandler", () => {
 					model: "glm-4.7",
 					thinking: { type: "enabled" },
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -601,6 +604,7 @@ describe("ZAiHandler", () => {
 					model: "glm-4.7",
 					thinking: { type: "disabled" },
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -632,6 +636,7 @@ describe("ZAiHandler", () => {
 					model: "glm-4.7",
 					thinking: { type: "enabled" },
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -685,6 +690,7 @@ describe("ZAiHandler", () => {
 					model: "glm-5-turbo",
 					thinking: { type: "enabled" },
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -715,7 +721,53 @@ describe("ZAiHandler", () => {
 					model: "glm-5-turbo",
 					thinking: { type: "disabled" },
 				}),
+				expect.any(Object),
 			)
+		})
+	})
+
+	describe("abortSignal support", () => {
+		it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			mockCreate.mockImplementation(async function* () {
+				yield {
+					choices: [{ delta: { content: "Test" }, index: 0 }],
+					usage: null,
+				}
+			})
+
+			for await (const _chunk of handler.createMessage(
+				"system",
+				[{ role: "user", content: [{ type: "text", text: "Hello!" }] }],
+				{ taskId: "test", abortSignal: mockAbortSignal },
+			)) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			mockCreate.mockImplementation(async function* () {
+				yield {
+					choices: [{ delta: { content: "Test" }, index: 0 }],
+					usage: null,
+				}
+			})
+
+			for await (const _chunk of handler.createMessage("system", [
+				{ role: "user", content: [{ type: "text", text: "Hello!" }] },
+			])) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
 		})
 	})
 })

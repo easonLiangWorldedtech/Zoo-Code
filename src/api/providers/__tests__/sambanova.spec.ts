@@ -146,7 +146,40 @@ describe("SambaNovaHandler", () => {
 				stream: true,
 				stream_options: { include_usage: true },
 			}),
-			undefined,
+			expect.any(Object),
 		)
+	})
+
+	describe("abortSignal support", () => {
+		it("createMessage should pass abortSignal to SambaNova client", async () => {
+			const handlerWithModel = new SambaNovaHandler({
+				apiModelId: "Meta-Llama-3.3-70B-Instruct" as SambaNovaModelId,
+				sambaNovaApiKey: "test-sambanova-api-key",
+			})
+
+			mockCreate.mockImplementationOnce(() => {
+				return {
+					[Symbol.asyncIterator]: () => ({
+						async next() {
+							return { done: true }
+						},
+					}),
+				}
+			})
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			for await (const _chunk of handlerWithModel.createMessage("system prompt", [], {
+				taskId: "test",
+				abortSignal: mockAbortSignal,
+			})) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
 	})
 })

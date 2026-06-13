@@ -386,6 +386,21 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 		// Initialize cancellation token for the request
 		this.currentRequestCancellation = new vscode.CancellationTokenSource()
 
+		// Wire external abort signal to VS Code cancellation token
+		// When the external signal fires, cancel the current request
+		const externalSignal = metadata?.abortSignal
+		if (externalSignal) {
+			if (externalSignal.aborted) {
+				this.currentRequestCancellation?.cancel()
+			} else {
+				const abortListener = () => {
+					this.currentRequestCancellation?.cancel()
+					externalSignal.removeEventListener("abort", abortListener)
+				}
+				externalSignal.addEventListener("abort", abortListener, { once: true })
+			}
+		}
+
 		// Calculate input tokens before starting the stream
 		const totalInputTokens: number = await this.calculateTotalInputTokens(vsCodeLmMessages)
 
@@ -562,13 +577,29 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
+		const cancellation = new vscode.CancellationTokenSource()
+
+		// Wire external abort signal to VS Code cancellation token
+		const externalSignal = metadata?.abortSignal
+		if (externalSignal) {
+			if (externalSignal.aborted) {
+				cancellation.cancel()
+			} else {
+				const abortListener = () => {
+					cancellation.cancel()
+					externalSignal.removeEventListener("abort", abortListener)
+				}
+				externalSignal.addEventListener("abort", abortListener, { once: true })
+			}
+		}
+
 		try {
 			const client = await this.getClient()
 			const response = await client.sendRequest(
 				[vscode.LanguageModelChatMessage.User(prompt)],
 				{},
-				new vscode.CancellationTokenSource().token,
+				cancellation.token,
 			)
 			let result = ""
 			for await (const chunk of response.stream) {
@@ -582,6 +613,8 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 				throw new Error(`VSCode LM completion error: ${error.message}`)
 			}
 			throw error
+		} finally {
+			cancellation.dispose()
 		}
 	}
 }

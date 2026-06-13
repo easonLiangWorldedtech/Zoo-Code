@@ -70,7 +70,7 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 			parallel_tool_calls: metadata?.parallelToolCalls ?? true,
 		}
 
-		const completion = await this.client.chat.completions.create(body)
+		const completion = await this.client.chat.completions.create(body, { signal: metadata?.abortSignal })
 
 		for await (const chunk of completion) {
 			const delta = chunk.choices[0]?.delta
@@ -115,7 +115,7 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 	 * @returns The model's reply text, or an empty string if no content is returned.
 	 * @throws Error with an Opencode Go-specific prefix if the request fails.
 	 */
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		const { id: modelId, info } = await this.fetchModel()
 
 		try {
@@ -131,7 +131,10 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 
 			requestOptions.max_completion_tokens = info.maxTokens
 
-			const response = await this.client.chat.completions.create(requestOptions)
+			const response = await this.client.chat.completions.create(
+				requestOptions,
+				...(metadata?.abortSignal ? [{ signal: metadata.abortSignal }] : []),
+			)
 			return response.choices[0]?.message.content || ""
 		} catch (error) {
 			if (error instanceof Error) {

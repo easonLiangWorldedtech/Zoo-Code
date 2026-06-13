@@ -149,7 +149,7 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 
 		let stream
 		try {
-			stream = await this.client.chat.completions.create(completionParams)
+			stream = await this.client.chat.completions.create(completionParams, { signal: metadata?.abortSignal })
 		} catch (error) {
 			throw handleOpenAIError(error, this.providerName)
 		}
@@ -189,7 +189,7 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		const { id: model, maxTokens: max_tokens, temperature } = await this.fetchModel()
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }]
@@ -203,7 +203,9 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 
 		let response: OpenAI.Chat.ChatCompletion
 		try {
-			response = await this.client.chat.completions.create(completionParams)
+			response = await this.client.chat.completions.create(completionParams, {
+				signal: metadata?.abortSignal,
+			})
 		} catch (error) {
 			throw handleOpenAIError(error, this.providerName)
 		}

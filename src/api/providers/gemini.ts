@@ -343,7 +343,11 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			}
 		}
 
-		const params: GenerateContentParameters = { model, contents, config }
+		const params: any = {
+			model,
+			contents,
+			config: { ...config, abortSignal: metadata?.abortSignal },
+		}
 
 		try {
 			const result = await this.client.models.generateContentStream(params)
@@ -576,7 +580,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		return citationLinks.join(", ")
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		const { id: model, info } = this.getModel()
 
 		try {
@@ -595,7 +599,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			const request = {
 				model,
 				contents: [{ role: "user", parts: [{ text: prompt }] }],
-				config: promptConfig,
+				config: { ...promptConfig, abortSignal: metadata?.abortSignal },
 			}
 
 			const result = await this.client.models.generateContent(request)

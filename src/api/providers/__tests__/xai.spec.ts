@@ -96,15 +96,14 @@ describe("XAIHandler", () => {
 		const stream = handler.createMessage("test prompt", [])
 		await stream.next()
 
-		expect(mockResponsesCreate).toHaveBeenCalledWith(
-			expect.objectContaining({
-				model: xaiDefaultModelId,
-				instructions: "test prompt",
-				stream: true,
-				store: false,
-				include: ["reasoning.encrypted_content"],
-			}),
-		)
+		const callArgs = mockResponsesCreate.mock.calls[0][0]
+		expect(callArgs).toMatchObject({
+			model: xaiDefaultModelId,
+			instructions: "test prompt",
+			stream: true,
+			store: false,
+			include: ["reasoning.encrypted_content"],
+		})
 	})
 
 	it("createMessage should yield text content from stream", async () => {
@@ -220,20 +219,19 @@ describe("XAIHandler", () => {
 		})
 		await stream.next()
 
-		expect(mockResponsesCreate).toHaveBeenCalledWith(
-			expect.objectContaining({
-				tools: [
-					expect.objectContaining({
-						type: "function",
-						name: "test_tool",
-						description: "A test tool",
-						strict: true,
-					}),
-				],
-				tool_choice: "auto",
-				parallel_tool_calls: true,
-			}),
-		)
+		const callArgs = mockResponsesCreate.mock.calls[0][0]
+		expect(callArgs).toMatchObject({
+			tools: [
+				expect.objectContaining({
+					type: "function",
+					name: "test_tool",
+					description: "A test tool",
+					strict: true,
+				}),
+			],
+			tool_choice: "auto",
+			parallel_tool_calls: true,
+		})
 	})
 
 	it("completePrompt should return text from Responses API", async () => {
@@ -253,6 +251,31 @@ describe("XAIHandler", () => {
 		await expect(handler.completePrompt("test prompt")).rejects.toThrow(`xAI completion error: ${errorMessage}`)
 	})
 
+	it("should pass abortSignal to responses.create when provided in metadata", async () => {
+		const controller = new AbortController()
+		const mockAbortSignal = controller.signal
+
+		mockResponsesCreate.mockResolvedValueOnce({
+			output_text: "Test response",
+		})
+
+		await handler.completePrompt("test prompt", { taskId: "test", abortSignal: mockAbortSignal })
+
+		const callArgs = mockResponsesCreate.mock.calls[0][1]
+		expect(callArgs?.signal).toBe(mockAbortSignal)
+	})
+
+	it("should pass undefined signal when abortSignal is not provided", async () => {
+		mockResponsesCreate.mockResolvedValueOnce({
+			output_text: "Test response",
+		})
+
+		await handler.completePrompt("test prompt")
+
+		const callArgs = mockResponsesCreate.mock.calls[0][1]
+		expect(callArgs?.signal).toBeUndefined()
+	})
+
 	it("should include reasoning_effort for mini models", async () => {
 		const miniModelHandler = new XAIHandler({
 			apiModelId: "grok-3-mini",
@@ -264,13 +287,12 @@ describe("XAIHandler", () => {
 		const stream = miniModelHandler.createMessage("test prompt", [])
 		await stream.next()
 
-		expect(mockResponsesCreate).toHaveBeenCalledWith(
-			expect.objectContaining({
-				reasoning: expect.objectContaining({
-					reasoning_effort: "high",
-				}),
+		const callArgs = mockResponsesCreate.mock.calls[0][0]
+		expect(callArgs).toMatchObject({
+			reasoning: expect.objectContaining({
+				reasoning_effort: "high",
 			}),
-		)
+		})
 	})
 
 	it("should not include reasoning for non-mini models", async () => {
@@ -294,5 +316,37 @@ describe("XAIHandler", () => {
 
 		const stream = handler.createMessage("test prompt", [])
 		await expect(stream.next()).rejects.toThrow(`xAI completion error: ${errorMessage}`)
+	})
+
+	describe("abortSignal support", () => {
+		it("should pass abortSignal to responses.create when provided in metadata", async () => {
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			mockResponsesCreate.mockResolvedValueOnce(mockStream([]))
+
+			for await (const _chunk of handler.createMessage("test prompt", [], {
+				taskId: "test",
+				abortSignal: mockAbortSignal,
+			})) {
+				break
+			}
+
+			expect(mockResponsesCreate).toHaveBeenCalled()
+			const callArgs = mockResponsesCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			mockResponsesCreate.mockResolvedValueOnce(mockStream([]))
+
+			for await (const _chunk of handler.createMessage("test prompt", [])) {
+				break
+			}
+
+			expect(mockResponsesCreate).toHaveBeenCalled()
+			const callArgs = mockResponsesCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
+		})
 	})
 })

@@ -284,6 +284,42 @@ describe("ZooGatewayHandler", () => {
 			)
 		})
 
+		describe("abortSignal support", () => {
+			it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+				const handler = new ZooGatewayHandler(mockOptions)
+
+				const controller = new AbortController()
+				const mockAbortSignal = controller.signal
+
+				await handler
+					.createMessage("prompt", [{ role: "user", content: "Hi" }], {
+						taskId: "test",
+						abortSignal: mockAbortSignal,
+					})
+					.next()
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({
+						signal: mockAbortSignal,
+					}),
+				)
+			})
+
+			it("should pass undefined signal when abortSignal is not provided", async () => {
+				const handler = new ZooGatewayHandler(mockOptions)
+
+				await handler.createMessage("prompt", [{ role: "user", content: "Hi" }]).next()
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({
+						signal: undefined,
+					}),
+				)
+			})
+		})
+
 		it("uses custom temperature when provided", async () => {
 			const handler = new ZooGatewayHandler({
 				...mockOptions,
@@ -428,6 +464,7 @@ describe("ZooGatewayHandler", () => {
 					temperature: ZOO_GATEWAY_DEFAULT_TEMPERATURE,
 					max_completion_tokens: 64000,
 				}),
+				expect.objectContaining({ signal: undefined }),
 			)
 		})
 
@@ -449,6 +486,35 @@ describe("ZooGatewayHandler", () => {
 			}))
 
 			await expect(handler.completePrompt("Test")).resolves.toBe("")
+		})
+
+		it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+			const handler = new ZooGatewayHandler(mockOptions)
+
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "Test completion response" } }],
+			})
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			await handler.completePrompt("Complete this: Hello", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const handler = new ZooGatewayHandler(mockOptions)
+
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "Test completion response" } }],
+			})
+
+			await handler.completePrompt("Complete this: Hello")
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
 		})
 	})
 

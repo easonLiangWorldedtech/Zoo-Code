@@ -391,6 +391,148 @@ describe("VsCodeLmHandler", () => {
 
 			await expect(handler.createMessage(systemPrompt, messages).next()).rejects.toThrow("API Error")
 		})
+
+		describe("abortSignal support", () => {
+			it("should cancel CancellationTokenSource when abortSignal fires during streaming", async () => {
+				const systemPrompt = "You are a helpful assistant"
+				const messages: Anthropic.Messages.MessageParam[] = [{ role: "user" as const, content: "Hello" }]
+
+				const mockModel = { ...mockLanguageModelChat }
+				;(vscode.lm.selectChatModels as Mock).mockResolvedValueOnce([mockModel])
+				mockLanguageModelChat.countTokens.mockResolvedValue(10)
+				handler["client"] = mockModel
+
+				const controller = new AbortController()
+				let cancelled = false
+				const mockCtsInstance: {
+					token: vscode.CancellationToken
+					cancel: () => void
+					dispose: Mock<() => void>
+				} = {
+					token: { isCancellationRequested: false } as vscode.CancellationToken,
+					cancel: () => {
+						cancelled = true
+					},
+					dispose: vi.fn(),
+				}
+				;(vscode.CancellationTokenSource as Mock).mockImplementation(() => mockCtsInstance)
+
+				mockLanguageModelChat.sendRequest.mockResolvedValueOnce({
+					stream: (async function* () {
+						yield new vscode.LanguageModelTextPart("Hello!")
+						return
+					})(),
+					text: (async function* () {
+						yield "Hello!"
+						return
+					})(),
+				})
+
+				const stream = handler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal,
+				})
+
+				// Drain the stream first
+				for await (const _chunk of stream) {
+					// consume
+				}
+
+				// Now fire the abort signal
+				controller.abort()
+
+				// Give async listener time to fire
+				await new Promise((resolve) => setTimeout(resolve, 50))
+
+				expect(cancelled).toBe(true)
+			})
+
+			it("should cancel immediately when abortSignal is already aborted", async () => {
+				const systemPrompt = "You are a helpful assistant"
+				const messages: Anthropic.Messages.MessageParam[] = [{ role: "user" as const, content: "Hello" }]
+
+				const mockModel = { ...mockLanguageModelChat }
+				;(vscode.lm.selectChatModels as Mock).mockResolvedValueOnce([mockModel])
+				mockLanguageModelChat.countTokens.mockResolvedValue(10)
+				handler["client"] = mockModel
+
+				const controller = new AbortController()
+				controller.abort() // Abort before calling createMessage
+
+				let cancelled = false
+				const mockCtsInstance: {
+					token: vscode.CancellationToken
+					cancel: () => void
+					dispose: Mock<() => void>
+				} = {
+					token: { isCancellationRequested: false } as vscode.CancellationToken,
+					cancel: () => {
+						cancelled = true
+					},
+					dispose: vi.fn(),
+				}
+				;(vscode.CancellationTokenSource as Mock).mockImplementation(() => mockCtsInstance)
+
+				mockLanguageModelChat.sendRequest.mockResolvedValueOnce({
+					stream: (async function* () {
+						yield new vscode.LanguageModelTextPart("Hello!")
+						return
+					})(),
+					text: (async function* () {
+						yield "Hello!"
+						return
+					})(),
+				})
+
+				await handler
+					.createMessage(systemPrompt, messages, {
+						taskId: "test-task",
+						abortSignal: controller.signal,
+					})
+					.next()
+
+				expect(cancelled).toBe(true)
+			})
+
+			it("should not cancel when no abortSignal is provided", async () => {
+				const systemPrompt = "You are a helpful assistant"
+				const messages: Anthropic.Messages.MessageParam[] = [{ role: "user" as const, content: "Hello" }]
+
+				const mockModel = { ...mockLanguageModelChat }
+				;(vscode.lm.selectChatModels as Mock).mockResolvedValueOnce([mockModel])
+				mockLanguageModelChat.countTokens.mockResolvedValue(10)
+				handler["client"] = mockModel
+
+				let cancelled = false
+				const mockCtsInstance: {
+					token: vscode.CancellationToken
+					cancel: () => void
+					dispose: Mock<() => void>
+				} = {
+					token: { isCancellationRequested: false } as vscode.CancellationToken,
+					cancel: () => {
+						cancelled = true
+					},
+					dispose: vi.fn(),
+				}
+				;(vscode.CancellationTokenSource as Mock).mockImplementation(() => mockCtsInstance)
+
+				mockLanguageModelChat.sendRequest.mockResolvedValueOnce({
+					stream: (async function* () {
+						yield new vscode.LanguageModelTextPart("Hello!")
+						return
+					})(),
+					text: (async function* () {
+						yield "Hello!"
+						return
+					})(),
+				})
+
+				await handler.createMessage(systemPrompt, messages).next()
+
+				expect(cancelled).toBe(false)
+			})
+		})
 	})
 
 	describe("getModel", () => {
