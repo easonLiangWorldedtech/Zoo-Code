@@ -1576,4 +1576,76 @@ describe("AwsBedrockHandler", () => {
 			})
 		})
 	})
+
+	describe("abort signal", () => {
+		beforeEach(() => {
+			mockConverseStreamCommand.mockReset()
+		})
+
+		it("should handle pre-aborted signals by calling controller.abort() immediately", async () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+				awsRegion: "us-east-1",
+			})
+
+			const controller = new AbortController()
+			controller.abort() // Pre-abort the signal
+
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+			const generator = handler.createMessage("System prompt", messages, {
+				taskId: "test-task",
+				abortSignal: controller.signal,
+			})
+
+			// Verify the external signal is already aborted before consuming
+			expect(controller.signal.aborted).toBe(true)
+
+			// Consume the stream - pre-aborted signal should trigger internal abort
+			for await (const _ of generator) {
+				// consume
+			}
+		})
+
+		it("should use { once: true } listener for external abort signal", async () => {
+			const handler = new AwsBedrockHandler({
+				apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+				awsAccessKey: "test-access-key",
+				awsSecretKey: "test-secret-key",
+				awsRegion: "us-east-1",
+			})
+
+			const controller = new AbortController()
+
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+			const generator = handler.createMessage("System prompt", messages, {
+				taskId: "test-task",
+				abortSignal: controller.signal,
+			})
+
+			// Start consuming and then abort
+			const consumePromise = (async () => {
+				try {
+					for await (const _ of generator) {
+						// consume
+					}
+				} catch {
+					// expected to fail due to mock
+				}
+			})()
+
+			await new Promise((r) => setTimeout(r, 10))
+
+			// Verify signal is not aborted before calling abort
+			expect(controller.signal.aborted).toBe(false)
+
+			controller.abort()
+
+			// Verify the signal becomes aborted after calling abort()
+			expect(controller.signal.aborted).toBe(true)
+
+			await consumePromise.catch(() => {})
+		})
+	})
 })

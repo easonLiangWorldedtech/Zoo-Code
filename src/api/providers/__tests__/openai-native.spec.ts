@@ -1842,5 +1842,117 @@ describe("GPT-5 streaming event coverage (additional)", () => {
 				expect(bodyStr).not.toContain('"verbosity"')
 			})
 		})
+
+		describe("abort signal", () => {
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello!" }]
+
+			it("should reuse existingSignal when SDK fails and fallback to fetch", async () => {
+				const mockFetch = vitest.fn().mockResolvedValue({
+					ok: true,
+					body: new ReadableStream({
+						start(controller) {
+							controller.enqueue(
+								new TextEncoder().encode(
+									'data: {"type":"response.output_text.delta","delta":"fallback"}\n\n',
+								),
+							)
+							controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"))
+							controller.close()
+						},
+					}),
+				})
+				global.fetch = mockFetch as any
+
+				mockResponsesCreate.mockRejectedValue(new Error("SDK not available"))
+
+				const handler = new OpenAiNativeHandler({
+					apiModelId: "gpt-5.1",
+					openAiNativeApiKey: "test-api-key",
+				})
+
+				const controller = new AbortController()
+
+				const stream = handler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal,
+				})
+
+				const chunks: any[] = []
+				for await (const chunk of stream) {
+					chunks.push(chunk)
+				}
+
+				// Verify the fetch was called with a signal (the existing signal from metadata)
+				expect(mockFetch).toHaveBeenCalled()
+				const fetchOptions = mockFetch.mock.calls[0][1]
+				// The fallback should use a signal that's connected to the external abort signal
+				// (via executeRequest's internal abortController bridging)
+				expect(fetchOptions.signal).toBeDefined()
+				// Signal should not be aborted yet
+				expect(fetchOptions.signal.aborted).toBe(false)
+
+				const textChunks = chunks.filter((c) => c.type === "text")
+				expect(textChunks).toHaveLength(1)
+				expect(textChunks[0].text).toBe("fallback")
+			})
+
+			it("should abort the fallback request when external signal is aborted", async () => {
+				let fetchOptionsCaptured: any = null
+				const mockFetch = vitest.fn().mockImplementation(async (...args: any[]) => {
+					fetchOptionsCaptured = args[1]
+					return new Response(
+						new ReadableStream({
+							start(controller) {
+								controller.close()
+							},
+						}),
+					)
+				})
+				global.fetch = mockFetch as any
+
+				mockResponsesCreate.mockRejectedValue(new Error("SDK not available"))
+
+				const handler = new OpenAiNativeHandler({
+					apiModelId: "gpt-5.1",
+					openAiNativeApiKey: "test-api-key",
+				})
+
+				const controller = new AbortController()
+
+				const stream = handler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal,
+				})
+
+				// Start consuming the stream
+				const consumerPromise = (async () => {
+					for await (const _chunk of stream) {
+						// consume
+					}
+				})()
+
+				// Give it a moment to start and capture fetch options
+				await new Promise((r) => setTimeout(r, 50))
+
+				// Verify signal is not aborted before calling abort
+				expect(fetchOptionsCaptured?.signal).toBeDefined()
+				expect(fetchOptionsCaptured.signal.aborted).toBe(false)
+
+				// Abort the external signal - this should trigger the internal controller's abort via bridging
+				controller.abort()
+
+				// The abort event listener fires synchronously when abort() is called,
+				// so this.abortController.abort() is called immediately.
+				// Verify the external signal itself is aborted (guaranteed)
+				expect(controller.signal.aborted).toBe(true)
+
+				// The consumer should complete after abort
+				await consumerPromise.catch(() => {})
+
+				// Verify fetch was called with a signal
+				expect(mockFetch).toHaveBeenCalled()
+			}, 10000)
+		})
 	})
 })

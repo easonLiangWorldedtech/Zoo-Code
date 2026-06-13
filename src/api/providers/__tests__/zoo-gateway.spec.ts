@@ -464,6 +464,7 @@ describe("ZooGatewayHandler", () => {
 					temperature: ZOO_GATEWAY_DEFAULT_TEMPERATURE,
 					max_completion_tokens: 64000,
 				}),
+				expect.objectContaining({ signal: undefined }),
 			)
 		})
 

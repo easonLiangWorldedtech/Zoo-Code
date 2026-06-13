@@ -150,7 +150,7 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 					input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
 					store: false,
 				},
-				metadata?.abortSignal ? { signal: metadata.abortSignal } : undefined,
+				{ signal: metadata?.abortSignal },
 			)) as any
 
 			// output_text is a convenience field on the Responses API response

@@ -318,7 +318,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			try {
 				response = await this.client.chat.completions.create(requestOptions, {
 					...(isAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {}),
-					...(metadata?.abortSignal ? { signal: metadata.abortSignal } : {}),
+					signal: metadata?.abortSignal,
 				})
 			} catch (error) {
 				throw handleOpenAIError(error, this.providerName)

@@ -677,5 +677,135 @@ describe("VsCodeLmHandler", () => {
 			const promise = handler.completePrompt("Test prompt")
 			await expect(promise).rejects.toThrow("VSCode LM completion error: Completion failed")
 		})
+
+		describe("abort signal", () => {
+			it("should cancel CancellationTokenSource when abortSignal fires during completePrompt", async () => {
+				const mockModel = { ...mockLanguageModelChat }
+				;(vscode.lm.selectChatModels as Mock).mockResolvedValueOnce([mockModel])
+
+				const responseText = "Completed text"
+				mockLanguageModelChat.sendRequest.mockResolvedValueOnce({
+					stream: (async function* () {
+						yield new vscode.LanguageModelTextPart(responseText)
+						return
+					})(),
+					text: (async function* () {
+						yield responseText
+						return
+					})(),
+				})
+
+				handler["client"] = mockLanguageModelChat
+
+				const controller = new AbortController()
+				let cancelled = false
+				const mockCtsInstance: {
+					token: vscode.CancellationToken
+					cancel: () => void
+					dispose: Mock<() => void>
+				} = {
+					token: { isCancellationRequested: false } as vscode.CancellationToken,
+					cancel: () => {
+						cancelled = true
+					},
+					dispose: vi.fn(),
+				}
+				;(vscode.CancellationTokenSource as Mock).mockImplementation(() => mockCtsInstance)
+
+				const resultPromise = handler.completePrompt("Test prompt", {
+					taskId: "test-task",
+					abortSignal: controller.signal,
+				})
+
+				// Abort during the request
+				controller.abort()
+
+				// Give async listener time to fire
+				await new Promise((resolve) => setTimeout(resolve, 50))
+
+				expect(cancelled).toBe(true)
+				await expect(resultPromise).resolves.toBe(responseText)
+			})
+
+			it("should cancel immediately when abortSignal is already aborted", async () => {
+				const mockModel = { ...mockLanguageModelChat }
+				;(vscode.lm.selectChatModels as Mock).mockResolvedValueOnce([mockModel])
+
+				const responseText = "Completed text"
+				mockLanguageModelChat.sendRequest.mockResolvedValueOnce({
+					stream: (async function* () {
+						yield new vscode.LanguageModelTextPart(responseText)
+						return
+					})(),
+					text: (async function* () {
+						yield responseText
+						return
+					})(),
+				})
+
+				handler["client"] = mockLanguageModelChat
+
+				const controller = new AbortController()
+				controller.abort() // Pre-abort the signal
+
+				let cancelled = false
+				const mockCtsInstance: {
+					token: vscode.CancellationToken
+					cancel: () => void
+					dispose: Mock<() => void>
+				} = {
+					token: { isCancellationRequested: false } as vscode.CancellationToken,
+					cancel: () => {
+						cancelled = true
+					},
+					dispose: vi.fn(),
+				}
+				;(vscode.CancellationTokenSource as Mock).mockImplementation(() => mockCtsInstance)
+
+				await handler.completePrompt("Test prompt", {
+					taskId: "test-task",
+					abortSignal: controller.signal,
+				})
+
+				expect(cancelled).toBe(true)
+			})
+
+			it("should not cancel when no abortSignal is provided", async () => {
+				const mockModel = { ...mockLanguageModelChat }
+				;(vscode.lm.selectChatModels as Mock).mockResolvedValueOnce([mockModel])
+
+				const responseText = "Completed text"
+				mockLanguageModelChat.sendRequest.mockResolvedValueOnce({
+					stream: (async function* () {
+						yield new vscode.LanguageModelTextPart(responseText)
+						return
+					})(),
+					text: (async function* () {
+						yield responseText
+						return
+					})(),
+				})
+
+				handler["client"] = mockLanguageModelChat
+
+				let cancelled = false
+				const mockCtsInstance: {
+					token: vscode.CancellationToken
+					cancel: () => void
+					dispose: Mock<() => void>
+				} = {
+					token: { isCancellationRequested: false } as vscode.CancellationToken,
+					cancel: () => {
+						cancelled = true
+					},
+					dispose: vi.fn(),
+				}
+				;(vscode.CancellationTokenSource as Mock).mockImplementation(() => mockCtsInstance)
+
+				await handler.completePrompt("Test prompt")
+
+				expect(cancelled).toBe(false)
+			})
+		})
 	})
 })

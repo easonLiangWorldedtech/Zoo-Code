@@ -341,10 +341,9 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 		}
 
 		const response = await this.callApiWithRetry(() =>
-			client.chat.completions.create(
-				requestOptions,
-				metadata?.abortSignal ? { signal: metadata.abortSignal } : undefined,
-			),
+			client.chat.completions.create(requestOptions, {
+				signal: metadata?.abortSignal,
+			}),
 		)
 
 		return response.choices[0]?.message.content || ""
