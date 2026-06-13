@@ -358,7 +358,7 @@ describe("BaseOpenAiCompatibleProvider", () => {
 					stream: true,
 					stream_options: { include_usage: true },
 				}),
-				undefined,
+				expect.any(Object),
 			)
 		})
 

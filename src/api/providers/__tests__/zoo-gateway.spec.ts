@@ -284,6 +284,42 @@ describe("ZooGatewayHandler", () => {
 			)
 		})
 
+		describe("abortSignal support", () => {
+			it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+				const handler = new ZooGatewayHandler(mockOptions)
+
+				const controller = new AbortController()
+				const mockAbortSignal = controller.signal
+
+				await handler
+					.createMessage("prompt", [{ role: "user", content: "Hi" }], {
+						taskId: "test",
+						abortSignal: mockAbortSignal,
+					})
+					.next()
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({
+						signal: mockAbortSignal,
+					}),
+				)
+			})
+
+			it("should pass undefined signal when abortSignal is not provided", async () => {
+				const handler = new ZooGatewayHandler(mockOptions)
+
+				await handler.createMessage("prompt", [{ role: "user", content: "Hi" }]).next()
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({
+						signal: undefined,
+					}),
+				)
+			})
+		})
+
 		it("uses custom temperature when provided", async () => {
 			const handler = new ZooGatewayHandler({
 				...mockOptions,

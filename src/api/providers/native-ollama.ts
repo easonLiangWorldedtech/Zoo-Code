@@ -241,7 +241,8 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 				stream: true,
 				options: chatOptions,
 				tools: this.convertToolsToOllama(metadata?.tools),
-			})
+				signal: metadata?.abortSignal,
+			} as any)
 
 			let totalInputTokens = 0
 			let totalOutputTokens = 0

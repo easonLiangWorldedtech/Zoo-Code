@@ -150,6 +150,7 @@ describe("OpencodeGoHandler", () => {
 					max_completion_tokens: 32768,
 					temperature: expect.any(Number),
 				}),
+				expect.any(Object),
 			)
 		})
 	})

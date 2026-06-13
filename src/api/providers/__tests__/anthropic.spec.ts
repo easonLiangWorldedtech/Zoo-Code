@@ -1055,4 +1055,57 @@ describe("AnthropicHandler", () => {
 			})
 		})
 	})
+
+	describe("abortSignal support", () => {
+		it("should pass abortSignal to messages.create when provided in metadata", async () => {
+			const handler = new AnthropicHandler({
+				apiKey: "test-api-key",
+				apiModelId: "claude-3-5-sonnet-20241022",
+			})
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			mockCreate.mockResolvedValueOnce({
+				[Symbol.asyncIterator]: async function* () {
+					yield { type: "message_start", message: { usage: { input_tokens: 10, output_tokens: 5 } } }
+				},
+			})
+
+			for await (const _chunk of handler.createMessage(
+				"system",
+				[{ role: "user", content: [{ type: "text", text: "Hello!" }] }],
+				{ taskId: "test", abortSignal: mockAbortSignal },
+			)) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const handler = new AnthropicHandler({
+				apiKey: "test-api-key",
+				apiModelId: "claude-3-5-sonnet-20241022",
+			})
+
+			mockCreate.mockResolvedValueOnce({
+				[Symbol.asyncIterator]: async function* () {
+					yield { type: "message_start", message: { usage: { input_tokens: 10, output_tokens: 5 } } }
+				},
+			})
+
+			for await (const _chunk of handler.createMessage("system", [
+				{ role: "user", content: [{ type: "text", text: "Hello!" }] },
+			])) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
+		})
+	})
 })

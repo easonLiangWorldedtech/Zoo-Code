@@ -105,7 +105,7 @@ export abstract class BaseOpenAiCompatibleProvider<ModelName extends string>
 		}
 
 		try {
-			return this.client.chat.completions.create(params, requestOptions)
+			return this.client.chat.completions.create(params, { ...requestOptions, signal: metadata?.abortSignal })
 		} catch (error) {
 			throw handleOpenAIError(error, this.providerName)
 		}

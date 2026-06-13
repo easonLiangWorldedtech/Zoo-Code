@@ -374,6 +374,7 @@ describe("MimoHandler", () => {
 				expect.objectContaining({
 					extra_body: { thinking: { type: "enabled" } },
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -948,6 +949,59 @@ describe("MimoHandler", () => {
 
 			const params = mockCreate.mock.calls[0][0]
 			expect(params.model).toBe("mimo-v2.5")
+		})
+	})
+
+	describe("abortSignal support", () => {
+		it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			mockCreate.mockResolvedValue({
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						choices: [{ delta: { content: "Test" }, index: 0 }],
+						usage: null,
+					}
+				},
+			})
+
+			const handler = new MimoHandler(mockOptions)
+
+			for await (const _chunk of handler.createMessage(
+				"system",
+				[{ role: "user", content: [{ type: "text", text: "Hello!" }] }],
+				{ taskId: "test", abortSignal: mockAbortSignal },
+			)) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			mockCreate.mockResolvedValue({
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						choices: [{ delta: { content: "Test" }, index: 0 }],
+						usage: null,
+					}
+				},
+			})
+
+			const handler = new MimoHandler(mockOptions)
+
+			for await (const _chunk of handler.createMessage("system", [
+				{ role: "user", content: [{ type: "text", text: "Hello!" }] },
+			])) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
 		})
 	})
 })

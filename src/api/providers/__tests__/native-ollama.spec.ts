@@ -2,25 +2,32 @@
 
 import { NativeOllamaHandler } from "../native-ollama"
 import { ApiHandlerOptions } from "../../../shared/api"
-import { getOllamaModels } from "../fetchers/ollama"
+
+// Hoist mock functions to ensure they are created in the correct test context
+const mockedData = vi.hoisted(() => ({
+	mockChat: vi.fn(),
+	mockGetOllamaModels: vi.fn(),
+}))
 
 // Mock the ollama package
-const mockChat = vitest.fn()
-vitest.mock("ollama", () => {
+vi.mock("ollama", () => {
 	return {
-		Ollama: vitest.fn().mockImplementation(() => ({
-			chat: mockChat,
+		Ollama: vi.fn().mockImplementation(() => ({
+			chat: mockedData.mockChat,
 		})),
-		Message: vitest.fn(),
+		Message: vi.fn(),
 	}
 })
 
-// Mock the getOllamaModels function
-vitest.mock("../fetchers/ollama", () => ({
-	getOllamaModels: vitest.fn(),
+// Mock the getOllamaModels function - use the hoisted mock directly
+vi.mock("../fetchers/ollama", () => ({
+	getOllamaModels: mockedData.mockGetOllamaModels,
 }))
 
-const mockGetOllamaModels = vitest.mocked(getOllamaModels)
+import { getOllamaModels } from "../fetchers/ollama"
+
+// Type-safe reference to the mocked function - use the hoisted one directly
+const mockGetOllamaModels = vi.mocked(mockedData.mockGetOllamaModels)
 
 describe("NativeOllamaHandler", () => {
 	let handler: NativeOllamaHandler
@@ -50,7 +57,7 @@ describe("NativeOllamaHandler", () => {
 	describe("createMessage", () => {
 		it("should stream messages from Ollama", async () => {
 			// Mock the chat response as an async generator
-			mockChat.mockImplementation(async function* () {
+			mockedData.mockChat.mockImplementation(async function* () {
 				yield {
 					message: { content: "Hello" },
 					eval_count: undefined,
@@ -81,7 +88,7 @@ describe("NativeOllamaHandler", () => {
 
 		it("should not include num_ctx by default", async () => {
 			// Mock the chat response
-			mockChat.mockImplementation(async function* () {
+			mockedData.mockChat.mockImplementation(async function* () {
 				yield { message: { content: "Response" } }
 			})
 
@@ -93,7 +100,7 @@ describe("NativeOllamaHandler", () => {
 			}
 
 			// Verify that num_ctx was NOT included in the options
-			expect(mockChat).toHaveBeenCalledWith(
+			expect(mockedData.mockChat).toHaveBeenCalledWith(
 				expect.objectContaining({
 					options: expect.not.objectContaining({
 						num_ctx: expect.anything(),
@@ -113,7 +120,7 @@ describe("NativeOllamaHandler", () => {
 			handler = new NativeOllamaHandler(options)
 
 			// Mock the chat response
-			mockChat.mockImplementation(async function* () {
+			mockedData.mockChat.mockImplementation(async function* () {
 				yield { message: { content: "Response" } }
 			})
 
@@ -125,7 +132,7 @@ describe("NativeOllamaHandler", () => {
 			}
 
 			// Verify that num_ctx was included with the specified value
-			expect(mockChat).toHaveBeenCalledWith(
+			expect(mockedData.mockChat).toHaveBeenCalledWith(
 				expect.objectContaining({
 					options: expect.objectContaining({
 						num_ctx: 8192,
@@ -144,7 +151,7 @@ describe("NativeOllamaHandler", () => {
 			handler = new NativeOllamaHandler(options)
 
 			// Mock response with thinking tags
-			mockChat.mockImplementation(async function* () {
+			mockedData.mockChat.mockImplementation(async function* () {
 				yield { message: { content: "<think>Let me think" } }
 				yield { message: { content: " about this</think>" } }
 				yield { message: { content: "The answer is 42" } }
@@ -165,13 +172,13 @@ describe("NativeOllamaHandler", () => {
 
 	describe("completePrompt", () => {
 		it("should complete a prompt without streaming", async () => {
-			mockChat.mockResolvedValue({
+			mockedData.mockChat.mockResolvedValue({
 				message: { content: "This is the response" },
 			})
 
 			const result = await handler.completePrompt("Tell me a joke")
 
-			expect(mockChat).toHaveBeenCalledWith({
+			expect(mockedData.mockChat).toHaveBeenCalledWith({
 				model: "llama2",
 				messages: [{ role: "user", content: "Tell me a joke" }],
 				stream: false,
@@ -183,14 +190,14 @@ describe("NativeOllamaHandler", () => {
 		})
 
 		it("should not include num_ctx in completePrompt by default", async () => {
-			mockChat.mockResolvedValue({
+			mockedData.mockChat.mockResolvedValue({
 				message: { content: "Response" },
 			})
 
 			await handler.completePrompt("Test prompt")
 
 			// Verify that num_ctx was NOT included in the options
-			expect(mockChat).toHaveBeenCalledWith(
+			expect(mockedData.mockChat).toHaveBeenCalledWith(
 				expect.objectContaining({
 					options: expect.not.objectContaining({
 						num_ctx: expect.anything(),
@@ -209,14 +216,14 @@ describe("NativeOllamaHandler", () => {
 
 			handler = new NativeOllamaHandler(options)
 
-			mockChat.mockResolvedValue({
+			mockedData.mockChat.mockResolvedValue({
 				message: { content: "Response" },
 			})
 
 			await handler.completePrompt("Test prompt")
 
 			// Verify that num_ctx was included with the specified value
-			expect(mockChat).toHaveBeenCalledWith(
+			expect(mockedData.mockChat).toHaveBeenCalledWith(
 				expect.objectContaining({
 					options: expect.objectContaining({
 						num_ctx: 4096,
@@ -230,7 +237,7 @@ describe("NativeOllamaHandler", () => {
 		it("should handle connection refused errors", async () => {
 			const error = new Error("ECONNREFUSED") as any
 			error.code = "ECONNREFUSED"
-			mockChat.mockRejectedValue(error)
+			mockedData.mockChat.mockRejectedValue(error)
 
 			const stream = handler.createMessage("System", [{ role: "user" as const, content: "Test" }])
 
@@ -244,7 +251,7 @@ describe("NativeOllamaHandler", () => {
 		it("should handle model not found errors", async () => {
 			const error = new Error("Not found") as any
 			error.status = 404
-			mockChat.mockRejectedValue(error)
+			mockedData.mockChat.mockRejectedValue(error)
 
 			const stream = handler.createMessage("System", [{ role: "user" as const, content: "Test" }])
 
@@ -285,7 +292,7 @@ describe("NativeOllamaHandler", () => {
 			handler = new NativeOllamaHandler(options)
 
 			// Mock the chat response
-			mockChat.mockImplementation(async function* () {
+			mockedData.mockChat.mockImplementation(async function* () {
 				yield { message: { content: "I will use the tool" } }
 			})
 
@@ -318,7 +325,7 @@ describe("NativeOllamaHandler", () => {
 			}
 
 			// Verify tools were passed to the API
-			expect(mockChat).toHaveBeenCalledWith(
+			expect(mockedData.mockChat).toHaveBeenCalledWith(
 				expect.objectContaining({
 					tools: [
 						{
@@ -352,7 +359,7 @@ describe("NativeOllamaHandler", () => {
 			})
 
 			// Mock the chat response
-			mockChat.mockImplementation(async function* () {
+			mockedData.mockChat.mockImplementation(async function* () {
 				yield { message: { content: "Response without tools" } }
 			})
 
@@ -378,7 +385,7 @@ describe("NativeOllamaHandler", () => {
 			}
 
 			// Verify tools were passed
-			expect(mockChat).toHaveBeenCalledWith(
+			expect(mockedData.mockChat).toHaveBeenCalledWith(
 				expect.objectContaining({
 					tools: expect.any(Array),
 				}),
@@ -405,7 +412,7 @@ describe("NativeOllamaHandler", () => {
 			handler = new NativeOllamaHandler(options)
 
 			// Mock the chat response
-			mockChat.mockImplementation(async function* () {
+			mockedData.mockChat.mockImplementation(async function* () {
 				yield { message: { content: "Response" } }
 			})
 
@@ -419,7 +426,7 @@ describe("NativeOllamaHandler", () => {
 			}
 
 			// Verify tools were NOT passed
-			expect(mockChat).toHaveBeenCalledWith(
+			expect(mockedData.mockChat).toHaveBeenCalledWith(
 				expect.not.objectContaining({
 					tools: expect.anything(),
 				}),
@@ -446,7 +453,7 @@ describe("NativeOllamaHandler", () => {
 			handler = new NativeOllamaHandler(options)
 
 			// Mock the chat response with tool calls
-			mockChat.mockImplementation(async function* () {
+			mockedData.mockChat.mockImplementation(async function* () {
 				yield {
 					message: {
 						content: "",
@@ -522,7 +529,7 @@ describe("NativeOllamaHandler", () => {
 			handler = new NativeOllamaHandler(options)
 
 			// Mock the chat response with multiple tool calls
-			mockChat.mockImplementation(async function* () {
+			mockedData.mockChat.mockImplementation(async function* () {
 				yield {
 					message: {
 						content: "",
@@ -603,6 +610,64 @@ describe("NativeOllamaHandler", () => {
 			}
 			const firstEndIndex = results.findIndex((r) => r.type === "tool_call_end")
 			expect(firstEndIndex).toBeGreaterThan(lastPartialIndex)
+		})
+	})
+
+	describe("abortSignal support", () => {
+		it("should pass abortSignal to chat when provided in metadata", async () => {
+			vitest.clearAllMocks()
+			const mockAbortController: any = { signal: Symbol("abort") }
+
+			;(mockGetOllamaModels as any).mockImplementationOnce(async () => ({
+				llama2: { contextWindow: 4096, maxTokens: 4096, supportsImages: false, supportsPromptCache: false },
+			}))
+
+			mockedData.mockChat.mockImplementation(async function* () {
+				yield { message: { content: "Hello" }, eval_count: undefined, prompt_eval_count: undefined }
+			})
+
+			const handlerWithSignal = new NativeOllamaHandler({
+				apiModelId: "llama2",
+				ollamaModelId: "llama2",
+				ollamaBaseUrl: "http://localhost:11434",
+			})
+
+			for await (const _chunk of handlerWithSignal.createMessage(
+				"system",
+				[{ role: "user", content: "Hello!" }],
+				{ taskId: "test", abortSignal: mockAbortController.signal },
+			)) {
+				break
+			}
+
+			expect(mockedData.mockChat).toHaveBeenCalled()
+			const callArgs = mockedData.mockChat.mock.calls[0][0]
+			expect(callArgs.signal).toBe(mockAbortController.signal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			vitest.clearAllMocks()
+			;(mockGetOllamaModels as any).mockImplementationOnce(async () => ({
+				llama2: { contextWindow: 4096, maxTokens: 4096, supportsImages: false, supportsPromptCache: false },
+			}))
+
+			mockedData.mockChat.mockImplementation(async function* () {
+				yield { message: { content: "Hello" }, eval_count: undefined, prompt_eval_count: undefined }
+			})
+
+			const handlerNoSignal = new NativeOllamaHandler({
+				apiModelId: "llama2",
+				ollamaModelId: "llama2",
+				ollamaBaseUrl: "http://localhost:11434",
+			})
+
+			for await (const _chunk of handlerNoSignal.createMessage("system", [{ role: "user", content: "Hello!" }])) {
+				break
+			}
+
+			expect(mockedData.mockChat).toHaveBeenCalled()
+			const callArgs = mockedData.mockChat.mock.calls[0][0]
+			expect(callArgs.signal).toBeUndefined()
 		})
 	})
 })

@@ -175,9 +175,12 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 								case "claude-haiku-4-5-20251001":
 								case "claude-3-haiku-20240307":
 									betas.push("prompt-caching-2024-07-31")
-									return { headers: { "anthropic-beta": betas.join(",") } }
+									return {
+										headers: { "anthropic-beta": betas.join(",") },
+										signal: metadata?.abortSignal,
+									}
 								default:
-									return undefined
+									return { signal: metadata?.abortSignal }
 							}
 						})(),
 					)
@@ -208,6 +211,7 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 					}
 					stream = (await this.client.messages.create(
 						requestParams as Anthropic.Messages.MessageCreateParamsStreaming,
+						{ signal: metadata?.abortSignal },
 					)) as any
 				} catch (error) {
 					TelemetryService.instance.captureException(

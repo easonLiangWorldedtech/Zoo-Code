@@ -1540,4 +1540,60 @@ describe("VertexHandler", () => {
 			})
 		})
 	})
+
+	describe("abortSignal support", () => {
+		it("should pass abortSignal to messages.create when provided in metadata", async () => {
+			const handler = new AnthropicVertexHandler({
+				apiModelId: "claude-3-5-sonnet-v2@20241022",
+				vertexProjectId: "test-project",
+				vertexRegion: "us-central1",
+			})
+
+			const mockCreate = handler["client"].messages.create as any
+			mockCreate.mockClear()
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
+			]
+
+			for await (const _chunk of handler.createMessage(systemPrompt, messages, {
+				taskId: "test",
+				abortSignal: mockAbortSignal,
+			})) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const handler = new AnthropicVertexHandler({
+				apiModelId: "claude-3-5-sonnet-v2@20241022",
+				vertexProjectId: "test-project",
+				vertexRegion: "us-central1",
+			})
+
+			const mockCreate = handler["client"].messages.create as any
+			mockCreate.mockClear()
+
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
+			]
+
+			for await (const _chunk of handler.createMessage(systemPrompt, messages)) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
+		})
+	})
 })

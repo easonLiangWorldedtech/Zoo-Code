@@ -25,6 +25,7 @@ vi.mock("openai", () => {
 })
 
 import { promises as fs } from "node:fs"
+import type { Anthropic } from "@anthropic-ai/sdk"
 import { QwenCodeHandler } from "../qwen-code"
 import { NativeToolCallParser } from "../../../core/assistant-message/NativeToolCallParser"
 import type { ApiHandlerOptions } from "../../../shared/api"
@@ -101,6 +102,7 @@ describe("QwenCodeHandler Native Tools", () => {
 					]),
 					parallel_tool_calls: true,
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -124,6 +126,7 @@ describe("QwenCodeHandler Native Tools", () => {
 				expect.objectContaining({
 					tool_choice: "auto",
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -235,6 +238,7 @@ describe("QwenCodeHandler Native Tools", () => {
 				expect.objectContaining({
 					parallel_tool_calls: true,
 				}),
+				expect.any(Object),
 			)
 		})
 
@@ -368,6 +372,56 @@ describe("QwenCodeHandler Native Tools", () => {
 			expect(reasoningChunks[0].text).toBe("Thinking about this...")
 			expect(partialChunks).toHaveLength(1)
 			expect(endChunks).toHaveLength(1)
+		})
+	})
+
+	describe("abortSignal support", () => {
+		beforeEach(() => {
+			mockCreate.mockImplementation(() => ({
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						choices: [{ delta: { content: "test response" } }],
+					}
+				},
+			}))
+		})
+
+		it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+			const handler = new QwenCodeHandler(mockOptions)
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
+			]
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			for await (const _chunk of handler.createMessage(systemPrompt, messages, {
+				taskId: "test",
+				abortSignal: mockAbortSignal,
+			})) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const handler = new QwenCodeHandler(mockOptions)
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
+			]
+
+			for await (const _chunk of handler.createMessage(systemPrompt, messages)) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
 		})
 	})
 })

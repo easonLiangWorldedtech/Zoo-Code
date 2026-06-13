@@ -343,7 +343,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			}
 		}
 
-		const params: GenerateContentParameters = { model, contents, config }
+		const params: any = { model, contents, config, signal: metadata?.abortSignal }
 
 		try {
 			const result = await this.client.models.generateContentStream(params)

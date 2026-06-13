@@ -386,6 +386,21 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 		// Initialize cancellation token for the request
 		this.currentRequestCancellation = new vscode.CancellationTokenSource()
 
+		// Wire external abort signal to VS Code cancellation token
+		// When the external signal fires, cancel the current request
+		const externalSignal = metadata?.abortSignal
+		if (externalSignal) {
+			if (externalSignal.aborted) {
+				this.currentRequestCancellation?.cancel()
+			} else {
+				const abortListener = () => {
+					this.currentRequestCancellation?.cancel()
+					externalSignal.removeEventListener("abort", abortListener)
+				}
+				externalSignal.addEventListener("abort", abortListener, { once: true })
+			}
+		}
+
 		// Calculate input tokens before starting the stream
 		const totalInputTokens: number = await this.calculateTotalInputTokens(vsCodeLmMessages)
 

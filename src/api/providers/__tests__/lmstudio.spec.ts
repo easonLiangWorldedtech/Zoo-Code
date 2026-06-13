@@ -164,4 +164,43 @@ describe("LmStudioHandler", () => {
 			expect(modelInfo.info.contextWindow).toBe(128_000)
 		})
 	})
+	describe("abortSignal support", () => {
+		it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+			const handler = new LmStudioHandler(mockOptions)
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
+			]
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			for await (const _chunk of handler.createMessage(systemPrompt, messages, {
+				taskId: "test",
+				abortSignal: mockAbortSignal,
+			})) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const handler = new LmStudioHandler(mockOptions)
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
+			]
+
+			for await (const _chunk of handler.createMessage(systemPrompt, messages)) {
+				break
+			}
+
+			expect(mockCreate).toHaveBeenCalled()
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
+		})
+	})
 })
