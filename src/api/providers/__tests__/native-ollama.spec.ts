@@ -231,6 +231,31 @@ describe("NativeOllamaHandler", () => {
 				}),
 			)
 		})
+
+		it("should pass abortSignal to chat when provided in metadata", async () => {
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			mockedData.mockChat.mockResolvedValue({
+				message: { content: "Test response" },
+			})
+
+			await handler.completePrompt("Test prompt", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockedData.mockChat.mock.calls[0][0]
+			expect(callArgs.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			mockedData.mockChat.mockResolvedValue({
+				message: { content: "Test response" },
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			const callArgs = mockedData.mockChat.mock.calls[0][0]
+			expect(callArgs.signal).toBeUndefined()
+		})
 	})
 
 	describe("error handling", () => {

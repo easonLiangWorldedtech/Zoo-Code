@@ -345,7 +345,7 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		try {
 			const client = this.ensureClient()
 			const { id: modelId } = await this.fetchModel()
@@ -366,9 +366,10 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 				messages: [{ role: "user", content: prompt }],
 				stream: false,
 				options: chatOptions,
-			})
+				signal: metadata?.abortSignal,
+			} as any)
 
-			return response.message?.content || ""
+			return ((response as any).message?.content as string) || ""
 		} catch (error) {
 			if (error instanceof Error) {
 				throw new Error(`Ollama completion error: ${error.message}`)

@@ -576,7 +576,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		return citationLinks.join(", ")
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		const { id: model, info } = this.getModel()
 
 		try {
@@ -596,6 +596,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 				model,
 				contents: [{ role: "user", parts: [{ text: prompt }] }],
 				config: promptConfig,
+				signal: metadata?.abortSignal,
 			}
 
 			const result = await this.client.models.generateContent(request)

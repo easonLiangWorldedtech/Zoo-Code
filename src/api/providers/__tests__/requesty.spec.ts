@@ -465,6 +465,35 @@ describe("RequestyHandler", () => {
 
 			await expect(handler.completePrompt("test prompt")).rejects.toThrow("Unexpected error")
 		})
+
+		it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			const testHandler = new RequestyHandler(mockOptions)
+
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "Test response" } }],
+			})
+
+			await testHandler.completePrompt("test prompt", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const testHandler = new RequestyHandler(mockOptions)
+
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "Test response" } }],
+			})
+
+			await testHandler.completePrompt("test prompt")
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
+		})
 	})
 
 	describe("abortSignal support", () => {

@@ -156,6 +156,33 @@ describe("GeminiHandler", () => {
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("")
 		})
+
+		it("should pass abortSignal to generateContent when provided in metadata", async () => {
+			const mockGenerateContent = vitest.fn().mockResolvedValue({
+				text: "Test response",
+			})
+			;(handler["client"].models as any).generateContent = mockGenerateContent
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			await handler.completePrompt("Test prompt", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockGenerateContent.mock.calls[0][0]
+			expect(callArgs.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const mockGenerateContent = vitest.fn().mockResolvedValue({
+				text: "Test response",
+			})
+			;(handler["client"].models as any).generateContent = mockGenerateContent
+
+			await handler.completePrompt("Test prompt")
+
+			const callArgs = mockGenerateContent.mock.calls[0][0]
+			expect(callArgs.signal).toBeUndefined()
+		})
 	})
 
 	describe("getModel", () => {

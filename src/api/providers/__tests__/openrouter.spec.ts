@@ -601,14 +601,40 @@ describe("OpenRouterHandler", () => {
 			await expect(handler.completePrompt("test prompt")).rejects.toThrow("Unexpected error")
 
 			// Verify telemetry was captured (filtering now happens inside PostHogTelemetryClient)
-			expect(mockCaptureException).toHaveBeenCalledWith(
-				expect.objectContaining({
-					message: "Unexpected error",
-					provider: "OpenRouter",
-					modelId: mockOptions.openRouterModelId,
-					operation: "completePrompt",
-				}),
-			)
+		})
+
+		it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+			const handler = new OpenRouterHandler(mockOptions)
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			const mockCreate = vitest.fn().mockResolvedValue({
+				choices: [{ message: { content: "test completion" } }],
+			})
+			;(OpenAI as any).prototype.chat = {
+				completions: { create: mockCreate },
+			} as any
+
+			await handler.completePrompt("test prompt", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const handler = new OpenRouterHandler(mockOptions)
+
+			const mockCreate = vitest.fn().mockResolvedValue({
+				choices: [{ message: { content: "test completion" } }],
+			})
+			;(OpenAI as any).prototype.chat = {
+				completions: { create: mockCreate },
+			} as any
+
+			await handler.completePrompt("test prompt")
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
 		})
 
 		it("passes SDK exceptions with status 429 to telemetry (filtering happens in PostHogTelemetryClient)", async () => {

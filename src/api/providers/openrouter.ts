@@ -577,7 +577,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		return { id, info, topP: isDeepSeekR1 ? 0.95 : undefined, ...params }
 	}
 
-	async completePrompt(prompt: string) {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata) {
 		let { id: modelId, maxTokens, temperature, reasoning } = await this.fetchModel()
 
 		const completionParams: OpenRouterChatCompletionParams = {
@@ -599,14 +599,21 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		}
 
 		// Add Anthropic beta header for fine-grained tool streaming when using Anthropic models
-		const requestOptions = modelId.startsWith("anthropic/")
+		const anthropicConfig = modelId.startsWith("anthropic/")
 			? { headers: { "x-anthropic-beta": "fine-grained-tool-streaming-2025-05-14" } }
 			: undefined
 
 		let response
 
 		try {
-			response = await this.client.chat.completions.create(completionParams, requestOptions)
+			response = await this.client.chat.completions.create(
+				completionParams,
+				...(metadata?.abortSignal
+					? [{ ...anthropicConfig, signal: metadata.abortSignal }]
+					: anthropicConfig
+						? [anthropicConfig]
+						: []),
+			)
 		} catch (error) {
 			// Try to parse as OpenRouter error structure using Zod
 			const parseResult = OpenRouterErrorResponseSchema.safeParse(error)

@@ -174,5 +174,28 @@ describe("OpencodeGoHandler", () => {
 			const handler = new OpencodeGoHandler(mockOptions)
 			await expect(handler.completePrompt("ping")).rejects.toThrow("Opencode Go completion error: boom")
 		})
+
+		it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+			mockCreate.mockResolvedValue({ choices: [{ message: { content: "the answer" } }] })
+			const handler = new OpencodeGoHandler(mockOptions)
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			await handler.completePrompt("ping", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			mockCreate.mockResolvedValue({ choices: [{ message: { content: "the answer" } }] })
+			const handler = new OpencodeGoHandler(mockOptions)
+
+			await handler.completePrompt("ping")
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
+		})
 	})
 })

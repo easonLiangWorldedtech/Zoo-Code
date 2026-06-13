@@ -486,6 +486,35 @@ describe("ZooGatewayHandler", () => {
 
 			await expect(handler.completePrompt("Test")).resolves.toBe("")
 		})
+
+		it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+			const handler = new ZooGatewayHandler(mockOptions)
+
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "Test completion response" } }],
+			})
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			await handler.completePrompt("Complete this: Hello", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const handler = new ZooGatewayHandler(mockOptions)
+
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "Test completion response" } }],
+			})
+
+			await handler.completePrompt("Complete this: Hello")
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
+		})
 	})
 
 	describe("classifyGatewayApiError", () => {

@@ -305,6 +305,31 @@ describe("PoeHandler", () => {
 				}),
 			)
 		})
+
+		it("should pass abortSignal to generateText when provided in metadata", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+
+			mockGenerateText.mockResolvedValue({ text: "generated response" })
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			await handler.completePrompt("complete this", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockGenerateText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+
+			mockGenerateText.mockResolvedValue({ text: "generated response" })
+
+			await handler.completePrompt("complete this")
+
+			const callArgs = mockGenerateText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBeUndefined()
+		})
 	})
 
 	describe("abortSignal support", () => {

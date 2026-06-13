@@ -345,9 +345,18 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		model: OpenAiCodexModel,
 		accessToken: string,
 		taskId?: string,
+		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
-		// Create AbortController for cancellation
+		// Create AbortController for cancellation and external abort signal support
 		this.abortController = new AbortController()
+
+		// Listen for external abort signal from metadata and forward to internal controller
+		const externalAbortSignal = metadata?.abortSignal
+		if (externalAbortSignal) {
+			externalAbortSignal.addEventListener("abort", () => {
+				this.abortController?.abort()
+			})
+		}
 
 		try {
 			// Prefer OpenAI SDK streaming (same approach as openai-native) so event handling

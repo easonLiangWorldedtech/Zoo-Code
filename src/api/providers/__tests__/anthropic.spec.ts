@@ -432,14 +432,17 @@ describe("AnthropicHandler", () => {
 		it("should complete prompt successfully", async () => {
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("Test response")
-			expect(mockCreate).toHaveBeenCalledWith({
-				model: mockOptions.apiModelId,
-				messages: [{ role: "user", content: "Test prompt" }],
-				max_tokens: 8192,
-				temperature: 0,
-				thinking: undefined,
-				stream: false,
-			})
+			expect(mockCreate).toHaveBeenCalledWith(
+				{
+					model: mockOptions.apiModelId,
+					messages: [{ role: "user", content: "Test prompt" }],
+					max_tokens: 8192,
+					temperature: 0,
+					thinking: undefined,
+					stream: false,
+				},
+				undefined,
+			)
 		})
 
 		it("should handle API errors", async () => {
@@ -461,6 +464,23 @@ describe("AnthropicHandler", () => {
 			}))
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("")
+		})
+
+		it("should pass abortSignal to messages.create when provided in metadata", async () => {
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			await handler.completePrompt("Test prompt", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			await handler.completePrompt("Test prompt")
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
 		})
 	})
 

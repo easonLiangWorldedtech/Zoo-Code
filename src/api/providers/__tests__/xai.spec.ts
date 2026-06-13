@@ -251,6 +251,31 @@ describe("XAIHandler", () => {
 		await expect(handler.completePrompt("test prompt")).rejects.toThrow(`xAI completion error: ${errorMessage}`)
 	})
 
+	it("should pass abortSignal to responses.create when provided in metadata", async () => {
+		const controller = new AbortController()
+		const mockAbortSignal = controller.signal
+
+		mockResponsesCreate.mockResolvedValueOnce({
+			output_text: "Test response",
+		})
+
+		await handler.completePrompt("test prompt", { taskId: "test", abortSignal: mockAbortSignal })
+
+		const callArgs = mockResponsesCreate.mock.calls[0][1]
+		expect(callArgs?.signal).toBe(mockAbortSignal)
+	})
+
+	it("should pass undefined signal when abortSignal is not provided", async () => {
+		mockResponsesCreate.mockResolvedValueOnce({
+			output_text: "Test response",
+		})
+
+		await handler.completePrompt("test prompt")
+
+		const callArgs = mockResponsesCreate.mock.calls[0][1]
+		expect(callArgs?.signal).toBeUndefined()
+	})
+
 	it("should include reasoning_effort for mini models", async () => {
 		const miniModelHandler = new XAIHandler({
 			apiModelId: "grok-3-mini",

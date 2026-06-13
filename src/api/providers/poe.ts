@@ -135,12 +135,13 @@ export class PoeHandler extends BaseProvider implements SingleCompletionHandler 
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		const { id } = this.getModel()
 		try {
 			const { text } = await generateText({
 				model: this.poe(id),
 				prompt,
+				abortSignal: metadata?.abortSignal,
 			})
 			return text
 		} catch (error) {

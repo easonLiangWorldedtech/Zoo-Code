@@ -218,6 +218,31 @@ describe("MiniMaxHandler", () => {
 			await expect(handler.completePrompt("test prompt")).rejects.toThrow()
 		})
 
+		it("should pass abortSignal to messages.create when provided in metadata", async () => {
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			mockCreate.mockResolvedValueOnce({
+				content: [{ type: "text", text: "Test response" }],
+			})
+
+			await handler.completePrompt("test prompt", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			mockCreate.mockResolvedValueOnce({
+				content: [{ type: "text", text: "Test response" }],
+			})
+
+			await handler.completePrompt("test prompt")
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
+		})
+
 		it("createMessage should yield text content from stream", async () => {
 			const testContent = "This is test content from MiniMax stream"
 

@@ -401,19 +401,22 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 		}
 	}
 
-	async completePrompt(prompt: string) {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata) {
 		let { id: model, temperature } = this.getModel()
 
 		let message
 		try {
-			message = await this.client.messages.create({
-				model,
-				max_tokens: ANTHROPIC_DEFAULT_MAX_TOKENS,
-				thinking: undefined,
-				temperature,
-				messages: [{ role: "user", content: prompt }],
-				stream: false,
-			})
+			message = await this.client.messages.create(
+				{
+					model,
+					max_tokens: ANTHROPIC_DEFAULT_MAX_TOKENS,
+					thinking: undefined,
+					temperature,
+					messages: [{ role: "user", content: prompt }],
+					stream: false,
+				},
+				metadata?.abortSignal ? { signal: metadata.abortSignal } : undefined,
+			)
 		} catch (error) {
 			TelemetryService.instance.captureException(
 				new ApiProviderError(

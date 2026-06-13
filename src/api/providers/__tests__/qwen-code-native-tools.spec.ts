@@ -424,4 +424,35 @@ describe("QwenCodeHandler Native Tools", () => {
 			expect(callArgs?.signal).toBeUndefined()
 		})
 	})
+
+	describe("completePrompt abortSignal support", () => {
+		it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+			const handler = new QwenCodeHandler(mockOptions)
+
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
+
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "Test response" } }],
+			})
+
+			await handler.completePrompt("Test prompt", { taskId: "test", abortSignal: mockAbortSignal })
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBe(mockAbortSignal)
+		})
+
+		it("should pass undefined signal when abortSignal is not provided", async () => {
+			const handler = new QwenCodeHandler(mockOptions)
+
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "Test response" } }],
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			const callArgs = mockCreate.mock.calls[0][1]
+			expect(callArgs?.signal).toBeUndefined()
+		})
+	})
 })

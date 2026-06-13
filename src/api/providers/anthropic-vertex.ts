@@ -272,7 +272,7 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 		}
 	}
 
-	async completePrompt(prompt: string) {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata) {
 		try {
 			let {
 				id,
@@ -298,7 +298,10 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 				stream: false,
 			} as Anthropic.Messages.MessageCreateParamsNonStreaming
 
-			const response = await this.client.messages.create(params)
+			const response = await this.client.messages.create(
+				params,
+				metadata?.abortSignal ? { signal: metadata.abortSignal } : undefined,
+			)
 			const content = response.content[0]
 
 			if (content.type === "text") {

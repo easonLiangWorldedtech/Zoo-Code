@@ -410,8 +410,16 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		systemPrompt?: string,
 		messages?: Anthropic.Messages.MessageParam[],
 	): ApiStream {
-		// Create AbortController for cancellation
+		// Create AbortController for cancellation and external abort signal support
 		this.abortController = new AbortController()
+
+		// Listen for external abort signal from metadata and forward to internal controller
+		const externalAbortSignal = metadata?.abortSignal
+		if (externalAbortSignal) {
+			externalAbortSignal.addEventListener("abort", () => {
+				this.abortController?.abort()
+			})
+		}
 
 		// Build per-request headers using taskId when available, falling back to sessionId
 		const taskId = metadata?.taskId

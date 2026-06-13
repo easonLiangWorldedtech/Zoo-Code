@@ -577,7 +577,7 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		try {
 			const client = await this.getClient()
 			const response = await client.sendRequest(

@@ -299,7 +299,7 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		const { id: modelId, info } = await this.fetchModel()
 
 		// Check if this is a GPT-5 model that requires max_completion_tokens instead of max_tokens
@@ -322,7 +322,10 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 				requestOptions.max_tokens = info.maxTokens
 			}
 
-			const response = await this.client.chat.completions.create(requestOptions)
+			const response = await this.client.chat.completions.create(
+				requestOptions,
+				metadata?.abortSignal ? { signal: metadata.abortSignal } : undefined,
+			)
 			return response.choices[0]?.message.content || ""
 		} catch (error) {
 			if (error instanceof Error) {

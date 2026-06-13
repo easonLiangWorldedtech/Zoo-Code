@@ -117,7 +117,7 @@ export class VercelAiGatewayHandler extends RouterProvider implements SingleComp
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		const { id: modelId, info } = await this.fetchModel()
 
 		try {
@@ -133,7 +133,10 @@ export class VercelAiGatewayHandler extends RouterProvider implements SingleComp
 
 			requestOptions.max_completion_tokens = info.maxTokens
 
-			const response = await this.client.chat.completions.create(requestOptions)
+			const response = await this.client.chat.completions.create(
+				requestOptions,
+				...(metadata?.abortSignal ? [{ signal: metadata.abortSignal }] : []),
+			)
 			return response.choices[0]?.message.content || ""
 		} catch (error) {
 			if (error instanceof Error) {

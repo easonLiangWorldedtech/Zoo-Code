@@ -530,9 +530,17 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			...(useServiceTier && { service_tier: this.options.awsBedrockServiceTier }),
 		}
 
-		// Create AbortController with 10 minute timeout
+		// Create AbortController with 10 minute timeout and external abort signal support
 		const controller = new AbortController()
 		let timeoutId: NodeJS.Timeout | undefined
+
+		// Listen for external abort signal from metadata and forward to internal controller
+		const externalAbortSignal = metadata?.abortSignal
+		if (externalAbortSignal) {
+			externalAbortSignal.addEventListener("abort", () => {
+				controller.abort()
+			})
+		}
 
 		try {
 			timeoutId = setTimeout(
@@ -793,7 +801,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		try {
 			const modelConfig = this.getModel()
 
