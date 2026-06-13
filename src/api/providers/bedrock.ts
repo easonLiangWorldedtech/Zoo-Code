@@ -534,12 +534,21 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		const controller = new AbortController()
 		let timeoutId: NodeJS.Timeout | undefined
 
-		// Listen for external abort signal from metadata and forward to internal controller
+		// Listen for external abort signal from metadata and forward to internal controller.
+		// Handle both pre-aborted signals and future abort events.
 		const externalAbortSignal = metadata?.abortSignal
 		if (externalAbortSignal) {
-			externalAbortSignal.addEventListener("abort", () => {
+			if (externalAbortSignal.aborted) {
 				controller.abort()
-			})
+			} else {
+				externalAbortSignal.addEventListener(
+					"abort",
+					() => {
+						controller.abort()
+					},
+					{ once: true },
+				)
+			}
 		}
 
 		try {

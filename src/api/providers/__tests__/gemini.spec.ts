@@ -169,7 +169,7 @@ describe("GeminiHandler", () => {
 			await handler.completePrompt("Test prompt", { taskId: "test", abortSignal: mockAbortSignal })
 
 			const callArgs = mockGenerateContent.mock.calls[0][0]
-			expect(callArgs.signal).toBe(mockAbortSignal)
+			expect(callArgs.config?.abortSignal).toBe(mockAbortSignal)
 		})
 
 		it("should pass undefined signal when abortSignal is not provided", async () => {
@@ -181,7 +181,7 @@ describe("GeminiHandler", () => {
 			await handler.completePrompt("Test prompt")
 
 			const callArgs = mockGenerateContent.mock.calls[0][0]
-			expect(callArgs.signal).toBeUndefined()
+			expect(callArgs.config?.abortSignal).toBeUndefined()
 		})
 	})
 
@@ -416,7 +416,7 @@ describe("GeminiHandler", () => {
 
 			expect(mockGenerateContentStream).toHaveBeenCalled()
 			const callArgs = mockGenerateContentStream.mock.calls[0][0]
-			expect(callArgs.signal).toBe(mockAbortSignal)
+			expect(callArgs.config?.abortSignal).toBe(mockAbortSignal)
 		})
 
 		it("should pass undefined signal when abortSignal is not provided", async () => {
@@ -434,7 +434,7 @@ describe("GeminiHandler", () => {
 
 			expect(mockGenerateContentStream).toHaveBeenCalled()
 			const callArgs = mockGenerateContentStream.mock.calls[0][0]
-			expect(callArgs.signal).toBeUndefined()
+			expect(callArgs.config?.abortSignal).toBeUndefined()
 		})
 	})
 })

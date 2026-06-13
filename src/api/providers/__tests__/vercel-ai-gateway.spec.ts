@@ -586,13 +586,16 @@ describe("VercelAiGatewayHandler", () => {
 			const result = await handler.completePrompt(prompt)
 
 			expect(result).toBe("Test completion response")
-			expect(mockCreate).toHaveBeenCalledWith({
-				model: "anthropic/claude-sonnet-4",
-				messages: [{ role: "user", content: prompt }],
-				stream: false,
-				temperature: VERCEL_AI_GATEWAY_DEFAULT_TEMPERATURE,
-				max_completion_tokens: 64000,
-			})
+			expect(mockCreate).toHaveBeenCalledWith(
+				{
+					model: "anthropic/claude-sonnet-4",
+					messages: [{ role: "user", content: prompt }],
+					stream: false,
+					temperature: VERCEL_AI_GATEWAY_DEFAULT_TEMPERATURE,
+					max_completion_tokens: 64000,
+				},
+				{ signal: undefined },
+			)
 		})
 
 		it("uses custom temperature for completion", async () => {
@@ -608,6 +611,7 @@ describe("VercelAiGatewayHandler", () => {
 				expect.objectContaining({
 					temperature: customTemp,
 				}),
+				expect.objectContaining({ signal: undefined }),
 			)
 		})
 
@@ -656,6 +660,7 @@ describe("VercelAiGatewayHandler", () => {
 				expect.objectContaining({
 					temperature: 0.9,
 				}),
+				expect.objectContaining({ signal: undefined }),
 			)
 		})
 

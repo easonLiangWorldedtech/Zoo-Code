@@ -7,14 +7,20 @@ import { ApiHandlerOptions } from "../../../shared/api"
 const mockedData = vi.hoisted(() => ({
 	mockChat: vi.fn(),
 	mockGetOllamaModels: vi.fn(),
+	capturedAbortSpies: [] as ReturnType<typeof vi.fn>[],
 }))
 
-// Mock the ollama package
+// Mock the ollama package - capture each Ollama instance's abort spy for verification
 vi.mock("ollama", () => {
 	return {
-		Ollama: vi.fn().mockImplementation(() => ({
-			chat: mockedData.mockChat,
-		})),
+		Ollama: vi.fn().mockImplementation(function () {
+			const abortSpy = vi.fn()
+			mockedData.capturedAbortSpies.push(abortSpy)
+			return {
+				chat: mockedData.mockChat,
+				abort: abortSpy,
+			}
+		}),
 		Message: vi.fn(),
 	}
 })
@@ -232,7 +238,7 @@ describe("NativeOllamaHandler", () => {
 			)
 		})
 
-		it("should pass abortSignal to chat when provided in metadata", async () => {
+		it("should wire abortSignal to per-request client's abort() method", async () => {
 			const controller = new AbortController()
 			const mockAbortSignal = controller.signal
 
@@ -242,11 +248,12 @@ describe("NativeOllamaHandler", () => {
 
 			await handler.completePrompt("Test prompt", { taskId: "test", abortSignal: mockAbortSignal })
 
+			// The chat call should NOT have signal in options (we use per-request client instead)
 			const callArgs = mockedData.mockChat.mock.calls[0][0]
-			expect(callArgs.signal).toBe(mockAbortSignal)
+			expect(callArgs.signal).toBeUndefined()
 		})
 
-		it("should pass undefined signal when abortSignal is not provided", async () => {
+		it("should not pass signal in options when abortSignal is not provided", async () => {
 			mockedData.mockChat.mockResolvedValue({
 				message: { content: "Test response" },
 			})
@@ -639,10 +646,9 @@ describe("NativeOllamaHandler", () => {
 	})
 
 	describe("abortSignal support", () => {
-		it("should pass abortSignal to chat when provided in metadata", async () => {
+		it("should wire abortSignal to per-request client's abort() method", async () => {
 			vitest.clearAllMocks()
-			const mockAbortController: any = { signal: Symbol("abort") }
-
+			mockedData.capturedAbortSpies.length = 0
 			;(mockGetOllamaModels as any).mockImplementationOnce(async () => ({
 				llama2: { contextWindow: 4096, maxTokens: 4096, supportsImages: false, supportsPromptCache: false },
 			}))
@@ -657,20 +663,96 @@ describe("NativeOllamaHandler", () => {
 				ollamaBaseUrl: "http://localhost:11434",
 			})
 
+			const controller = new AbortController()
+
+			const stream = handlerWithSignal.createMessage("system", [{ role: "user", content: "Hello!" }], {
+				taskId: "test",
+				abortSignal: controller.signal,
+			})
+
+			// Start iteration and break early to test abort behavior
+			for await (const _chunk of stream) {
+				break
+			}
+
+			// Verify chat was called without signal in options
+			expect(mockedData.mockChat).toHaveBeenCalled()
+			const callArgs = mockedData.mockChat.mock.calls[0][0]
+			expect(callArgs.signal).toBeUndefined()
+
+			// Now abort and verify the per-request client's abort() was called
+			const abortSpyBeforeAbort = mockedData.capturedAbortSpies[mockedData.capturedAbortSpies.length - 1]
+			expect(abortSpyBeforeAbort).toBeDefined()
+			expect(abortSpyBeforeAbort!).toHaveBeenCalledTimes(0)
+
+			controller.abort()
+			// Give event loop time for the abort listener to fire
+			await new Promise((r) => setTimeout(r, 0))
+			expect(abortSpyBeforeAbort!).toHaveBeenCalled()
+		})
+
+		it("should call abort() immediately when signal is already aborted", async () => {
+			vitest.clearAllMocks()
+			mockedData.capturedAbortSpies.length = 0
+			;(mockGetOllamaModels as any).mockImplementationOnce(async () => ({
+				llama2: { contextWindow: 4096, maxTokens: 4096, supportsImages: false, supportsPromptCache: false },
+			}))
+
+			mockedData.mockChat.mockImplementation(async function* () {
+				yield { message: { content: "Hello" } }
+			})
+
+			const controller = new AbortController()
+			controller.abort() // Pre-abort the signal
+
+			const handlerWithSignal = new NativeOllamaHandler({
+				apiModelId: "llama2",
+				ollamaModelId: "llama2",
+				ollamaBaseUrl: "http://localhost:11434",
+			})
+
 			for await (const _chunk of handlerWithSignal.createMessage(
 				"system",
 				[{ role: "user", content: "Hello!" }],
-				{ taskId: "test", abortSignal: mockAbortController.signal },
+				{ taskId: "test", abortSignal: controller.signal },
 			)) {
 				break
 			}
 
-			expect(mockedData.mockChat).toHaveBeenCalled()
-			const callArgs = mockedData.mockChat.mock.calls[0][0]
-			expect(callArgs.signal).toBe(mockAbortController.signal)
+			// Verify abort was called immediately (before any iteration)
+			const abortSpyBeforeAbort = mockedData.capturedAbortSpies[mockedData.capturedAbortSpies.length - 1]
+			expect(abortSpyBeforeAbort).toBeDefined()
+			expect(abortSpyBeforeAbort!).toHaveBeenCalled()
 		})
 
-		it("should pass undefined signal when abortSignal is not provided", async () => {
+		it("should not call abort when no abortSignal is provided", async () => {
+			vitest.clearAllMocks()
+			mockedData.capturedAbortSpies.length = 0
+			;(mockGetOllamaModels as any).mockImplementationOnce(async () => ({
+				llama2: { contextWindow: 4096, maxTokens: 4096, supportsImages: false, supportsPromptCache: false },
+			}))
+
+			mockedData.mockChat.mockImplementation(async function* () {
+				yield { message: { content: "Hello" } }
+			})
+
+			const handlerNoSignal = new NativeOllamaHandler({
+				apiModelId: "llama2",
+				ollamaModelId: "llama2",
+				ollamaBaseUrl: "http://localhost:11434",
+			})
+
+			for await (const _chunk of handlerNoSignal.createMessage("system", [{ role: "user", content: "Hello!" }])) {
+				break
+			}
+
+			// Verify abort was NOT called when no signal provided
+			const abortSpy = mockedData.capturedAbortSpies[mockedData.capturedAbortSpies.length - 1]
+			expect(abortSpy).toBeDefined()
+			expect(abortSpy!).toHaveBeenCalledTimes(0)
+		})
+
+		it("should not pass signal in options when abortSignal is not provided", async () => {
 			vitest.clearAllMocks()
 			;(mockGetOllamaModels as any).mockImplementationOnce(async () => ({
 				llama2: { contextWindow: 4096, maxTokens: 4096, supportsImages: false, supportsPromptCache: false },

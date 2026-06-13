@@ -295,10 +295,9 @@ export class ZooGatewayHandler extends RouterProvider implements SingleCompletio
 
 			requestOptions.max_completion_tokens = info.maxTokens
 
-			const response = await this.client.chat.completions.create(
-				requestOptions,
-				...(metadata?.abortSignal ? [{ signal: metadata.abortSignal }] : []),
-			)
+			const response = await this.client.chat.completions.create(requestOptions, {
+				signal: metadata?.abortSignal,
+			})
 			return response.choices[0]?.message.content || ""
 		} catch (error) {
 			try {

@@ -637,48 +637,46 @@ describe("DeepSeekHandler", () => {
 			const toolCallChunks = chunks.filter((chunk) => chunk.type === "tool_call_partial")
 			expect(toolCallChunks.length).toBeGreaterThan(0)
 			expect(toolCallChunks[0].name).toBe("get_weather")
+		})
+	})
 
-			describe("abortSignal support", () => {
-				it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
-					const handler = new DeepSeekHandler({ ...mockOptions, apiKey: "test-key" })
-					const systemPrompt = "You are a helpful assistant."
-					const messages: Anthropic.Messages.MessageParam[] = [
-						{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
-					]
+	describe("abortSignal support", () => {
+		it("should pass abortSignal to chat.completions.create when provided in metadata", async () => {
+			const handler = new DeepSeekHandler({ ...mockOptions, apiKey: "test-key" })
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
+			]
 
-					const controller = new AbortController()
-					const mockAbortSignal = controller.signal
+			const controller = new AbortController()
+			const mockAbortSignal = controller.signal
 
-					await handler.createMessage(systemPrompt, messages, {
-						taskId: "test",
-						abortSignal: mockAbortSignal,
-					})
-					for await (const _chunk of handler.createMessage(systemPrompt, messages)) {
-						break
-					}
+			for await (const _chunk of handler.createMessage(systemPrompt, messages, {
+				taskId: "test",
+				abortSignal: mockAbortSignal,
+			})) {
+				break
+			}
 
-					expect(mockCreate).toHaveBeenCalled()
-					const callArgs = mockCreate.mock.calls[0][0]
-					expect(callArgs.signal).toBe(mockAbortSignal)
-				})
+			expect(mockCreate).toHaveBeenCalled()
+			const requestOptions = mockCreate.mock.calls[0][1]
+			expect(requestOptions?.signal).toBe(mockAbortSignal)
+		})
 
-				it("should not include signal when abortSignal is not provided", async () => {
-					const handler = new DeepSeekHandler({ ...mockOptions, apiKey: "test-key" })
-					const systemPrompt = "You are a helpful assistant."
-					const messages: Anthropic.Messages.MessageParam[] = [
-						{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
-					]
+		it("should not include signal when abortSignal is not provided", async () => {
+			const handler = new DeepSeekHandler({ ...mockOptions, apiKey: "test-key" })
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: [{ type: "text" as const, text: "Hello!" }] },
+			]
 
-					await handler.createMessage(systemPrompt, messages)
-					for await (const _chunk of handler.createMessage(systemPrompt, messages)) {
-						break
-					}
+			for await (const _chunk of handler.createMessage(systemPrompt, messages)) {
+				break
+			}
 
-					expect(mockCreate).toHaveBeenCalled()
-					const callArgs = mockCreate.mock.calls[0][0]
-					expect(callArgs.signal).toBeUndefined()
-				})
-			})
+			expect(mockCreate).toHaveBeenCalled()
+			const requestOptions = mockCreate.mock.calls[0][1]
+			expect(requestOptions?.signal).toBeUndefined()
 		})
 	})
 })
