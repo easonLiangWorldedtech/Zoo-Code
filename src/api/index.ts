@@ -41,7 +41,7 @@ import {
 import { NativeOllamaHandler } from "./providers/native-ollama"
 
 export interface SingleCompletionHandler {
-	completePrompt(prompt: string): Promise<string>
+	completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string>
 }
 
 export interface ApiHandlerCreateMessageMetadata {
@@ -90,6 +90,11 @@ export interface ApiHandlerCreateMessageMetadata {
 	 * Only applies to providers that support function calling restrictions (e.g., Gemini).
 	 */
 	allowedFunctionNames?: string[]
+	/**
+	 * Abort signal from the Task's AbortController, used by providers to cancel
+	 * in-flight HTTP requests when the user presses Stop.
+	 */
+	abortSignal?: AbortSignal
 }
 
 export interface ApiHandler {
