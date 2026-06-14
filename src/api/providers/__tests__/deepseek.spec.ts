@@ -569,10 +569,10 @@ describe("DeepSeekHandler", () => {
 				// Consume the stream
 			}
 
-			expect(mockCreate).toHaveBeenCalledWith(
-				expect.any(Object),
-				expect.objectContaining({ path: "/models/chat/completions" }),
-			)
+			expect(mockCreate).toHaveBeenCalledTimes(1)
+			const [requestOptions, signalArg] = mockCreate.mock.calls[0]
+			expect(requestOptions.model).toBe("deepseek-chat")
+			expect(signalArg).toBeUndefined()
 		})
 
 		it("should disable thinking for deepseek-v4 models when reasoning is disabled", async () => {
