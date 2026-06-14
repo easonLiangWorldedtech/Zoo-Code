@@ -161,7 +161,10 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 		let stream
 		try {
 			// With streaming params type, SDK returns an async iterable stream
-			stream = await this.client.chat.completions.create(completionParams)
+			stream = await this.client.chat.completions.create(
+				completionParams,
+				metadata?.abortSignal ? { signal: metadata.abortSignal } : undefined,
+			)
 		} catch (error) {
 			throw handleOpenAIError(error, this.providerName)
 		}
@@ -201,7 +204,7 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		const { id: model, maxTokens: max_tokens, temperature } = await this.fetchModel()
 
 		let openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }]
@@ -215,7 +218,10 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 
 		let response: OpenAI.Chat.ChatCompletion
 		try {
-			response = await this.client.chat.completions.create(completionParams)
+			response = await this.client.chat.completions.create(
+				completionParams,
+				metadata?.abortSignal ? { signal: metadata.abortSignal } : undefined,
+			)
 		} catch (error) {
 			throw handleOpenAIError(error, this.providerName)
 		}
