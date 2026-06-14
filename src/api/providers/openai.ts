@@ -179,7 +179,14 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			try {
 				stream = await this.client.chat.completions.create(
 					requestOptions,
-					isAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {},
+					metadata?.abortSignal
+						? {
+								...(isAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {}),
+								signal: metadata.abortSignal,
+							}
+						: isAzureAiInference
+							? { path: OPENAI_AZURE_AI_INFERENCE_PATH }
+							: {},
 				)
 			} catch (error) {
 				throw handleOpenAIError(error, this.providerName)
@@ -247,7 +254,14 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			try {
 				response = await this.client.chat.completions.create(
 					requestOptions,
-					this._isAzureAiInference(modelUrl) ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {},
+					metadata?.abortSignal
+						? {
+								...(this._isAzureAiInference(modelUrl) ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {}),
+								signal: metadata.abortSignal,
+							}
+						: this._isAzureAiInference(modelUrl)
+							? { path: OPENAI_AZURE_AI_INFERENCE_PATH }
+							: {},
 				)
 			} catch (error) {
 				throw handleOpenAIError(error, this.providerName)
@@ -300,7 +314,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 		return { id, info, ...params }
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		try {
 			const isAzureAiInference = this._isAzureAiInference(this.options.openAiBaseUrl)
 			const model = this.getModel()
@@ -318,7 +332,14 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			try {
 				response = await this.client.chat.completions.create(
 					requestOptions,
-					isAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {},
+					metadata?.abortSignal
+						? {
+								...(isAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {}),
+								signal: metadata.abortSignal,
+							}
+						: isAzureAiInference
+							? { path: OPENAI_AZURE_AI_INFERENCE_PATH }
+							: {},
 				)
 			} catch (error) {
 				throw handleOpenAIError(error, this.providerName)
@@ -374,7 +395,14 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			try {
 				stream = await this.client.chat.completions.create(
 					requestOptions,
-					methodIsAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {},
+					metadata?.abortSignal
+						? {
+								...(methodIsAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {}),
+								signal: metadata.abortSignal,
+							}
+						: methodIsAzureAiInference
+							? { path: OPENAI_AZURE_AI_INFERENCE_PATH }
+							: {},
 				)
 			} catch (error) {
 				throw handleOpenAIError(error, this.providerName)
@@ -408,7 +436,14 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			try {
 				response = await this.client.chat.completions.create(
 					requestOptions,
-					methodIsAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {},
+					metadata?.abortSignal
+						? {
+								...(methodIsAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {}),
+								signal: metadata.abortSignal,
+							}
+						: methodIsAzureAiInference
+							? { path: OPENAI_AZURE_AI_INFERENCE_PATH }
+							: {},
 				)
 			} catch (error) {
 				throw handleOpenAIError(error, this.providerName)
