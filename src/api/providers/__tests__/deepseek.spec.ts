@@ -494,7 +494,7 @@ describe("DeepSeekHandler", () => {
 				expect.objectContaining({
 					thinking: { type: "enabled" },
 				}),
-				{}, // Empty path options for non-Azure URLs
+				undefined, // No signal, non-Azure URL
 			)
 			const callArgs = mockCreate.mock.calls[0][0]
 			expect(callArgs.reasoning_effort).toBeUndefined()
@@ -517,7 +517,7 @@ describe("DeepSeekHandler", () => {
 					reasoning_effort: "high",
 					max_completion_tokens: 200_000,
 				}),
-				{},
+				undefined,
 			)
 		})
 
@@ -554,7 +554,7 @@ describe("DeepSeekHandler", () => {
 					thinking: { type: "enabled" },
 					reasoning_effort: "max",
 				}),
-				{},
+				undefined,
 			)
 		})
 
