@@ -4176,10 +4176,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const iterator = stream[Symbol.asyncIterator]()
 
 		// Set up abort handling - when the signal is aborted, clean up the controller reference
-		abortSignal.addEventListener("abort", () => {
-			console.log(`[Task#${this.taskId}.${this.instanceId}] AbortSignal triggered for current request`)
-			this.currentRequestAbortController = undefined
-		})
+		abortSignal.addEventListener(
+			"abort",
+			() => {
+				console.log(`[Task#${this.taskId}.${this.instanceId}] AbortSignal triggered for current request`)
+				this.currentRequestAbortController = undefined
+			},
+			{ once: true },
+		)
 
 		try {
 			// Awaiting first chunk to see if it will throw an error.
@@ -4191,9 +4195,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				if (abortSignal.aborted) {
 					reject(new Error("Request cancelled by user"))
 				} else {
-					abortSignal.addEventListener("abort", () => {
-						reject(new Error("Request cancelled by user"))
-					})
+					abortSignal.addEventListener(
+						"abort",
+						() => {
+							reject(new Error("Request cancelled by user"))
+						},
+						{ once: true },
+					)
 				}
 			})
 
