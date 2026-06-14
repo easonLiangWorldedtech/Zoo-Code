@@ -8,7 +8,7 @@ vi.mock("openai", () => {
 	return {
 		default: vi.fn(function () {
 			return {
-			.chat: {
+				chat: {
 					completions: {
 						create: createMock,
 					},
