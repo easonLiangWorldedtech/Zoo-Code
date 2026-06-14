@@ -103,7 +103,7 @@ export class MistralHandler extends BaseProvider implements SingleCompletionHand
 
 		let response
 		try {
-			response = await this.client.chat.stream(requestOptions)
+			response = await this.client.chat.stream({ ...requestOptions, signal: metadata?.abortSignal } as any)
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			const apiError = new ApiProviderError(errorMessage, this.providerName, model, "createMessage")
@@ -193,10 +193,11 @@ export class MistralHandler extends BaseProvider implements SingleCompletionHand
 		return { id, info, maxTokens, temperature }
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, _metadata?: ApiHandlerCreateMessageMetadata): Promise<string> {
 		const { id: model, temperature } = this.getModel()
 
 		try {
+			// Note: Mistral non-streaming API doesn't support cancellation for completePrompt
 			const response = await this.client.chat.complete({
 				model,
 				messages: [{ role: "user", content: prompt }],
