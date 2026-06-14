@@ -158,6 +158,39 @@ describe("LmStudioHandler", () => {
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("")
 		})
+
+		it("should use metadata.abortSignal when provided in completePrompt", async () => {
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "Response with abort signal" } }],
+			})
+
+			const controller = new AbortController()
+			const result = await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+
+			expect(result).toBe("Response with abort signal")
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: controller.signal,
+				}),
+			)
+		})
+
+		it("should use default signal when metadata.abortSignal not provided in completePrompt", async () => {
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "Response without metadata" } }],
+			})
+
+			const result = await handler.completePrompt("Test prompt")
+
+			expect(result).toBe("Response without metadata")
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: expect.any(AbortSignal),
+				}),
+			)
+		})
 	})
 
 	describe("getModel", () => {

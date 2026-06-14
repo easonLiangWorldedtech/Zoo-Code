@@ -657,5 +657,48 @@ describe("DeepSeekHandler", () => {
 			expect(toolCallChunks.length).toBeGreaterThan(0)
 			expect(toolCallChunks[0].name).toBe("get_weather")
 		})
+
+		it("should use metadata.abortSignal when provided in createMessage", async () => {
+			const controller = new AbortController()
+			mockCreate.mockResolvedValueOnce({
+				id: "test-completion",
+				choices: [{ message: { content: "Response with abort signal" } }],
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages, { abortSignal: controller.signal })
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			expect(chunks.length).toBeGreaterThan(0)
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: controller.signal,
+				}),
+			)
+		})
+
+		it("should use default signal when metadata.abortSignal not provided in createMessage", async () => {
+			mockCreate.mockResolvedValueOnce({
+				id: "test-completion",
+				choices: [{ message: { content: "Response without metadata" } }],
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			expect(chunks.length).toBeGreaterThan(0)
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: expect.any(AbortSignal),
+				}),
+			)
+		})
 	})
 })

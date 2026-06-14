@@ -600,6 +600,49 @@ describe("OpenAiHandler", () => {
 				}
 			}).rejects.toThrow("Rate limit exceeded")
 		})
+
+		it("should use metadata.abortSignal when provided in createMessage", async () => {
+			const controller = new AbortController()
+			mockCreate.mockResolvedValue({
+				id: "test-completion",
+				choices: [{ message: { content: "Response with abort signal" } }],
+			})
+
+			const stream = handler.createMessage("system prompt", testMessages, { abortSignal: controller.signal })
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			expect(chunks.length).toBeGreaterThan(0)
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: controller.signal,
+				}),
+			)
+		})
+
+		it("should use default signal when metadata.abortSignal not provided in createMessage", async () => {
+			mockCreate.mockResolvedValue({
+				id: "test-completion",
+				choices: [{ message: { content: "Response without metadata" } }],
+			})
+
+			const stream = handler.createMessage("system prompt", testMessages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			expect(chunks.length).toBeGreaterThan(0)
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: expect.any(AbortSignal),
+				}),
+			)
+		})
 	})
 
 	describe("completePrompt", () => {
@@ -626,6 +669,41 @@ describe("OpenAiHandler", () => {
 			}))
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("")
+		})
+
+		it("should use metadata.abortSignal when provided in completePrompt", async () => {
+			mockCreate.mockResolvedValue({
+				id: "test-completion",
+				choices: [{ message: { content: "Response with abort signal" } }],
+			})
+
+			const controller = new AbortController()
+			const result = await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+
+			expect(result).toBe("Response with abort signal")
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: controller.signal,
+				}),
+			)
+		})
+
+		it("should use default signal when metadata.abortSignal not provided in completePrompt", async () => {
+			mockCreate.mockResolvedValue({
+				id: "test-completion",
+				choices: [{ message: { content: "Response without metadata" } }],
+			})
+
+			const result = await handler.completePrompt("Test prompt")
+
+			expect(result).toBe("Response without metadata")
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: expect.any(AbortSignal),
+				}),
+			)
 		})
 	})
 

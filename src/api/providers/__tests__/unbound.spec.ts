@@ -8,7 +8,7 @@ vi.mock("openai", () => {
 	return {
 		default: vi.fn(function () {
 			return {
-				chat: {
+			.chat: {
 					completions: {
 						create: createMock,
 					},
@@ -91,6 +91,65 @@ describe("UnboundHandler", () => {
 				},
 			}),
 			undefined,
+		)
+	})
+
+	it("should use metadata.abortSignal when provided in createMessage", async () => {
+		const mockCreate = (OpenAI as unknown as any)().chat.completions.create
+		mockCreate.mockResolvedValue({
+			async *[Symbol.asyncIterator]() {
+				yield { choices: [{ delta: { content: "ok" } }] }
+				yield { choices: [{ delta: {} }], usage: { prompt_tokens: 1, completion_tokens: 1 } }
+			},
+		})
+
+		const handler = new UnboundHandler({
+			unboundApiKey: "test-key",
+			unboundModelId: "openai/gpt-4o",
+		})
+
+		const controller = new AbortController()
+		const stream = handler.createMessage("system", [{ role: "user" as const, content: "hello" }], {
+			abortSignal: controller.signal,
+		})
+
+		for await (const _chunk of stream) {
+			// drain stream
+		}
+
+		expect(mockCreate).toHaveBeenCalledWith(
+			expect.any(Object),
+			expect.objectContaining({
+				signal: controller.signal,
+			}),
+		)
+	})
+
+	it("should use default signal when metadata.abortSignal not provided in createMessage", async () => {
+		const mockCreate = (OpenAI as unknown as any)().chat.completions.create
+		mockCreate.mockResolvedValue({
+			async *[Symbol.asyncIterator]() {
+				yield { choices: [{ delta: { content: "ok" } }] }
+				yield { choices: [{ delta: {} }], usage: { prompt_tokens: 1, completion_tokens: 1 } }
+			},
+		})
+
+		const handler = new UnboundHandler({
+			unboundApiKey: "test-key",
+			unboundModelId: "openai/gpt-4o",
+		})
+
+		const stream = handler.createMessage("system", [{ role: "user" as const, content: "hello" }])
+
+		for await (const _chunk of stream) {
+			// drain stream
+		}
+
+		expect(mockCreate).toHaveBeenCalledWith(
+			expect.any(Object),
+			expect.objectContaining({
+				signal: expect.any(AbortSignal),
+			}),
 		)
 	})
 })

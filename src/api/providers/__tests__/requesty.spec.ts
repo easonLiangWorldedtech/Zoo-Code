@@ -454,11 +454,40 @@ describe("RequestyHandler", () => {
 			await expect(handler.completePrompt("test prompt")).rejects.toThrow("API Error")
 		})
 
-		it("handles unexpected errors", async () => {
+		it("should handle unexpected errors", async () => {
 			const handler = new RequestyHandler(mockOptions)
 			mockCreate.mockRejectedValue(new Error("Unexpected error"))
 
 			await expect(handler.completePrompt("test prompt")).rejects.toThrow("Unexpected error")
+		})
+
+		it("should use metadata.abortSignal when provided in completePrompt", async () => {
+			const handler = new RequestyHandler(mockOptions)
+			mockCreate.mockResolvedValue({ choices: [{ message: { content: "response" } }] })
+
+			const controller = new AbortController()
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: controller.signal,
+				}),
+			)
+		})
+
+		it("should use default signal when metadata.abortSignal not provided in completePrompt", async () => {
+			const handler = new RequestyHandler(mockOptions)
+			mockCreate.mockResolvedValue({ choices: [{ message: { content: "response" } }] })
+
+			await handler.completePrompt("test prompt")
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: expect.any(AbortSignal),
+				}),
+			)
 		})
 	})
 })

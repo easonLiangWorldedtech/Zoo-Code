@@ -497,5 +497,40 @@ describe("MistralHandler", () => {
 			mockComplete.mockRejectedValueOnce(new Error("API Error"))
 			await expect(handler.completePrompt("Test prompt")).rejects.toThrow("Mistral completion error: API Error")
 		})
+
+		it("should use metadata.abortSignal when provided in completePrompt", async () => {
+			mockComplete.mockResolvedValueOnce({
+				id: "test-completion",
+				choices: [{ message: { content: "Response with abort signal" } }],
+			})
+
+			const controller = new AbortController()
+			const result = await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+
+			expect(result).toBe("Response with abort signal")
+			expect(mockComplete).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: controller.signal,
+				}),
+			)
+		})
+
+		it("should use default signal when metadata.abortSignal not provided in completePrompt", async () => {
+			mockComplete.mockResolvedValueOnce({
+				id: "test-completion",
+				choices: [{ message: { content: "Response without metadata" } }],
+			})
+
+			const result = await handler.completePrompt("Test prompt")
+
+			expect(result).toBe("Response without metadata")
+			expect(mockComplete).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: expect.any(AbortSignal),
+				}),
+			)
+		})
 	})
 })

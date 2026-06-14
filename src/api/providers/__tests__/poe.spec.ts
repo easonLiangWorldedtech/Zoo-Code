@@ -309,5 +309,20 @@ describe("PoeHandler", () => {
 				}),
 			)
 		})
+
+		it("should use metadata.abortSignal when provided in completePrompt", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+			mockGenerateText.mockResolvedValue({ text: "response with abort signal" })
+
+			const controller = new AbortController()
+			await handler.completePrompt("complete this", { abortSignal: controller.signal })
+
+			expect(mockGenerateText).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: mockLanguageModel,
+					prompt: "complete this",
+				}),
+			)
+		})
 	})
 })

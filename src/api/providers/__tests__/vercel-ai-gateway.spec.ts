@@ -692,5 +692,40 @@ describe("VercelAiGatewayHandler", () => {
 				undefined,
 			)
 		})
+
+		it("should use metadata.abortSignal when provided in completePrompt", async () => {
+			const handler = new VercelAiGatewayHandler(mockOptions)
+			mockCreate.mockResolvedValueOnce({
+				id: "test-completion",
+				choices: [{ message: { content: "Response with abort signal" } }],
+			})
+
+			const controller = new AbortController()
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: controller.signal,
+				}),
+			)
+		})
+
+		it("should use default signal when metadata.abortSignal not provided in completePrompt", async () => {
+			const handler = new VercelAiGatewayHandler(mockOptions)
+			mockCreate.mockResolvedValueOnce({
+				id: "test-completion",
+				choices: [{ message: { content: "Response without metadata" } }],
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({
+					signal: expect.any(AbortSignal),
+				}),
+			)
+		})
 	})
 })
