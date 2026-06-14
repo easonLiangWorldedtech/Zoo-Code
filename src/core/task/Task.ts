@@ -4141,10 +4141,15 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 		const shouldIncludeTools = allTools.length > 0
 
+		// Create an AbortController FIRST so we can include its signal in metadata
+		this.currentRequestAbortController = new AbortController()
+		const abortSignal = this.currentRequestAbortController.signal
+
 		const metadata: ApiHandlerCreateMessageMetadata = {
 			mode: mode,
 			taskId: this.taskId,
 			suppressPreviousResponseId: this.skipPrevResponseIdOnce,
+			abortSignal: abortSignal,
 			// Include tools whenever they are present.
 			...(shouldIncludeTools
 				? {
@@ -4157,11 +4162,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					}
 				: {}),
 		}
-
-		// Create an AbortController to allow cancelling the request mid-stream
-		this.currentRequestAbortController = new AbortController()
-		const abortSignal = this.currentRequestAbortController.signal
-		// Reset the flag after using it
 		this.skipPrevResponseIdOnce = false
 
 		// The provider accepts reasoning items alongside standard messages; cast to the expected parameter type.
