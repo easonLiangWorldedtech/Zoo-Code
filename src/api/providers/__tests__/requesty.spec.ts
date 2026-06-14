@@ -210,6 +210,7 @@ describe("RequestyHandler", () => {
 					stream_options: { include_usage: true },
 					temperature: 0,
 				}),
+				undefined,
 			)
 		})
 
@@ -243,6 +244,7 @@ describe("RequestyHandler", () => {
 					thinking: { type: "adaptive" },
 					temperature: undefined,
 				}),
+				undefined,
 			)
 		})
 
@@ -314,6 +316,7 @@ describe("RequestyHandler", () => {
 						]),
 						tool_choice: "auto",
 					}),
+					undefined,
 				)
 			})
 
@@ -412,12 +415,15 @@ describe("RequestyHandler", () => {
 
 			expect(result).toBe("test completion")
 
-			expect(mockCreate).toHaveBeenCalledWith({
-				model: mockOptions.requestyModelId,
-				max_tokens: 8192,
-				messages: [{ role: "system", content: "test prompt" }],
-				temperature: 0,
-			})
+			expect(mockCreate).toHaveBeenCalledWith(
+				{
+					model: mockOptions.requestyModelId,
+					max_tokens: 8192,
+					messages: [{ role: "system", content: "test prompt" }],
+					temperature: 0,
+				},
+				undefined,
+			)
 		})
 
 		it("omits temperature for Claude Fable 5 in completePrompt", async () => {
@@ -429,12 +435,15 @@ describe("RequestyHandler", () => {
 
 			await handler.completePrompt("test prompt")
 
-			expect(mockCreate).toHaveBeenCalledWith({
-				model: "anthropic/claude-fable-5",
-				max_tokens: 8192,
-				messages: [{ role: "system", content: "test prompt" }],
-				temperature: undefined,
-			})
+			expect(mockCreate).toHaveBeenCalledWith(
+				{
+					model: "anthropic/claude-fable-5",
+					max_tokens: 8192,
+					messages: [{ role: "system", content: "test prompt" }],
+					temperature: undefined,
+				},
+				undefined,
+			)
 		})
 
 		it("handles API errors", async () => {

@@ -502,6 +502,7 @@ describe("ZAiHandler", () => {
 					model: "glm-5.1",
 					max_tokens: 40_000,
 				}),
+				undefined,
 			)
 		})
 
@@ -542,6 +543,7 @@ describe("ZAiHandler", () => {
 					model: "glm-5.1",
 					max_tokens: 100_000,
 				}),
+				undefined,
 			)
 		})
 
@@ -572,6 +574,7 @@ describe("ZAiHandler", () => {
 					model: "glm-4.7",
 					thinking: { type: "enabled" },
 				}),
+				undefined,
 			)
 		})
 
@@ -603,6 +606,7 @@ describe("ZAiHandler", () => {
 					model: "glm-4.7",
 					thinking: { type: "disabled" },
 				}),
+				undefined,
 			)
 		})
 
@@ -634,6 +638,7 @@ describe("ZAiHandler", () => {
 					model: "glm-4.7",
 					thinking: { type: "enabled" },
 				}),
+				undefined,
 			)
 		})
 
@@ -687,6 +692,7 @@ describe("ZAiHandler", () => {
 					model: "glm-5-turbo",
 					thinking: { type: "enabled" },
 				}),
+				undefined,
 			)
 		})
 
@@ -717,6 +723,7 @@ describe("ZAiHandler", () => {
 					model: "glm-5-turbo",
 					thinking: { type: "disabled" },
 				}),
+				undefined,
 			)
 		})
 	})

@@ -305,6 +305,7 @@ describe("MiniMaxHandler", () => {
 					messages: expect.any(Array),
 					stream: true,
 				}),
+				undefined,
 			)
 		})
 
@@ -324,6 +325,7 @@ describe("MiniMaxHandler", () => {
 				expect.objectContaining({
 					temperature: 1,
 				}),
+				undefined,
 			)
 		})
 
