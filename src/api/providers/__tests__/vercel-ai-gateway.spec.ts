@@ -267,6 +267,29 @@ describe("VercelAiGatewayHandler", () => {
 			)
 		})
 
+		it("forwards abortSignal to createMessage", async () => {
+			const controller = new AbortController()
+			const handler = new VercelAiGatewayHandler(mockOptions)
+
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+
+			await handler.createMessage(systemPrompt, messages, { abortSignal: controller.signal }).next()
+
+			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({}), { signal: controller.signal })
+		})
+
+		it("forwards abortSignal to completePrompt", async () => {
+			const controller = new AbortController()
+			const handler = new VercelAiGatewayHandler(mockOptions)
+
+			mockCreate.mockResolvedValue({ choices: [{ message: { content: "test completion" } }] })
+
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+
+			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({}), { signal: controller.signal })
+		})
+
 		it("uses default temperature when none provided", async () => {
 			const handler = new VercelAiGatewayHandler(mockOptions)
 

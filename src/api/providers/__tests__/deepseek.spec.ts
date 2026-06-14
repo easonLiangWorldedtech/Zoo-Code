@@ -558,6 +558,23 @@ describe("DeepSeekHandler", () => {
 			)
 		})
 
+		it("should pass Azure path even when abortSignal is not provided", async () => {
+			const azureHandler = new DeepSeekHandler({
+				...mockOptions,
+				deepSeekBaseUrl: "https://example.services.ai.azure.com",
+			})
+
+			const stream = azureHandler.createMessage(systemPrompt, messages)
+			for await (const _chunk of stream) {
+				// Consume the stream
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ path: "/models/chat/completions" }),
+			)
+		})
+
 		it("should disable thinking for deepseek-v4 models when reasoning is disabled", async () => {
 			const v4Handler = new DeepSeekHandler({
 				...mockOptions,
