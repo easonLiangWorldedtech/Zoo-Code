@@ -35,4 +35,72 @@ describe("abort signal passing", () => {
 		expect(metadata1.abortSignal).not.toBe(metadata2.abortSignal)
 		expect(controller1.signal).not.toBe(controller2.signal)
 	})
+
+	it("should trigger abort listener and clear controller reference", async () => {
+		const controller = new AbortController()
+		let controllerRef: AbortController | undefined = controller
+
+		// Simulate Task.ts abort listener setup with { once: true }
+		controller.signal.addEventListener(
+			"abort",
+			() => {
+				controllerRef = undefined
+			},
+			{ once: true },
+		)
+
+		// Verify initial state
+		expect(controllerRef).toBe(controller)
+		expect(controller.signal.aborted).toBe(false)
+
+		// Trigger abort
+		controller.abort()
+
+		// Verify listener was called and cleared the reference
+		expect(controllerRef).toBeUndefined()
+		expect(controller.signal.aborted).toBe(true)
+	})
+
+	it("should only trigger once even if signal is aborted multiple times", async () => {
+		const controller = new AbortController()
+		let callCount = 0
+
+		controller.signal.addEventListener(
+			"abort",
+			() => {
+				callCount++
+			},
+			{ once: true },
+		)
+
+		// First abort
+		controller.abort()
+		expect(callCount).toBe(1)
+
+		// Second abort (AbortSignal allows this, though unusual)
+		controller.abort()
+		expect(callCount).toBe(1) // Should still be 1 because of { once: true }
+	})
+
+	it("should reject promise immediately if signal already aborted", async () => {
+		const controller = new AbortController()
+		controller.abort()
+
+		// Simulate the abortPromise logic from Task.ts
+		const abortPromise = new Promise<never>((_, reject) => {
+			if (controller.signal.aborted) {
+				reject(new Error("Request cancelled by user"))
+			} else {
+				controller.signal.addEventListener(
+					"abort",
+					() => {
+						reject(new Error("Request cancelled by user"))
+					},
+					{ once: true },
+				)
+			}
+		})
+
+		await expect(abortPromise).rejects.toThrow("Request cancelled by user")
+	})
 })
