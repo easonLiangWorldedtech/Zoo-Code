@@ -2,6 +2,8 @@
 
 import type { ProviderSettings } from "@roo-code/types"
 
+import type { ApiHandlerCreateMessageMetadata } from "../../api"
+
 import { singleCompletionHandler } from "../single-completion-handler"
 import { buildApiHandler, SingleCompletionHandler } from "../../api"
 import { supportPrompt } from "../../shared/support-prompt"
@@ -43,6 +45,29 @@ describe("enhancePrompt", () => {
 		expect(result).toBe("Enhanced prompt")
 		const handler = buildApiHandler(mockApiConfig)
 		expect((handler as any).completePrompt).toHaveBeenCalledWith(`Test prompt`, undefined)
+	})
+
+	it("forwards metadata to completePrompt", async () => {
+		const controller = new AbortController()
+		const metadata: ApiHandlerCreateMessageMetadata = {
+			taskId: "test-task-id",
+			mode: "code" as any,
+			abortSignal: controller.signal,
+		}
+
+		const result = await singleCompletionHandler(mockApiConfig, "Test prompt", metadata)
+
+		expect(result).toBe("Enhanced prompt")
+		const handler = buildApiHandler(mockApiConfig)
+		expect((handler as any).completePrompt).toHaveBeenCalledWith("Test prompt", metadata)
+	})
+
+	it("forwards undefined metadata when not provided", async () => {
+		const result = await singleCompletionHandler(mockApiConfig, "Test prompt")
+
+		expect(result).toBe("Enhanced prompt")
+		const handler = buildApiHandler(mockApiConfig)
+		expect((handler as any).completePrompt).toHaveBeenCalledWith("Test prompt", undefined)
 	})
 
 	it("enhances prompt using custom enhancement prompt when provided", async () => {
