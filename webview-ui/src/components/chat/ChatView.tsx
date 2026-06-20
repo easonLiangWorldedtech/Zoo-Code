@@ -414,6 +414,14 @@ const ChatViewComponent: React.ForwardRefRenderFunction<ChatViewRef, ChatViewPro
 							setSecondaryButtonText(undefined)
 							setDidClickCancel(false)
 							break
+						case "auto_approval_max_req_reached":
+							// Auto-approval limit reached — user must manually approve next request
+							setSendingDisabled(true)
+							setClineAsk("auto_approval_max_req_reached")
+							setEnableButtons(true)
+							setPrimaryButtonText(t("chat:proceedAnyways.title"))
+							setSecondaryButtonText(undefined)
+							break
 					}
 					break
 				case "say":
