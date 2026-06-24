@@ -117,7 +117,7 @@ export class RequestConfigBuilder<TOptions extends Record<string, any> = Record<
 	 * @returns A merged AbortSignal
 	 */
 	static mergeAbortSignals(primarySignal: AbortSignal, secondarySignal?: AbortSignal): AbortSignal {
-		if (!secondarySignal || secondarySignal.aborted) {
+		if (!secondarySignal) {
 			return primarySignal
 		}
 

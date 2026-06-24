@@ -199,18 +199,27 @@ The static `mergeAbortSignals` method combines two abort signals into one. When 
 
 ```typescript
 static mergeAbortSignals(primarySignal: AbortSignal, secondarySignal?: AbortSignal): AbortSignal {
-    // If no secondary signal or it's already aborted, just return primary
-    if (!secondarySignal || secondarySignal.aborted) {
+    if (!secondarySignal) {
+        return primarySignal
+    }
+
+    // If secondary is already aborted, we need to return a signal that reflects this.
+    // We can't just return primarySignal because it might not be aborted yet.
+    if (secondarySignal.aborted) {
+        if (primarySignal.aborted) {
+            return primarySignal
+        }
+        // Create a new controller that's already aborted to reflect secondary's state
+        const controller = new AbortController()
+        controller.abort()
+        return controller.signal
+    }
+
+    if (primarySignal.aborted) {
         return primarySignal
     }
 
     const controller = new AbortController()
-
-    // If primary is already aborted, abort immediately
-    if (primarySignal.aborted) {
-        controller.abort()
-        return controller.signal
-    }
 
     // Listen for abort events on both signals
     primarySignal.addEventListener("abort", () => controller.abort(), { once: true })
@@ -222,12 +231,13 @@ static mergeAbortSignals(primarySignal: AbortSignal, secondarySignal?: AbortSign
 
 **Behavior breakdown:**
 
-| Condition                            | Result                                          |
-| ------------------------------------ | ----------------------------------------------- |
-| `secondarySignal` is `undefined`     | Return `primarySignal` unchanged                |
-| `secondarySignal` is already aborted | Return `primarySignal` unchanged                |
-| `primarySignal` is already aborted   | Return new aborted signal                       |
-| Both signals are active              | Return new signal that aborts when either fires |
+| Condition                                                          | Result                                                 |
+| ------------------------------------------------------------------ | ------------------------------------------------------ |
+| `secondarySignal` is `undefined`                                   | Return `primarySignal` unchanged                       |
+| `secondarySignal` is already aborted, `primarySignal` also aborted | Return `primarySignal` (already aborted)               |
+| `secondarySignal` is already aborted, `primarySignal` active       | Return NEW aborted signal to reflect secondary's state |
+| `primarySignal` is already aborted, `secondarySignal` active       | Return `primarySignal` (already aborted)               |
+| Both signals are active                                            | Return new signal that aborts when either fires        |
 
 **Usage example:**
 

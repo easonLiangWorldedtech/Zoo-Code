@@ -134,13 +134,36 @@ export class PoeHandler extends BaseProvider implements SingleCompletionHandler 
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
 		const { id } = this.getModel()
 		try {
-			const { text } = await generateText({
+			const generateOptions: Parameters<typeof generateText>[0] & { abortSignal?: AbortSignal } = {
 				model: this.poe(id),
 				prompt,
-			})
+			}
+
+			// Merge signal and timeoutMs into a single abortSignal
+			if (options?.signal && options?.timeoutMs && options.timeoutMs > 0) {
+				const controller = new AbortController()
+				const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
+
+				options.signal.addEventListener(
+					"abort",
+					() => {
+						clearTimeout(timeoutId)
+						controller.abort()
+					},
+					{ once: true },
+				)
+
+				generateOptions.abortSignal = controller.signal
+			} else if (options?.signal) {
+				generateOptions.abortSignal = options.signal
+			} else if (options?.timeoutMs && options.timeoutMs > 0) {
+				generateOptions.abortSignal = AbortSignal.timeout(options.timeoutMs)
+			}
+
+			const { text } = await generateText(generateOptions)
 			return text
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
