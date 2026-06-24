@@ -31,12 +31,34 @@ vi.mock("fs/promises", () => ({
 	writeFile: vi.fn().mockResolvedValue(undefined),
 	readFile: vi.fn().mockResolvedValue("{}"),
 	mkdir: vi.fn().mockResolvedValue(undefined),
+	access: vi.fn().mockResolvedValue(undefined),
+	rename: vi.fn().mockResolvedValue(undefined),
+	unlink: vi.fn().mockResolvedValue(undefined),
 }))
 
 // Mock fs (synchronous) for disk cache fallback
 vi.mock("fs", () => ({
 	existsSync: vi.fn().mockReturnValue(false),
 	readFileSync: vi.fn().mockReturnValue("{}"),
+	createWriteStream: vi.fn(),
+}))
+
+// Mock safeWriteJson to avoid stream complexity
+vi.mock("../../../../utils/safeWriteJson", () => ({
+	safeWriteJson: vi.fn().mockResolvedValue(undefined),
+}))
+
+// Mock proper-lockfile for safeWriteJson
+vi.mock("proper-lockfile", () => ({
+	lock: vi.fn().mockResolvedValue(vi.fn()),
+}))
+
+// Mock json-stream-stringify to avoid stream complexity
+vi.mock("json-stream-stringify", () => ({
+	JsonStreamStringify: vi.fn(() => ({
+		on: vi.fn(),
+		pipe: vi.fn(),
+	})),
 }))
 
 // Mock all the model fetchers
@@ -44,22 +66,27 @@ vi.mock("../litellm")
 vi.mock("../openrouter")
 vi.mock("../requesty")
 
-// Mock ContextProxy with a simple static instance
-vi.mock("../../../core/config/ContextProxy", () => ({
-	ContextProxy: {
-		instance: {
-			globalStorageUri: {
-				fsPath: "/mock/storage/path",
-			},
+// Mock ContextProxy with a getter to match the static get instance pattern
+// Note: Path is ../../../../ because test file is in __tests/ subdirectory
+vi.mock("../../../../core/config/ContextProxy", () => {
+	const mockInstance = {
+		globalStorageUri: {
+			fsPath: "/mock/storage/path",
 		},
-	},
-}))
+	}
+	return {
+		ContextProxy: Object.defineProperty({}, "instance", {
+			get: () => mockInstance,
+			configurable: true,
+		}),
+	}
+})
 
 // Then imports
 import type { Mock } from "vitest"
 import * as fsSync from "fs"
 import NodeCache from "node-cache"
-import { getModels, getModelsFromCache } from "../modelCache"
+import { getModels, getModelsFromCache, isAuthScopedProvider, writeModels } from "../modelCache"
 import { getLiteLLMModels } from "../litellm"
 import { getOpenRouterModels } from "../openrouter"
 import { getRequestyModels } from "../requesty"
@@ -198,10 +225,6 @@ describe("getModelsFromCache disk fallback", () => {
 	})
 
 	it("returns disk cache data when memory cache misses and context is available", () => {
-		// Note: This test validates the logic but the ContextProxy mock in test environment
-		// returns undefined for getCacheDirectoryPathSync, which is expected behavior
-		// when the context is not fully initialized. The actual disk cache loading
-		// is validated through integration tests.
 		const diskModels = {
 			"disk-model": {
 				maxTokens: 4096,
@@ -215,9 +238,8 @@ describe("getModelsFromCache disk fallback", () => {
 
 		const result = getModelsFromCache("openrouter")
 
-		// In the test environment, ContextProxy.instance may not be fully initialized,
-		// so getCacheDirectoryPathSync returns undefined and disk cache is not attempted
-		expect(result).toBeUndefined()
+		// With the ContextProxy mock properly configured, disk cache is now accessible
+		expect(result).toEqual(diskModels)
 	})
 
 	it("handles disk read errors gracefully", () => {
@@ -432,5 +454,33 @@ describe("empty cache protection", () => {
 			expect(result1).toEqual(mockModels)
 			expect(result2).toEqual(mockModels)
 		})
+	})
+})
+
+describe("isAuthScopedProvider", () => {
+	it("should return true for zoo-gateway provider", () => {
+		expect(isAuthScopedProvider("zoo-gateway")).toBe(true)
+	})
+
+	it("should return false for non-auth-scoped providers", () => {
+		expect(isAuthScopedProvider("openrouter")).toBe(false)
+		expect(isAuthScopedProvider("litellm")).toBe(false)
+		expect(isAuthScopedProvider("requesty")).toBe(false)
+		expect(isAuthScopedProvider("ollama")).toBe(false)
+		expect(isAuthScopedProvider("lmstudio")).toBe(false)
+	})
+})
+
+describe("writeModels", () => {
+	it("should write models to cache directory", async () => {
+		const mockModels = {
+			"test-model": {
+				maxTokens: 4096,
+				contextWindow: 128000,
+				supportsPromptCache: false,
+			},
+		}
+
+		await expect(writeModels("openrouter", mockModels)).resolves.toBeUndefined()
 	})
 })

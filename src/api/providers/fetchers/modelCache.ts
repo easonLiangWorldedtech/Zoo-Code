@@ -44,11 +44,11 @@ const inFlightRefresh = new Map<RouterName, Promise<ModelRecord>>()
 // list to the next user, and stale data could mask backend allowlist updates.
 const AUTH_SCOPED_PROVIDERS: ReadonlySet<RouterName> = new Set(["zoo-gateway"])
 
-function isAuthScopedProvider(provider: RouterName): boolean {
+export function isAuthScopedProvider(provider: RouterName): boolean {
 	return AUTH_SCOPED_PROVIDERS.has(provider)
 }
 
-async function writeModels(router: RouterName, data: ModelRecord) {
+export async function writeModels(router: RouterName, data: ModelRecord) {
 	const filename = `${router}_models.json`
 	const cacheDir = await getCacheDirectoryPath(ContextProxy.instance.globalStorageUri.fsPath)
 	await safeWriteJson(path.join(cacheDir, filename), data)
