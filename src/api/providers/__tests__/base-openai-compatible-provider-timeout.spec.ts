@@ -116,4 +116,58 @@ describe("BaseOpenAiCompatibleProvider Timeout Configuration", () => {
 			}),
 		)
 	})
+
+	describe("completePrompt", () => {
+		it("should pass timeout through to client when both signal and timeoutMs provided", async () => {
+			const handler = new TestOpenAiCompatibleProvider("test-api-key")
+			const controller = new AbortController()
+			const mockCreate = vitest.fn().mockResolvedValue({
+				choices: [{ message: { content: "response" } }],
+			})
+			handler["client"].chat.completions.create = mockCreate
+
+			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: "test-model" }),
+				expect.objectContaining({ signal: expect.any(AbortSignal), timeout: 5000 }),
+			)
+		})
+
+		it("should pass only timeoutMs when no signal provided", async () => {
+			const handler = new TestOpenAiCompatibleProvider("test-api-key")
+			const mockCreate = vitest.fn().mockResolvedValue({
+				choices: [{ message: { content: "response" } }],
+			})
+			handler["client"].chat.completions.create = mockCreate
+
+			await handler.completePrompt("test prompt", { timeoutMs: 3000 })
+			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: "test-model" }), { timeout: 3000 })
+		})
+
+		it("should handle timeoutMs=0 as valid value (!== undefined check)", async () => {
+			const handler = new TestOpenAiCompatibleProvider("test-api-key")
+			const mockCreate = vitest.fn().mockResolvedValue({
+				choices: [{ message: { content: "response" } }],
+			})
+			handler["client"].chat.completions.create = mockCreate
+
+			await handler.completePrompt("test prompt", { timeoutMs: 0 })
+			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: "test-model" }), { timeout: 0 })
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			const handler = new TestOpenAiCompatibleProvider("test-api-key")
+			const mockCreate = vitest.fn().mockResolvedValue({
+				choices: [{ message: { content: "response" } }],
+			})
+			handler["client"].chat.completions.create = mockCreate
+
+			const result = await handler.completePrompt("test prompt")
+			expect(result).toBe("response")
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: "test-model" }),
+				{}, // empty object when no options
+			)
+		})
+	})
 })

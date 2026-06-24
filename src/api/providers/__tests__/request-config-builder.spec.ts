@@ -304,9 +304,23 @@ describe("RequestConfigBuilder", () => {
 			expect(result).toBe(controller.signal)
 		})
 
-		test("should return primarySignal when secondarySignal is already aborted", () => {
+		test("should return an aborted signal when secondarySignal is already aborted but primary is not", () => {
 			const primaryController = new AbortController()
 			const secondaryController = new AbortController()
+			secondaryController.abort()
+
+			const result = RequestConfigBuilder.mergeAbortSignals(primaryController.signal, secondaryController.signal)
+
+			// Result should be aborted since secondary was already aborted
+			expect(result.aborted).toBe(true)
+			// Should NOT be the primary signal (which is not aborted)
+			expect(result).not.toBe(primaryController.signal)
+		})
+
+		test("should return primarySignal when both signals are already aborted", () => {
+			const primaryController = new AbortController()
+			const secondaryController = new AbortController()
+			primaryController.abort()
 			secondaryController.abort()
 
 			const result = RequestConfigBuilder.mergeAbortSignals(primaryController.signal, secondaryController.signal)

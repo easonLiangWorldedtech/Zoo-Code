@@ -142,15 +142,27 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 		yield* processResponsesApiStream(stream, normalizeUsage)
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
 		const model = this.getModel()
 
 		try {
-			const response = await this.client.responses.create({
-				model: model.id,
-				input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
-				store: false,
-			})
+			// Build request options with both signal and timeout handling
+			const requestOptions: OpenAI.RequestOptions = {}
+			if (options?.signal) {
+				requestOptions.signal = options.signal
+			}
+			if (options?.timeoutMs) {
+				requestOptions.timeout = options.timeoutMs
+			}
+
+			const response = await this.client.responses.create(
+				{
+					model: model.id,
+					input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
+					store: false,
+				},
+				Object.keys(requestOptions).length > 0 ? requestOptions : undefined,
+			)
 
 			// output_text is a convenience field on the Responses API response
 			return response.output_text || ""

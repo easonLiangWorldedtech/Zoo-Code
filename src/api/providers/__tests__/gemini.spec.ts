@@ -156,6 +156,61 @@ describe("GeminiHandler", () => {
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("")
 		})
+
+		it("should pass abort signal through to client via httpOptions", async () => {
+			const controller = new AbortController()
+			;(handler["client"].models.generateContent as any).mockResolvedValue({ text: "response" })
+			await handler.completePrompt("test prompt", { signal: controller.signal })
+			expect(handler["client"].models.generateContent).toHaveBeenCalledWith({
+				model: GEMINI_MODEL_NAME,
+				contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
+				config: {
+					httpOptions: { signal: controller.signal },
+					temperature: 1,
+				},
+			})
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			;(handler["client"].models.generateContent as any).mockResolvedValue({ text: "response" })
+			const result = await handler.completePrompt("test prompt")
+			expect(result).toBe("response")
+			expect(handler["client"].models.generateContent).toHaveBeenCalledWith({
+				model: GEMINI_MODEL_NAME,
+				contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
+				config: {
+					httpOptions: undefined,
+					temperature: 1,
+				},
+			})
+		})
+
+		it("should pass timeoutMs through to client via httpOptions", async () => {
+			const controller = new AbortController()
+			;(handler["client"].models.generateContent as any).mockResolvedValue({ text: "response" })
+			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 10000 })
+			expect(handler["client"].models.generateContent).toHaveBeenCalledWith({
+				model: GEMINI_MODEL_NAME,
+				contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
+				config: {
+					httpOptions: { signal: controller.signal },
+					temperature: 1,
+				},
+			})
+		})
+
+		it("should pass only timeoutMs when no signal is provided", async () => {
+			;(handler["client"].models.generateContent as any).mockResolvedValue({ text: "response" })
+			await handler.completePrompt("test prompt", { timeoutMs: 5000 })
+			expect(handler["client"].models.generateContent).toHaveBeenCalledWith({
+				model: GEMINI_MODEL_NAME,
+				contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
+				config: {
+					httpOptions: undefined,
+					temperature: 1,
+				},
+			})
+		})
 	})
 
 	describe("getModel", () => {
