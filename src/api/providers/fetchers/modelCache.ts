@@ -67,7 +67,13 @@ const KEY_SCOPED_PROVIDERS: ReadonlySet<RouterName> = new Set([
 	"requesty", // Per-account custom model policies
 ])
 
-function isAuthScopedProvider(provider: RouterName): boolean {
+/**
+ * Check if the given provider's model list is scoped to the signed-in user.
+ * Auth-scoped providers must never be served from disk or memory cache because
+ * a sign-in/out cycle could otherwise serve a previous user's model list to
+ * the next user, and stale data could mask backend allowlist updates.
+ */
+export function isAuthScopedProvider(provider: RouterName): boolean {
 	return AUTH_SCOPED_PROVIDERS.has(provider)
 }
 
@@ -159,7 +165,11 @@ function cacheKeyToFilename(cacheKey: string): string {
 	return `${prefix}_${hash}`
 }
 
-async function writeModels(cacheKey: string, data: ModelRecord) {
+/**
+ * Write models to the file cache using a cache-key-based filename.
+ * This ensures URL-scoped and key-scoped providers get separate cache entries.
+ */
+export async function writeModels(cacheKey: string, data: ModelRecord) {
 	const filename = `${cacheKeyToFilename(cacheKey)}_models.json`
 	const cacheDir = await getCacheDirectoryPath(ContextProxy.instance.globalStorageUri.fsPath)
 	await safeWriteJson(path.join(cacheDir, filename), data)
