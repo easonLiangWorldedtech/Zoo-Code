@@ -117,15 +117,27 @@ export class RequestConfigBuilder<TOptions extends Record<string, any> = Record<
 	 * @returns A merged AbortSignal
 	 */
 	static mergeAbortSignals(primarySignal: AbortSignal, secondarySignal?: AbortSignal): AbortSignal {
-		if (!secondarySignal || secondarySignal.aborted) {
+		if (!secondarySignal) {
 			return primarySignal
 		}
 
-		const controller = new AbortController()
+		// If secondary is already aborted, we need to return a signal that reflects this.
+		// We can't just return primarySignal because it might not be aborted yet.
+		if (secondarySignal.aborted) {
+			if (primarySignal.aborted) {
+				return primarySignal
+			}
+			// Create a new controller that's already aborted to reflect secondary's state
+			const controller = new AbortController()
+			controller.abort()
+			return controller.signal
+		}
 
 		if (primarySignal.aborted) {
 			return primarySignal
 		}
+
+		const controller = new AbortController()
 
 		primarySignal.addEventListener("abort", () => controller.abort(), { once: true })
 		secondarySignal.addEventListener("abort", () => controller.abort(), { once: true })

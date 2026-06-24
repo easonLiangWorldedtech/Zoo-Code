@@ -226,6 +226,55 @@ describe("NativeOllamaHandler", () => {
 				}),
 			)
 		})
+
+		it("should accept options param but ignore it (no signal support)", async () => {
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			const controller = new AbortController()
+			await handler.completePrompt("Test prompt", { signal: controller.signal })
+
+			// Verify that the call does NOT include any signal-related options
+			// Ollama implementation only passes the payload, not a second options argument
+			expect(mockChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: "llama2",
+					messages: [{ role: "user", content: "Test prompt" }],
+					stream: false,
+					options: { temperature: 0 },
+				}),
+			)
+			// Verify no second argument was passed (no signal/options forwarded)
+			expect(mockChat).toHaveBeenCalledTimes(1)
+			expect(mockChat.mock.calls[0]).toHaveLength(1)
+		})
+
+		it("should not include signal-related options when not provided", async () => {
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			expect(mockChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: "llama2",
+					messages: [{ role: "user", content: "Test prompt" }],
+					stream: false,
+					options: { temperature: 0 },
+				}),
+			)
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			const result = await handler.completePrompt("Test prompt")
+			expect(result).toBe("Response")
+		})
 	})
 
 	describe("error handling", () => {

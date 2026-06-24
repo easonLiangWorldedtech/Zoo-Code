@@ -238,6 +238,71 @@ describe("MoonshotHandler", () => {
 				}),
 			)
 		})
+
+		it("should pass abort signal through to generateText", async () => {
+			const controller = new AbortController()
+			mockGenerateText.mockResolvedValueOnce({ text: "response" })
+			await handler.completePrompt("test prompt", { signal: controller.signal })
+			expect(mockGenerateText).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: "test prompt",
+					abortSignal: controller.signal,
+				}),
+			)
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			mockGenerateText.mockResolvedValueOnce({ text: "response" })
+			const result = await handler.completePrompt("test prompt")
+			expect(result).toBe("response")
+		})
+
+		it("should merge signal and timeoutMs into combined abortSignal", async () => {
+			const controller = new AbortController()
+			mockGenerateText.mockResolvedValueOnce({ text: "response" })
+
+			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+			expect(mockGenerateText).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: "test prompt",
+					abortSignal: expect.any(AbortSignal),
+				}),
+			)
+			const callArgs = mockGenerateText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBeDefined()
+			expect(callArgs.abortSignal).toBeInstanceOf(AbortSignal)
+		})
+
+		it("should use AbortSignal.timeout when only timeoutMs is provided", async () => {
+			mockGenerateText.mockResolvedValueOnce({ text: "response" })
+
+			await handler.completePrompt("test prompt", { timeoutMs: 3000 })
+			expect(mockGenerateText).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: "test prompt",
+					abortSignal: expect.any(AbortSignal),
+				}),
+			)
+		})
+
+		it("should not set abortSignal when timeoutMs is 0", async () => {
+			mockGenerateText.mockResolvedValueOnce({ text: "response" })
+
+			await handler.completePrompt("test prompt", { timeoutMs: 0 })
+			expect(mockGenerateText).toHaveBeenCalledWith(
+				expect.objectContaining({
+					prompt: "test prompt",
+				}),
+			)
+			const callArgs = mockGenerateText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBeUndefined()
+		})
+
+		it("should propagate errors from generateText", async () => {
+			mockGenerateText.mockRejectedValueOnce(new Error("API error"))
+
+			await expect(handler.completePrompt("test prompt")).rejects.toThrow("API error")
+		})
 	})
 
 	describe("processUsageMetrics", () => {

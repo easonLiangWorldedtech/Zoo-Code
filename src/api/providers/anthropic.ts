@@ -398,19 +398,31 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 		}
 	}
 
-	async completePrompt(prompt: string) {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions) {
 		const { id: model, temperature } = this.getModel()
 
 		let message
 		try {
-			message = await this.client.messages.create({
-				model,
-				max_tokens: ANTHROPIC_DEFAULT_MAX_TOKENS,
-				thinking: undefined,
-				temperature,
-				messages: [{ role: "user", content: prompt }],
-				stream: false,
-			})
+			// Build request options with both signal and timeout handling
+			const requestOptions: Anthropic.RequestOptions = {}
+			if (options?.signal) {
+				requestOptions.signal = options.signal
+			}
+			if (options?.timeoutMs) {
+				requestOptions.timeout = options.timeoutMs
+			}
+
+			message = await this.client.messages.create(
+				{
+					model,
+					max_tokens: ANTHROPIC_DEFAULT_MAX_TOKENS,
+					thinking: undefined,
+					temperature,
+					messages: [{ role: "user", content: prompt }],
+					stream: false,
+				},
+				Object.keys(requestOptions).length > 0 ? requestOptions : undefined,
+			)
 		} catch (error) {
 			TelemetryService.instance.captureException(
 				new ApiProviderError(
