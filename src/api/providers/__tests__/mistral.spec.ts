@@ -461,11 +461,14 @@ describe("MistralHandler", () => {
 			const prompt = "Test prompt"
 			const result = await handler.completePrompt(prompt)
 
-			expect(mockComplete).toHaveBeenCalledWith({
-				model: mockOptions.apiModelId,
-				messages: [{ role: "user", content: prompt }],
-				temperature: 0,
-			})
+			expect(mockComplete).toHaveBeenCalledWith(
+				{
+					model: mockOptions.apiModelId,
+					messages: [{ role: "user", content: prompt }],
+					temperature: 0,
+				},
+				undefined,
+			)
 
 			expect(result).toBe("Test response")
 		})
@@ -496,6 +499,59 @@ describe("MistralHandler", () => {
 		it("should handle errors in completePrompt", async () => {
 			mockComplete.mockRejectedValueOnce(new Error("API Error"))
 			await expect(handler.completePrompt("Test prompt")).rejects.toThrow("Mistral completion error: API Error")
+		})
+
+		it("should pass abort signal through to client", async () => {
+			const controller = new AbortController()
+			mockComplete.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+			await handler.completePrompt("test prompt", { signal: controller.signal })
+			expect(mockComplete).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
+				signal: controller.signal,
+			})
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			mockComplete.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+			const result = await handler.completePrompt("test prompt")
+			expect(result).toBe("response")
+			expect(mockComplete).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), undefined)
+		})
+
+		it("should pass timeout through to client", async () => {
+			const controller = new AbortController()
+			mockComplete.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+			expect(mockComplete).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
+				signal: controller.signal,
+				timeout: 5000,
+			})
+		})
+
+		it("should pass only timeoutMs when no signal provided", async () => {
+			mockComplete.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+			await handler.completePrompt("test prompt", { timeoutMs: 3000 })
+			expect(mockComplete).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
+				timeout: 3000,
+			})
+		})
+
+		it("should not set timeout when timeoutMs=0 (truthy check)", async () => {
+			mockComplete.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+			await handler.completePrompt("test prompt", { timeoutMs: 0 })
+			expect(mockComplete).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				undefined, // truthy check means 0 is falsy
+			)
 		})
 	})
 })

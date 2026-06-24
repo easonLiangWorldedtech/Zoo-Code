@@ -187,7 +187,7 @@ export class LmStudioHandler extends BaseProvider implements SingleCompletionHan
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
 		try {
 			// Create params object with optional draft model
 			const params: any = {
@@ -202,9 +202,18 @@ export class LmStudioHandler extends BaseProvider implements SingleCompletionHan
 				params.draft_model = this.options.lmStudioDraftModelId
 			}
 
+			// Build request options with signal and/or timeout
+			const createOptions: OpenAI.RequestOptions = {}
+			if (options?.signal) {
+				createOptions.signal = options.signal
+			}
+			if (options?.timeoutMs) {
+				createOptions.timeout = options.timeoutMs
+			}
+
 			let response
 			try {
-				response = await this.client.chat.completions.create(params)
+				response = await this.client.chat.completions.create(params, createOptions || undefined)
 			} catch (error) {
 				throw handleOpenAIError(error, this.providerName)
 			}

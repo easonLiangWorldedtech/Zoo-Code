@@ -255,6 +255,57 @@ describe("XAIHandler", () => {
 		await expect(handler.completePrompt("test prompt")).rejects.toThrow(`xAI completion error: ${errorMessage}`)
 	})
 
+	it("completePrompt should pass abort signal through to client", async () => {
+		const controller = new AbortController()
+		mockResponsesCreate.mockResolvedValueOnce({ output_text: "response" })
+
+		await handler.completePrompt("test prompt", { signal: controller.signal })
+		expect(mockResponsesCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
+			signal: controller.signal,
+		})
+	})
+
+	it("completePrompt should work without options (backward compatible)", async () => {
+		mockResponsesCreate.mockResolvedValueOnce({ output_text: "response" })
+
+		const result = await handler.completePrompt("test prompt")
+		expect(result).toBe("response")
+		expect(mockResponsesCreate).toHaveBeenCalledWith(
+			expect.objectContaining({ model: expect.any(String) }),
+			undefined,
+		)
+	})
+
+	it("completePrompt should pass timeout through to client", async () => {
+		const controller = new AbortController()
+		mockResponsesCreate.mockResolvedValueOnce({ output_text: "response" })
+
+		await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+		expect(mockResponsesCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
+			signal: controller.signal,
+			timeout: 5000,
+		})
+	})
+
+	it("completePrompt should pass only timeoutMs when no signal provided", async () => {
+		mockResponsesCreate.mockResolvedValueOnce({ output_text: "response" })
+
+		await handler.completePrompt("test prompt", { timeoutMs: 3000 })
+		expect(mockResponsesCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
+			timeout: 3000,
+		})
+	})
+
+	it("completePrompt should not set timeout when timeoutMs=0 (truthy check)", async () => {
+		mockResponsesCreate.mockResolvedValueOnce({ output_text: "response" })
+
+		await handler.completePrompt("test prompt", { timeoutMs: 0 })
+		expect(mockResponsesCreate).toHaveBeenCalledWith(
+			expect.objectContaining({ model: expect.any(String) }),
+			undefined, // truthy check means 0 is falsy
+		)
+	})
+
 	it("should include reasoning_effort for mini models", async () => {
 		const miniModelHandler = new XAIHandler({
 			apiModelId: "grok-3-mini",

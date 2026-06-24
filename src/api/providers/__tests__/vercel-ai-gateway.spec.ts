@@ -598,6 +598,7 @@ describe("VercelAiGatewayHandler", () => {
 					temperature: VERCEL_AI_GATEWAY_DEFAULT_TEMPERATURE,
 					max_completion_tokens: 64000,
 				}),
+				undefined,
 			)
 		})
 
@@ -614,6 +615,7 @@ describe("VercelAiGatewayHandler", () => {
 				expect.objectContaining({
 					temperature: customTemp,
 				}),
+				undefined,
 			)
 		})
 
@@ -646,10 +648,80 @@ describe("VercelAiGatewayHandler", () => {
 			const result = await handler.completePrompt("Test")
 			expect(result).toBe("")
 		})
+
+		it("should pass abort signal through to client", async () => {
+			const handler = new VercelAiGatewayHandler(mockOptions)
+			const controller = new AbortController()
+			mockCreate.mockImplementation(async () => ({
+				choices: [
+					{
+						message: { role: "assistant", content: "response" },
+						finish_reason: "stop",
+						index: 0,
+					},
+				],
+			}))
+
+			await handler.completePrompt("test prompt", { signal: controller.signal })
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.objectContaining({ signal: controller.signal }),
+			)
+		})
+
+		it("should pass timeout through to client", async () => {
+			const handler = new VercelAiGatewayHandler(mockOptions)
+			mockCreate.mockImplementation(async () => ({
+				choices: [
+					{
+						message: { role: "assistant", content: "response" },
+						finish_reason: "stop",
+						index: 0,
+					},
+				],
+			}))
+
+			await handler.completePrompt("test prompt", { timeoutMs: 5000 })
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.objectContaining({ timeout: 5000 }),
+			)
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			const handler = new VercelAiGatewayHandler(mockOptions)
+			mockCreate.mockImplementation(async () => ({
+				choices: [
+					{
+						message: { role: "assistant", content: "response" },
+						finish_reason: "stop",
+						index: 0,
+					},
+				],
+			}))
+
+			const result = await handler.completePrompt("test prompt")
+			expect(result).toBe("response")
+		})
 	})
 
 	describe("temperature support", () => {
 		it("applies temperature for supported models", async () => {
+			mockCreate.mockResolvedValueOnce({
+				choices: [
+					{
+						message: { role: "assistant", content: "Test completion response" },
+						finish_reason: "stop",
+						index: 0,
+					},
+				],
+				usage: {
+					prompt_tokens: 8,
+					completion_tokens: 4,
+					total_tokens: 12,
+				},
+			})
+
 			const handler = new VercelAiGatewayHandler({
 				...mockOptions,
 				vercelAiGatewayModelId: "anthropic/claude-sonnet-4",
@@ -662,6 +734,7 @@ describe("VercelAiGatewayHandler", () => {
 				expect.objectContaining({
 					temperature: 0.9,
 				}),
+				undefined,
 			)
 		})
 	})

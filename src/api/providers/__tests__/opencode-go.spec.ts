@@ -394,6 +394,7 @@ describe("OpencodeGoHandler", () => {
 					max_completion_tokens: 40_960,
 					reasoning_effort: "medium",
 				}),
+				{},
 			)
 		})
 
@@ -419,7 +420,7 @@ describe("OpencodeGoHandler", () => {
 			mockCreate.mockResolvedValue({ choices: [{ message: { content: "ok" } }] })
 			const handler = new OpencodeGoHandler({ ...mockOptions, includeMaxTokens: true, modelMaxTokens: 4321 })
 			await handler.completePrompt("ping")
-			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ max_completion_tokens: 4321 }))
+			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ max_completion_tokens: 4321 }), {})
 		})
 	})
 
@@ -569,6 +570,7 @@ describe("OpencodeGoHandler", () => {
 					// so the model default is used.
 					max_tokens: 65_536,
 				}),
+				undefined,
 			)
 			expect(mockCreate).not.toHaveBeenCalled()
 		})
@@ -584,7 +586,7 @@ describe("OpencodeGoHandler", () => {
 				modelMaxTokens: 2048,
 			})
 			await handler.completePrompt("ping")
-			expect(mockAnthropicCreate).toHaveBeenCalledWith(expect.objectContaining({ max_tokens: 2048 }))
+			expect(mockAnthropicCreate).toHaveBeenCalledWith(expect.objectContaining({ max_tokens: 2048 }), undefined)
 		})
 
 		it("completePrompt rethrows non-Error values unchanged from the Anthropic path", async () => {
@@ -597,6 +599,126 @@ describe("OpencodeGoHandler", () => {
 			mockAnthropicCreate.mockResolvedValue({ content: [{ type: "tool_use", id: "x", name: "n", input: {} }] })
 			const handler = new OpencodeGoHandler(anthropicOptions)
 			expect(await handler.completePrompt("ping")).toBe("")
+		})
+
+		it("completePrompt passes abort signal through to Anthropic client", async () => {
+			mockAnthropicCreate.mockResolvedValue({ content: [{ type: "text", text: "response" }] })
+			const controller = new AbortController()
+			const handler = new OpencodeGoHandler(anthropicOptions)
+			await handler.completePrompt("ping", { signal: controller.signal })
+			expect(mockAnthropicCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
+				signal: controller.signal,
+			})
+		})
+
+		it("completePrompt passes both signal and timeoutMs through to Anthropic client", async () => {
+			mockAnthropicCreate.mockResolvedValue({ content: [{ type: "text", text: "response" }] })
+			const controller = new AbortController()
+			const handler = new OpencodeGoHandler(anthropicOptions)
+			await handler.completePrompt("ping", { signal: controller.signal, timeoutMs: 10000 })
+			expect(mockAnthropicCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
+				signal: controller.signal,
+				timeout: 10000,
+			})
+		})
+
+		it("completePrompt passes only timeoutMs when no signal is provided", async () => {
+			mockAnthropicCreate.mockResolvedValue({ content: [{ type: "text", text: "response" }] })
+			const handler = new OpencodeGoHandler(anthropicOptions)
+			await handler.completePrompt("ping", { timeoutMs: 5000 })
+			expect(mockAnthropicCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
+				timeout: 5000,
+			})
+		})
+
+		it("completePrompt works without options (backward compatible, Anthropic path)", async () => {
+			mockAnthropicCreate.mockResolvedValue({ content: [{ type: "text", text: "response" }] })
+			const handler = new OpencodeGoHandler(anthropicOptions)
+			const result = await handler.completePrompt("ping")
+			expect(result).toBe("response")
+			expect(mockAnthropicCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				undefined,
+			)
+		})
+
+		describe("completePrompt (OpenAI path)", () => {
+			const openaiOptions: ApiHandlerOptions = {
+				opencodeGoApiKey: "test-key",
+				apiModelId: "glm-5.1", // OpenAI-format model
+			}
+
+			beforeEach(() => {
+				vitest.clearAllMocks()
+			})
+
+			it("completePrompt returns text for OpenAI path", async () => {
+				mockCreate.mockResolvedValueOnce({
+					choices: [{ message: { content: "response" } }],
+				})
+
+				const handler = new OpencodeGoHandler(openaiOptions)
+				expect(await handler.completePrompt("ping")).toBe("response")
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.objectContaining({ model: expect.any(String), stream: false }),
+					{}, // empty object when no options
+				)
+			})
+
+			it("completePrompt passes abort signal through to OpenAI client", async () => {
+				mockCreate.mockResolvedValueOnce({
+					choices: [{ message: { content: "response" } }],
+				})
+				const controller = new AbortController()
+				const handler = new OpencodeGoHandler(openaiOptions)
+
+				await handler.completePrompt("ping", { signal: controller.signal })
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.objectContaining({ model: expect.any(String), stream: false }),
+					{ signal: controller.signal },
+				)
+			})
+
+			it("completePrompt passes both signal and timeoutMs through to OpenAI client", async () => {
+				mockCreate.mockResolvedValueOnce({
+					choices: [{ message: { content: "response" } }],
+				})
+				const controller = new AbortController()
+				const handler = new OpencodeGoHandler(openaiOptions)
+
+				await handler.completePrompt("ping", { signal: controller.signal, timeoutMs: 10000 })
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.objectContaining({ model: expect.any(String), stream: false }),
+					{ signal: controller.signal, timeout: 10000 },
+				)
+			})
+
+			it("completePrompt passes only timeoutMs when no signal is provided", async () => {
+				mockCreate.mockResolvedValueOnce({
+					choices: [{ message: { content: "response" } }],
+				})
+				const handler = new OpencodeGoHandler(openaiOptions)
+
+				await handler.completePrompt("ping", { timeoutMs: 5000 })
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.objectContaining({ model: expect.any(String), stream: false }),
+					{ timeout: 5000 },
+				)
+			})
+
+			it("completePrompt works without options (backward compatible, OpenAI path)", async () => {
+				mockCreate.mockResolvedValueOnce({
+					choices: [{ message: { content: "response" } }],
+				})
+				const handler = new OpencodeGoHandler(openaiOptions)
+
+				const result = await handler.completePrompt("ping")
+				expect(result).toBe("response")
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.objectContaining({ model: expect.any(String), stream: false }),
+					{}, // empty object when no options
+				)
+			})
 		})
 
 		it("omits tools and tool_choice from the Anthropic request when no tools are provided", async () => {

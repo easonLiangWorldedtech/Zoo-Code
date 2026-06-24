@@ -193,15 +193,27 @@ export class MistralHandler extends BaseProvider implements SingleCompletionHand
 		return { id, info, maxTokens, temperature }
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
 		const { id: model, temperature } = this.getModel()
 
 		try {
-			const response = await this.client.chat.complete({
-				model,
-				messages: [{ role: "user", content: prompt }],
-				temperature,
-			})
+			// Build request options with both signal and timeout handling
+			const requestOptions: Record<string, unknown> = {}
+			if (options?.signal) {
+				requestOptions.signal = options.signal
+			}
+			if (options?.timeoutMs) {
+				requestOptions.timeout = options.timeoutMs
+			}
+
+			const response = await this.client.chat.complete(
+				{
+					model,
+					messages: [{ role: "user", content: prompt }],
+					temperature,
+				},
+				Object.keys(requestOptions).length > 0 ? (requestOptions as any) : undefined,
+			)
 
 			const content = response.choices?.[0]?.message.content
 

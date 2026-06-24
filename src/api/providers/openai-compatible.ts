@@ -197,15 +197,39 @@ export abstract class OpenAICompatibleHandler extends BaseProvider implements Si
 	/**
 	 * Complete a prompt using the AI SDK generateText.
 	 */
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
 		const languageModel = this.getLanguageModel()
 
-		const { text } = await generateText({
+		const generateOptions: Parameters<typeof generateText>[0] & { abortSignal?: AbortSignal } = {
 			model: languageModel,
 			prompt,
 			maxOutputTokens: this.getMaxOutputTokens(),
 			temperature: this.config.temperature ?? 0,
-		})
+		}
+
+		// Merge signal and timeoutMs into a single abortSignal
+		if (options?.signal && options?.timeoutMs && options.timeoutMs > 0) {
+			// When both are provided, create a merged signal that aborts when either fires
+			const controller = new AbortController()
+			const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
+
+			options.signal.addEventListener(
+				"abort",
+				() => {
+					clearTimeout(timeoutId)
+					controller.abort()
+				},
+				{ once: true },
+			)
+
+			generateOptions.abortSignal = controller.signal
+		} else if (options?.signal) {
+			generateOptions.abortSignal = options.signal
+		} else if (options?.timeoutMs && options.timeoutMs > 0) {
+			generateOptions.abortSignal = AbortSignal.timeout(options.timeoutMs)
+		}
+
+		const { text } = await generateText(generateOptions)
 
 		return text
 	}
