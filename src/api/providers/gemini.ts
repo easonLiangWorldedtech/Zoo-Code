@@ -586,8 +586,8 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 				: info.defaultTemperature
 
 			const httpOpts: Record<string, any> = {}
-			if (options?.signal) {
-				httpOpts.signal = options.signal
+			if (options?.abortSignal) {
+				httpOpts.signal = options.abortSignal
 			}
 			if (this.options.googleGeminiBaseUrl) {
 				httpOpts.baseUrl = this.options.googleGeminiBaseUrl

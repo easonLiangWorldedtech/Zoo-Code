@@ -298,7 +298,7 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 
 			const response = await this.client.messages.create(
 				params,
-				options?.signal ? { signal: options.signal } : undefined,
+				options?.abortSignal ? { signal: options.abortSignal } : undefined,
 			)
 			const content = response.content[0]
 

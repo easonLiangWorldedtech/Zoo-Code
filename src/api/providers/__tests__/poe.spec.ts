@@ -315,7 +315,7 @@ describe("PoeHandler", () => {
 			const controller = new AbortController()
 			mockGenerateText.mockResolvedValueOnce({ text: "response" })
 
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(mockGenerateText).toHaveBeenCalledWith(
 				expect.objectContaining({
 					model: mockLanguageModel,
@@ -344,7 +344,7 @@ describe("PoeHandler", () => {
 			const controller = new AbortController()
 			mockGenerateText.mockResolvedValueOnce({ text: "response" })
 
-			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 			expect(mockGenerateText).toHaveBeenCalledWith(
 				expect.objectContaining({
 					model: mockLanguageModel,
@@ -380,7 +380,7 @@ describe("PoeHandler", () => {
 			const controller = new AbortController()
 			mockGenerateText.mockResolvedValueOnce({ text: "response" })
 
-			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 			const callArgs = mockGenerateText.mock.calls[0][0]
 			// Should have a merged abortSignal (not the original controller.signal)
 			expect(callArgs.abortSignal).toBeInstanceOf(AbortSignal)
@@ -392,7 +392,7 @@ describe("PoeHandler", () => {
 			const controller = new AbortController()
 			mockGenerateText.mockResolvedValueOnce({ text: "response" })
 
-			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 			// The merged abortSignal should be the same as user signal when only signal is provided
 			const callArgs = mockGenerateText.mock.calls[0][0]
 			expect(callArgs.abortSignal).toBeDefined()

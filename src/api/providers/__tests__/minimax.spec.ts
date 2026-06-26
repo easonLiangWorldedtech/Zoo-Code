@@ -225,7 +225,7 @@ describe("MiniMaxHandler", () => {
 			mockCreate.mockResolvedValueOnce({
 				content: [{ type: "text", text: "response" }],
 			})
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: expect.any(String) }),
 				{ signal: controller.signal }, // second arg (options)
@@ -249,7 +249,7 @@ describe("MiniMaxHandler", () => {
 			mockCreate.mockResolvedValueOnce({
 				content: [{ type: "text", text: "response" }],
 			})
-			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
 				signal: controller.signal,
 				timeout: 5000,

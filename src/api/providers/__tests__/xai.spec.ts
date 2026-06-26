@@ -259,7 +259,7 @@ describe("XAIHandler", () => {
 		const controller = new AbortController()
 		mockResponsesCreate.mockResolvedValueOnce({ output_text: "response" })
 
-		await handler.completePrompt("test prompt", { signal: controller.signal })
+		await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 		expect(mockResponsesCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
 			signal: controller.signal,
 		})
@@ -280,7 +280,7 @@ describe("XAIHandler", () => {
 		const controller = new AbortController()
 		mockResponsesCreate.mockResolvedValueOnce({ output_text: "response" })
 
-		await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+		await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 		expect(mockResponsesCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
 			signal: controller.signal,
 			timeout: 5000,

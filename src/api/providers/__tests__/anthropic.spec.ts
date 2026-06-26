@@ -471,7 +471,7 @@ describe("AnthropicHandler", () => {
 		it("should pass abort signal through to client", async () => {
 			const controller = new AbortController()
 			mockCreate.mockResolvedValueOnce({ content: [{ type: "text", text: "response" }] })
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(mockCreate).toHaveBeenCalledWith(
 				{
 					model: mockOptions.apiModelId,
@@ -505,7 +505,7 @@ describe("AnthropicHandler", () => {
 		it("should merge signal and timeout together", async () => {
 			const controller = new AbortController()
 			mockCreate.mockResolvedValueOnce({ content: [{ type: "text", text: "response" }] })
-			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 10000 })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 10000 })
 			expect(mockCreate).toHaveBeenCalledWith(
 				{
 					model: mockOptions.apiModelId,
@@ -535,9 +535,11 @@ describe("AnthropicHandler", () => {
 
 			const controller = new AbortController()
 			let timeoutTriggered = false
-			handlerTimeout.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 50 }).catch(() => {
-				timeoutTriggered = true
-			})
+			handlerTimeout
+				.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 50 })
+				.catch(() => {
+					timeoutTriggered = true
+				})
 
 			// Wait for timeout to trigger (50ms timeout + buffer)
 			await new Promise((resolve) => setTimeout(resolve, 150))
@@ -551,7 +553,7 @@ describe("AnthropicHandler", () => {
 		it("should pass the same signal instance", async () => {
 			const controller = new AbortController()
 			mockCreate.mockResolvedValueOnce({ content: [{ type: "text", text: "response" }] })
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.any(Object),
 				expect.objectContaining({ signal: controller.signal }),

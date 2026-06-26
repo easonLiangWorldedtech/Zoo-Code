@@ -574,11 +574,11 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 			timeoutTimeout = setTimeout(() => tokenSource.cancel(), options.timeoutMs)
 		}
 
-		if (options?.signal) {
-			if (options.signal.aborted) {
+		if (options?.abortSignal) {
+			if (options.abortSignal.aborted) {
 				tokenSource.cancel()
 			} else {
-				options.signal.addEventListener("abort", () => tokenSource.cancel(), { once: true })
+				options.abortSignal.addEventListener("abort", () => tokenSource.cancel(), { once: true })
 			}
 		}
 

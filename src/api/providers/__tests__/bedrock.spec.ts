@@ -1597,7 +1597,7 @@ describe("AwsBedrockHandler", () => {
 					output: { message: { content: [{ type: "text", text: "response" }] }, stopReason: null },
 				})
 
-				await handler.completePrompt("test prompt", { signal: controller.signal })
+				await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 
 				expect(mockSend).toHaveBeenCalledWith(expect.any(Object), { abortSignal: controller.signal })
 			})

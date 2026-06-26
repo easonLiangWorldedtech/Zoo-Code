@@ -1156,9 +1156,9 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 	}
 
 	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
-		// Merge incoming signal with existing class-level controller if needed
+		// Merge incoming abortSignal with existing class-level controller if needed
 		const defaultSignal = new AbortController().signal
-		const mergedSignal = RequestConfigBuilder.mergeAbortSignals(defaultSignal, options?.signal)
+		const mergedSignal = RequestConfigBuilder.mergeAbortSignals(defaultSignal, options?.abortSignal)
 		this.abortController = new AbortController()
 		// Link the merged signal to our abort controller
 		if (mergedSignal.aborted) {

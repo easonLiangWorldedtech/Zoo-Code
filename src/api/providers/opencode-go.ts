@@ -490,10 +490,10 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 
 		if (format === "anthropic") {
 			try {
-				// Build request options with both signal and timeout handling
+				// Build request options with abortSignal and/or timeout handling
 				const requestOptions: Anthropic.RequestOptions = {}
-				if (options?.signal) {
-					requestOptions.signal = options.signal
+				if (options?.abortSignal) {
+					requestOptions.signal = options.abortSignal
 				}
 				if (options?.timeoutMs) {
 					requestOptions.timeout = options.timeoutMs
@@ -546,10 +546,10 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 					reasoningEffort as OpenAI.Chat.ChatCompletionCreateParams["reasoning_effort"]
 			}
 
-			// Build request options with signal and/or timeout for OpenAI path
+			// Build request options with abortSignal and/or timeout for OpenAI path
 			const createOptions: OpenAI.RequestOptions = {}
-			if (options?.signal) {
-				createOptions.signal = options.signal
+			if (options?.abortSignal) {
+				createOptions.signal = options.abortSignal
 			}
 			if (options?.timeoutMs) {
 				createOptions.timeout = options.timeoutMs

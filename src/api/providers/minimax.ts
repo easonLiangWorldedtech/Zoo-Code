@@ -292,10 +292,10 @@ export class MiniMaxHandler extends BaseProvider implements SingleCompletionHand
 	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions) {
 		const { id: model, temperature } = this.getModel()
 
-		// Build request options with both signal and timeout handling
+		// Build request options with abortSignal and/or timeout handling
 		const requestOptions: Anthropic.RequestOptions = {}
-		if (options?.signal) {
-			requestOptions.signal = options.signal
+		if (options?.abortSignal) {
+			requestOptions.signal = options.abortSignal
 		}
 		if (options?.timeoutMs) {
 			requestOptions.timeout = options.timeoutMs
