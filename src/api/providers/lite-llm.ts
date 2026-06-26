@@ -236,8 +236,12 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 		}
 
 		try {
+			const createOpts: OpenAI.RequestOptions & { headers?: Record<string, string> } = {
+				headers: requestHeaders,
+				...(metadata?.abortSignal && { signal: metadata.abortSignal }),
+			}
 			const { data: completion } = await this.client.chat.completions
-				.create(requestOptions, { headers: requestHeaders })
+				.create(requestOptions, createOpts)
 				.withResponse()
 
 			let lastUsage

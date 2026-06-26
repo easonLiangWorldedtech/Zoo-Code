@@ -132,9 +132,16 @@ export class DeepSeekHandler extends OpenAiHandler {
 
 		let stream
 		try {
+			const createOpts: OpenAI.RequestOptions | undefined = metadata?.abortSignal
+				? isAzureAiInference
+					? { path: OPENAI_AZURE_AI_INFERENCE_PATH, signal: metadata.abortSignal }
+					: { signal: metadata.abortSignal }
+				: isAzureAiInference
+					? { path: OPENAI_AZURE_AI_INFERENCE_PATH }
+					: undefined
 			stream = await this.client.chat.completions.create(
 				requestOptions as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
-				isAzureAiInference ? { path: OPENAI_AZURE_AI_INFERENCE_PATH } : {},
+				createOpts,
 			)
 		} catch (error) {
 			const { handleOpenAIError } = await import("./utils/openai-error-handler")

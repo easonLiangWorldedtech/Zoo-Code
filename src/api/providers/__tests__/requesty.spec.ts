@@ -217,7 +217,11 @@ describe("RequestyHandler", () => {
 					stream: true,
 					stream_options: { include_usage: true },
 					temperature: 0,
+					requesty: { trace_id: undefined, extra: { mode: undefined } },
+					tools: undefined,
+					tool_choice: undefined,
 				}),
+				undefined,
 			)
 		})
 
@@ -250,7 +254,11 @@ describe("RequestyHandler", () => {
 					max_tokens: 32768,
 					thinking: { type: "adaptive" },
 					temperature: undefined,
+					requesty: { trace_id: undefined, extra: { mode: undefined } },
+					tools: undefined,
+					tool_choice: undefined,
 				}),
+				undefined,
 			)
 		})
 
@@ -389,6 +397,7 @@ describe("RequestyHandler", () => {
 
 				expect(mockCreate).toHaveBeenCalledWith(
 					expect.objectContaining({
+						requesty: { trace_id: "test-task", extra: { mode: undefined } },
 						tools: expect.arrayContaining([
 							expect.objectContaining({
 								type: "function",
@@ -400,6 +409,7 @@ describe("RequestyHandler", () => {
 						]),
 						tool_choice: "auto",
 					}),
+					undefined,
 				)
 			})
 
@@ -483,6 +493,66 @@ describe("RequestyHandler", () => {
 					inputTokens: 10,
 					outputTokens: 20,
 				})
+			})
+		})
+
+		describe("abort signal", () => {
+			it("should pass abort signal through to client in createMessage", async () => {
+				const controller = new AbortController()
+				const testHandler = new RequestyHandler(mockOptions)
+
+				const mockStream = {
+					async *[Symbol.asyncIterator]() {
+						yield { id: "1", choices: [{ delta: {} }] }
+						yield {
+							id: "1",
+							choices: [{ delta: {} }],
+							usage: { prompt_tokens: 1, completion_tokens: 1 },
+						}
+					},
+				}
+				mockCreate.mockResolvedValue(mockStream)
+
+				const stream = testHandler.createMessage(
+					"test system prompt",
+					[{ role: "user" as const, content: "test message" }],
+					{ taskId: "test-task", abortSignal: controller.signal as any },
+				)
+				for await (const _ of stream) {
+				}
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({ signal: controller.signal }),
+				)
+			})
+
+			it("should pass the exact same signal reference (reference identity)", async () => {
+				const controller = new AbortController()
+				const testHandler = new RequestyHandler(mockOptions)
+
+				const mockStream = {
+					async *[Symbol.asyncIterator]() {
+						yield { id: "1", choices: [{ delta: {} }] }
+						yield {
+							id: "1",
+							choices: [{ delta: {} }],
+							usage: { prompt_tokens: 1, completion_tokens: 1 },
+						}
+					},
+				}
+				mockCreate.mockResolvedValue(mockStream)
+
+				const stream = testHandler.createMessage(
+					"test system prompt",
+					[{ role: "user" as const, content: "test message" }],
+					{ taskId: "test-task", abortSignal: controller.signal as any },
+				)
+				for await (const _ of stream) {
+				}
+
+				const callOptions = mockCreate.mock.calls[0][1]
+				expect(callOptions?.signal).toBe(controller.signal)
 			})
 		})
 	})

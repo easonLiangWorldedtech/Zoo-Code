@@ -150,37 +150,41 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 						stream: true,
 						...nativeToolParams,
 					}
+					const requestOptions = (() => {
+						// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
+						// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
+						// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
+
+						// Then check for models that support prompt caching
+						switch (modelId) {
+							case "claude-sonnet-4-6":
+							case "claude-sonnet-4-5":
+							case "claude-sonnet-4-20250514":
+							case "claude-opus-4-6":
+							case "claude-opus-4-7":
+							case "claude-opus-4-8":
+							case "claude-fable-5":
+							case "claude-opus-4-5-20251101":
+							case "claude-opus-4-1-20250805":
+							case "claude-opus-4-20250514":
+							case "claude-3-7-sonnet-20250219":
+							case "claude-3-5-sonnet-20241022":
+							case "claude-3-5-haiku-20241022":
+							case "claude-3-opus-20240229":
+							case "claude-haiku-4-5-20251001":
+							case "claude-3-haiku-20240307":
+								betas.push("prompt-caching-2024-07-31")
+								return {
+									headers: { "anthropic-beta": betas.join(",") },
+									...(metadata?.abortSignal && { signal: metadata.abortSignal }),
+								}
+							default:
+								return metadata?.abortSignal ? { signal: metadata.abortSignal } : undefined
+						}
+					})()
 					stream = await this.client.messages.create(
 						requestParams as Anthropic.Messages.MessageCreateParamsStreaming,
-						(() => {
-							// prompt caching: https://x.com/alexalbert__/status/1823751995901272068
-							// https://github.com/anthropics/anthropic-sdk-typescript?tab=readme-ov-file#default-headers
-							// https://github.com/anthropics/anthropic-sdk-typescript/commit/c920b77fc67bd839bfeb6716ceab9d7c9bbe7393
-
-							// Then check for models that support prompt caching
-							switch (modelId) {
-								case "claude-sonnet-4-6":
-								case "claude-sonnet-4-5":
-								case "claude-sonnet-4-20250514":
-								case "claude-opus-4-6":
-								case "claude-opus-4-7":
-								case "claude-opus-4-8":
-								case "claude-fable-5":
-								case "claude-opus-4-5-20251101":
-								case "claude-opus-4-1-20250805":
-								case "claude-opus-4-20250514":
-								case "claude-3-7-sonnet-20250219":
-								case "claude-3-5-sonnet-20241022":
-								case "claude-3-5-haiku-20241022":
-								case "claude-3-opus-20240229":
-								case "claude-haiku-4-5-20251001":
-								case "claude-3-haiku-20240307":
-									betas.push("prompt-caching-2024-07-31")
-									return { headers: { "anthropic-beta": betas.join(",") } }
-								default:
-									return undefined
-							}
-						})(),
+						requestOptions,
 					)
 				} catch (error) {
 					TelemetryService.instance.captureException(
@@ -207,8 +211,12 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 						stream: true,
 						...nativeToolParams,
 					}
+					const requestOptionsForDefault = metadata?.abortSignal
+						? { signal: metadata.abortSignal }
+						: undefined
 					stream = (await this.client.messages.create(
 						requestParams as Anthropic.Messages.MessageCreateParamsStreaming,
+						requestOptionsForDefault,
 					)) as any
 				} catch (error) {
 					TelemetryService.instance.captureException(

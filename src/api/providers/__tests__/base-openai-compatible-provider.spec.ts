@@ -454,6 +454,56 @@ describe("BaseOpenAiCompatibleProvider", () => {
 		})
 	})
 
+	describe("abort signal", () => {
+		it("should pass abort signal through to client in createMessage", async () => {
+			const controller = new AbortController()
+
+			mockCreate.mockImplementationOnce(() => ({
+				[Symbol.asyncIterator]: () => ({
+					async next() {
+						return { done: true }
+					},
+				}),
+			}))
+
+			const stream = handler.createMessage("system prompt", [], {
+				taskId: "test-task",
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+				// consume stream
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: controller.signal }),
+			)
+		})
+
+		it("should pass the exact same signal reference (reference identity)", async () => {
+			const controller = new AbortController()
+
+			mockCreate.mockImplementationOnce(() => ({
+				[Symbol.asyncIterator]: () => ({
+					async next() {
+						return { done: true }
+					},
+				}),
+			}))
+
+			const stream = handler.createMessage("system prompt", [], {
+				taskId: "test-task",
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+				// consume stream
+			}
+
+			const callOptions = mockCreate.mock.calls[0][1]
+			expect(callOptions?.signal).toBe(controller.signal)
+		})
+	})
+
 	describe("Tool call handling", () => {
 		it("should yield tool_call_end events when finish_reason is tool_calls", async () => {
 			mockCreate.mockImplementationOnce(() => {

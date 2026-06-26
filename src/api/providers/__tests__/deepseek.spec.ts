@@ -455,6 +455,42 @@ describe("DeepSeekHandler", () => {
 			const reasoningChunks = chunks.filter((chunk) => chunk.type === "reasoning")
 			expect(reasoningChunks).toEqual([{ type: "reasoning", text: "primary thought" }])
 		})
+
+		describe("abort signal", () => {
+			it("should pass abort signal through to client in createMessage", async () => {
+				const controller = new AbortController()
+				const testHandler = new DeepSeekHandler(mockOptions)
+
+				const stream = testHandler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+					// consume stream
+				}
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({ signal: controller.signal }),
+				)
+			})
+
+			it("should pass the exact same signal reference (reference identity)", async () => {
+				const controller = new AbortController()
+				const testHandler = new DeepSeekHandler(mockOptions)
+
+				const stream = testHandler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+					// consume stream
+				}
+
+				const callOptions = mockCreate.mock.calls[0][1]
+				expect(callOptions?.signal).toBe(controller.signal)
+			})
+		})
 	})
 
 	describe("processUsageMetrics", () => {
@@ -563,7 +599,7 @@ describe("DeepSeekHandler", () => {
 				expect.objectContaining({
 					thinking: { type: "enabled" },
 				}),
-				{}, // Empty path options for non-Azure URLs
+				undefined,
 			)
 			const callArgs = mockCreate.mock.calls[0][0]
 			expect(callArgs.reasoning_effort).toBeUndefined()
@@ -586,7 +622,7 @@ describe("DeepSeekHandler", () => {
 					reasoning_effort: "high",
 					max_completion_tokens: 200_000,
 				}),
-				{},
+				undefined,
 			)
 		})
 
@@ -623,7 +659,7 @@ describe("DeepSeekHandler", () => {
 					thinking: { type: "enabled" },
 					reasoning_effort: "max",
 				}),
-				{},
+				undefined,
 			)
 		})
 

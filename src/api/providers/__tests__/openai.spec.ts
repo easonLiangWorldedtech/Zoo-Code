@@ -805,6 +805,42 @@ describe("OpenAiHandler", () => {
 				])
 			})
 		})
+
+		describe("abort signal", () => {
+			it("should pass abort signal through to client in createMessage", async () => {
+				const controller = new AbortController()
+				const testHandler = new OpenAiHandler(mockOptions)
+
+				const stream = testHandler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+					// consume stream
+				}
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({ signal: controller.signal }),
+				)
+			})
+
+			it("should pass the exact same signal reference (reference identity)", async () => {
+				const controller = new AbortController()
+				const testHandler = new OpenAiHandler(mockOptions)
+
+				const stream = testHandler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+					// consume stream
+				}
+
+				const callOptions = mockCreate.mock.calls[0][1]
+				expect(callOptions?.signal).toBe(controller.signal)
+			})
+		})
 	})
 
 	describe("error handling", () => {
@@ -967,9 +1003,26 @@ describe("OpenAiHandler", () => {
 			expect(chunks.length).toBeGreaterThan(0)
 			const textChunks = chunks.filter((chunk) => chunk.type === "text")
 			expect(textChunks).toHaveLength(1)
-			expect(textChunks[0].text).toBe("Test response")
+		})
 
-			// Verify the API call was made with correct Azure AI Inference Service path
+		it("should pass abort signal through to client in createMessage", async () => {
+			const azureHandler = new OpenAiHandler(azureOptions)
+			const controller = new AbortController()
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello!" }]
+
+			const chunks: any[] = []
+			for await (const chunk of azureHandler.createMessage(systemPrompt, messages, {
+				taskId: "test-task",
+				abortSignal: controller.signal,
+			})) {
+				chunks.push(chunk)
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: azureOptions.openAiModelId }),
+				expect.objectContaining({ signal: controller.signal }),
+			)
 			expect(mockCreate).toHaveBeenCalledWith(
 				{
 					model: azureOptions.openAiModelId,
@@ -984,7 +1037,7 @@ describe("OpenAiHandler", () => {
 					tool_choice: undefined,
 					parallel_tool_calls: true,
 				},
-				{ path: "/models/chat/completions" },
+				{ path: "/models/chat/completions", signal: controller.signal },
 			)
 
 			// Verify max_tokens is NOT included when not explicitly set

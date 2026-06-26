@@ -179,6 +179,7 @@ describe("UnboundHandler", () => {
 					mode: "architect",
 				},
 			}),
+			undefined,
 		)
 	})
 
@@ -238,6 +239,52 @@ describe("UnboundHandler", () => {
 			expect.objectContaining({ model: expect.any(String) }),
 			expect.objectContaining({ timeout: 5000 }),
 		)
+	})
+
+	describe("abort signal", () => {
+		it("should pass abort signal through to client in createMessage", async () => {
+			const mockCreate = (OpenAI as unknown as any)().chat.completions.create
+			mockCreate.mockImplementation(async function* () {
+				yield { choices: [{ delta: { content: "response" } }] }
+				yield { choices: [{ delta: {} }], usage: { prompt_tokens: 1, completion_tokens: 1 } }
+			})
+			const controller = new AbortController()
+			const testHandler = new UnboundHandler({ unboundApiKey: "test-key", unboundModelId: "openai/gpt-4o" })
+
+			const stream = testHandler.createMessage("system prompt", [{ role: "user", content: "hi" }], {
+				taskId: "t",
+				tools: [],
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: controller.signal }),
+			)
+		})
+
+		it("should pass the exact same signal reference (reference identity)", async () => {
+			const mockCreate = (OpenAI as unknown as any)().chat.completions.create
+			mockCreate.mockImplementation(async function* () {
+				yield { choices: [{ delta: { content: "response" } }] }
+				yield { choices: [{ delta: {} }], usage: { prompt_tokens: 1, completion_tokens: 1 } }
+			})
+			const controller = new AbortController()
+			const testHandler = new UnboundHandler({ unboundApiKey: "test-key", unboundModelId: "openai/gpt-4o" })
+
+			const stream = testHandler.createMessage("system prompt", [{ role: "user", content: "hi" }], {
+				taskId: "t",
+				tools: [],
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+			}
+
+			const callOptions = mockCreate.mock.calls[0][1]
+			expect(callOptions?.signal).toBe(controller.signal)
+		})
 	})
 
 	it("completePrompt should work without options (backward compatible)", async () => {

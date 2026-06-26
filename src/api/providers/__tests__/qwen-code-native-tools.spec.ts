@@ -103,6 +103,7 @@ describe("QwenCodeHandler Native Tools", () => {
 					]),
 					parallel_tool_calls: true,
 				}),
+				undefined,
 			)
 		})
 
@@ -126,6 +127,7 @@ describe("QwenCodeHandler Native Tools", () => {
 				expect.objectContaining({
 					tool_choice: "auto",
 				}),
+				undefined,
 			)
 		})
 
@@ -237,6 +239,7 @@ describe("QwenCodeHandler Native Tools", () => {
 				expect.objectContaining({
 					parallel_tool_calls: true,
 				}),
+				undefined,
 			)
 		})
 
@@ -442,6 +445,56 @@ describe("QwenCodeHandler Native Tools", () => {
 			expect(reasoningChunks[0].text).toBe("Thinking about this...")
 			expect(partialChunks).toHaveLength(1)
 			expect(endChunks).toHaveLength(1)
+		})
+
+		describe("abort signal", () => {
+			it("should pass abort signal through to client in createMessage", async () => {
+				mockCreate.mockImplementationOnce(() => ({
+					[Symbol.asyncIterator]: async function* () {
+						yield {
+							choices: [{ delta: { content: "Test response" } }],
+						}
+					},
+				}))
+
+				const controller = new AbortController()
+				const testHandler = new QwenCodeHandler(mockOptions)
+
+				await testHandler
+					.createMessage("test prompt", [], {
+						taskId: "test-task-id",
+						abortSignal: controller.signal as any,
+					})
+					.next()
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({ signal: controller.signal }),
+				)
+			})
+
+			it("should pass the exact same signal reference (reference identity)", async () => {
+				mockCreate.mockImplementationOnce(() => ({
+					[Symbol.asyncIterator]: async function* () {
+						yield {
+							choices: [{ delta: { content: "Test response" } }],
+						}
+					},
+				}))
+
+				const controller = new AbortController()
+				const testHandler = new QwenCodeHandler(mockOptions)
+
+				await testHandler
+					.createMessage("test prompt", [], {
+						taskId: "test-task-id",
+						abortSignal: controller.signal as any,
+					})
+					.next()
+
+				const callOptions = mockCreate.mock.calls[0][1]
+				expect(callOptions?.signal).toBe(controller.signal)
+			})
 		})
 	})
 

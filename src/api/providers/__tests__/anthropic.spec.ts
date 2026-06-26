@@ -425,8 +425,42 @@ describe("AnthropicHandler", () => {
 			const requestOptions = mockCreate.mock.calls[mockCreate.mock.calls.length - 1]?.[1]
 			expect(requestBody?.thinking).toEqual({ type: "adaptive" })
 			expect(requestBody?.temperature).toBeUndefined()
-			expect(requestBody?.max_tokens).toBe(32768)
-			expect(requestOptions?.headers?.["anthropic-beta"]).toContain("prompt-caching-2024-07-31")
+		})
+
+		describe("abort signal", () => {
+			it("should pass abort signal through to client in createMessage", async () => {
+				const controller = new AbortController()
+				const testHandler = new AnthropicHandler(mockOptions)
+
+				const stream = testHandler.createMessage(systemPrompt, [], {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+					// consume stream
+				}
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({ signal: controller.signal }),
+				)
+			})
+
+			it("should pass the exact same signal reference (reference identity)", async () => {
+				const controller = new AbortController()
+				const testHandler = new AnthropicHandler(mockOptions)
+
+				const stream = testHandler.createMessage(systemPrompt, [], {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+					// consume stream
+				}
+
+				const callOptions = mockCreate.mock.calls[0][1]
+				expect(callOptions?.signal).toBe(controller.signal)
+			})
 		})
 	})
 

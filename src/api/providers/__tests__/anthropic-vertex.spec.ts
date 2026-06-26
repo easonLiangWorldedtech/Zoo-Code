@@ -538,6 +538,74 @@ describe("VertexHandler", () => {
 			expect(usageChunks[0]).toHaveProperty("cacheWriteTokens", 5)
 			expect(usageChunks[0]).toHaveProperty("cacheReadTokens", 3)
 		})
+
+		describe("abort signal", () => {
+			const systemPrompt = "You are a helpful assistant"
+			const mockMessages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "user",
+					content: "Hello",
+				},
+			]
+
+			it("should pass abort signal through to client in createMessage", async () => {
+				handler = new AnthropicVertexHandler({
+					apiModelId: "claude-3-5-sonnet-v2@20241022",
+					vertexProjectId: "test-project",
+					vertexRegion: "us-central1",
+				})
+
+				const controller = new AbortController()
+
+				const mockCreate = vitest.fn().mockImplementation(async () => ({
+					async *[Symbol.asyncIterator]() {
+						yield { type: "message_start", message: { usage: { input_tokens: 10, output_tokens: 5 } } }
+					},
+				}))
+				;(handler["client"].messages as any).create = mockCreate
+
+				const stream = handler.createMessage(systemPrompt, mockMessages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+					// consume stream
+				}
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({ signal: controller.signal }),
+				)
+			})
+
+			it("should pass the exact same signal reference (reference identity)", async () => {
+				handler = new AnthropicVertexHandler({
+					apiModelId: "claude-3-5-sonnet-v2@20241022",
+					vertexProjectId: "test-project",
+					vertexRegion: "us-central1",
+				})
+
+				const controller = new AbortController()
+
+				const mockCreate = vitest.fn().mockImplementation(async () => ({
+					async *[Symbol.asyncIterator]() {
+						yield { type: "message_start", message: { usage: { input_tokens: 10, output_tokens: 5 } } }
+					},
+				}))
+				;(handler["client"].messages as any).create = mockCreate
+
+				const stream = handler.createMessage(systemPrompt, mockMessages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+					// consume stream
+				}
+
+				const callOptions = mockCreate.mock.calls[0][1]
+				expect(callOptions?.signal).toBe(controller.signal)
+			})
+		})
 	})
 
 	describe("thinking functionality", () => {

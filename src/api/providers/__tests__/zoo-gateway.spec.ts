@@ -424,6 +424,74 @@ describe("ZooGatewayHandler", () => {
 		})
 	})
 
+	describe("abort signal", () => {
+		it("should pass abort signal through to client in createMessage", async () => {
+			const controller = new AbortController()
+			const testHandler = new ZooGatewayHandler(mockOptions)
+
+			mockCreate.mockImplementation(async () => ({
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						choices: [{ delta: { content: "Test response" }, index: 0 }],
+						usage: null,
+					}
+					yield {
+						choices: [{ delta: {}, index: 0 }],
+						usage: {
+							prompt_tokens: 10,
+							completion_tokens: 5,
+							total_tokens: 15,
+						},
+					}
+				},
+			}))
+
+			const stream = testHandler.createMessage("system", [{ role: "user", content: "hi" }], {
+				taskId: "test-task",
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: controller.signal }),
+			)
+		})
+
+		it("should pass the exact same signal reference (reference identity)", async () => {
+			const controller = new AbortController()
+			const testHandler = new ZooGatewayHandler(mockOptions)
+
+			mockCreate.mockImplementation(async () => ({
+				[Symbol.asyncIterator]: async function* () {
+					yield {
+						choices: [{ delta: { content: "Test response" }, index: 0 }],
+						usage: null,
+					}
+					yield {
+						choices: [{ delta: {}, index: 0 }],
+						usage: {
+							prompt_tokens: 10,
+							completion_tokens: 5,
+							total_tokens: 15,
+						},
+					}
+				},
+			}))
+
+			const stream = testHandler.createMessage("system", [{ role: "user", content: "hi" }], {
+				taskId: "test-task",
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+			}
+
+			const callOptions = mockCreate.mock.calls[0][1]
+			expect(callOptions?.signal).toBe(controller.signal)
+		})
+	})
+
 	describe("completePrompt", () => {
 		beforeEach(() => {
 			mockCreate.mockImplementation(async () => ({
