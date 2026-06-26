@@ -1677,6 +1677,42 @@ describe("AwsBedrockHandler", () => {
 				const sendOptions = mockSend.mock.calls[0][1]
 				expect(sendOptions?.abortSignal).toBeDefined()
 			})
+
+			it("should abort internal controller when external abortSignal is triggered", async () => {
+				const mockResult = {
+					output: { message: { content: [{ type: "text", text: "response" }] }, stopReason: null },
+				}
+				const mockSend = vi.fn().mockResolvedValue(mockResult)
+
+				const handler = new AwsBedrockHandler({
+					apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsRegion: "us-east-1",
+				})
+
+				const clientInstance = (handler as any).client
+				clientInstance.send = mockSend
+
+				const controller = new AbortController()
+				let internalSignalCaptured: AbortSignal | undefined
+
+				// Spy on the send call to capture the abortSignal
+				mockSend.mockImplementation(async (command, options) => {
+					internalSignalCaptured = options?.abortSignal
+					return mockResult
+				})
+
+				await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+
+				expect(internalSignalCaptured).toBeDefined()
+				expect(internalSignalCaptured).toBeInstanceOf(AbortSignal)
+
+				// Abort the external signal and verify it propagates to the internal signal
+				controller.abort()
+				await new Promise((resolve) => setTimeout(resolve, 10))
+				expect(internalSignalCaptured!.aborted).toBe(true)
+			})
 		})
 	})
 })

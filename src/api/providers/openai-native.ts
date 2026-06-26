@@ -415,6 +415,21 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		// Create AbortController for cancellation
 		this.abortController = new AbortController()
 
+		// Merge external abort signal with our internal controller using RequestConfigBuilder
+		const externalAbortSignal = metadata?.abortSignal
+		if (externalAbortSignal) {
+			const mergedSignal = RequestConfigBuilder.mergeAbortSignals(
+				this.abortController.signal,
+				externalAbortSignal,
+			)
+			// Listen for abort on the merged signal to propagate to our controller
+			if (mergedSignal.aborted) {
+				this.abortController.abort()
+			} else {
+				mergedSignal.addEventListener("abort", () => this.abortController?.abort(), { once: true })
+			}
+		}
+
 		// Build per-request headers using taskId when available, falling back to sessionId
 		const taskId = metadata?.taskId
 		const userAgent = `zoo-code/${Package.version} (${os.platform()} ${os.release()}; ${os.arch()}) node/${process.version.slice(1)}`
@@ -562,6 +577,18 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 
 		// Create AbortController for cancellation
 		this.abortController = new AbortController()
+
+		// Bridge external abort signal to our controller using the Bedrock pattern:
+		// - pre-aborted guard: check if already aborted before adding listener
+		// - { once: true }: remove listener after first abort to avoid leaks
+		const externalAbortSignal = metadata?.abortSignal
+		if (externalAbortSignal) {
+			if (externalAbortSignal.aborted) {
+				this.abortController.abort()
+			} else {
+				externalAbortSignal.addEventListener("abort", () => this.abortController?.abort(), { once: true })
+			}
+		}
 
 		// Build per-request headers using taskId when available, falling back to sessionId
 		const taskId = metadata?.taskId

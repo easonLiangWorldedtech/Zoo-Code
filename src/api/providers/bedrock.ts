@@ -534,6 +534,18 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		const controller = new AbortController()
 		let timeoutId: NodeJS.Timeout | undefined
 
+		// Bridge external abort signal to our controller using the Bedrock pattern:
+		// - pre-aborted guard: check if already aborted before adding listener
+		// - { once: true }: remove listener after first abort to avoid leaks
+		const externalAbortSignal = metadata?.abortSignal
+		if (externalAbortSignal) {
+			if (externalAbortSignal.aborted) {
+				controller.abort()
+			} else {
+				externalAbortSignal.addEventListener("abort", () => controller.abort(), { once: true })
+			}
+		}
+
 		try {
 			timeoutId = setTimeout(
 				() => {
