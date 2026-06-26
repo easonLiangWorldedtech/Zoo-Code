@@ -327,7 +327,7 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 		return { id, info }
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
 		await this.ensureAuthenticated()
 		const client = this.ensureClient()
 		const model = this.getModel()
@@ -338,7 +338,19 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 			max_completion_tokens: model.info.maxTokens,
 		}
 
-		const response = await this.callApiWithRetry(() => client.chat.completions.create(requestOptions))
+		const fetchOptions: Record<string, unknown> = {}
+
+		if (options?.abortSignal) {
+			fetchOptions.signal = options.abortSignal
+		}
+
+		if (options?.timeoutMs) {
+			fetchOptions.timeout = options.timeoutMs
+		}
+
+		const response = await this.callApiWithRetry(() =>
+			client.chat.completions.create(requestOptions, fetchOptions as any),
+		)
 
 		return response.choices[0]?.message.content || ""
 	}
