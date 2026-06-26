@@ -208,19 +208,23 @@ export abstract class OpenAICompatibleHandler extends BaseProvider implements Si
 		}
 
 		// Merge abortSignal and timeoutMs into a single abortSignal
+		let timeoutId: ReturnType<typeof setTimeout> | undefined
 		if (options?.abortSignal && options?.timeoutMs && options.timeoutMs > 0) {
 			// When both are provided, create a merged signal that aborts when either fires
 			const controller = new AbortController()
-			const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
-
-			options.abortSignal.addEventListener(
-				"abort",
-				() => {
-					clearTimeout(timeoutId)
-					controller.abort()
-				},
-				{ once: true },
-			)
+			if (options.abortSignal.aborted) {
+				controller.abort()
+			} else {
+				timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
+				options.abortSignal.addEventListener(
+					"abort",
+					() => {
+						clearTimeout(timeoutId)
+						controller.abort()
+					},
+					{ once: true },
+				)
+			}
 
 			generateOptions.abortSignal = controller.signal
 		} else if (options?.abortSignal) {
@@ -229,8 +233,13 @@ export abstract class OpenAICompatibleHandler extends BaseProvider implements Si
 			generateOptions.abortSignal = AbortSignal.timeout(options.timeoutMs)
 		}
 
-		const { text } = await generateText(generateOptions)
-
-		return text
+		try {
+			const { text } = await generateText(generateOptions)
+			return text
+		} finally {
+			if (timeoutId !== undefined) {
+				clearTimeout(timeoutId)
+			}
+		}
 	}
 }

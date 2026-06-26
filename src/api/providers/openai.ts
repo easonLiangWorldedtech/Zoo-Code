@@ -315,7 +315,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 			if (options?.abortSignal) {
 				createOptions.signal = options.abortSignal
 			}
-			if (options?.timeoutMs) {
+			if (options?.timeoutMs !== undefined) {
 				createOptions.timeout = options.timeoutMs
 			}
 

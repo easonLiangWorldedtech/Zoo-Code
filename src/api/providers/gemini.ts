@@ -589,6 +589,9 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			if (options?.abortSignal) {
 				httpOpts.signal = options.abortSignal
 			}
+			if (options?.timeoutMs !== undefined) {
+				httpOpts.timeout = options.timeoutMs
+			}
 			if (this.options.googleGeminiBaseUrl) {
 				httpOpts.baseUrl = this.options.googleGeminiBaseUrl
 			}
