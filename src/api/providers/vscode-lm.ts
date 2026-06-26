@@ -595,18 +595,17 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 				}
 			}
 			return result
+		} catch (error: any) {
+			if (error instanceof Error) {
+				throw new Error(`VSCode LM completion error: ${error.message}`)
+			}
+			throw error
 		} finally {
 			if (timeoutTimeout) {
 				clearTimeout(timeoutTimeout)
 			}
 			tokenSource.dispose()
 		}
-	}
-	catch(error: any) {
-		if (error instanceof Error) {
-			throw new Error(`VSCode LM completion error: ${error.message}`)
-		}
-		throw error
 	}
 }
 

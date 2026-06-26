@@ -508,7 +508,7 @@ describe("MistralHandler", () => {
 			})
 			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(mockComplete).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
-				signal: controller.signal,
+				fetchOptions: { signal: controller.signal },
 			})
 		})
 
@@ -528,8 +528,8 @@ describe("MistralHandler", () => {
 			})
 			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 			expect(mockComplete).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
-				signal: controller.signal,
-				timeout: 5000,
+				fetchOptions: { signal: controller.signal },
+				timeoutMs: 5000,
 			})
 		})
 
@@ -539,7 +539,7 @@ describe("MistralHandler", () => {
 			})
 			await handler.completePrompt("test prompt", { timeoutMs: 3000 })
 			expect(mockComplete).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
-				timeout: 3000,
+				timeoutMs: 3000,
 			})
 		})
 
@@ -548,10 +548,9 @@ describe("MistralHandler", () => {
 				choices: [{ message: { content: "response" } }],
 			})
 			await handler.completePrompt("test prompt", { timeoutMs: 0 })
-			expect(mockComplete).toHaveBeenCalledWith(
-				expect.objectContaining({ model: expect.any(String) }),
-				undefined, // truthy check means 0 is falsy
-			)
+			expect(mockComplete).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
+				timeoutMs: 0,
+			})
 		})
 	})
 })

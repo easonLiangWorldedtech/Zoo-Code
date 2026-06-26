@@ -197,13 +197,13 @@ export class MistralHandler extends BaseProvider implements SingleCompletionHand
 		const { id: model, temperature } = this.getModel()
 
 		try {
-			// Build request options with abortSignal and/or timeout handling
-			const requestOptions: Record<string, unknown> = {}
+			// Build Mistral SDK RequestOptions
+			const requestOptions: Parameters<typeof this.client.chat.complete>[1] = {}
 			if (options?.abortSignal) {
-				requestOptions.signal = options.abortSignal
+				requestOptions.fetchOptions = { signal: options.abortSignal }
 			}
-			if (options?.timeoutMs) {
-				requestOptions.timeout = options.timeoutMs
+			if (options?.timeoutMs !== undefined) {
+				requestOptions.timeoutMs = options.timeoutMs
 			}
 
 			const response = await this.client.chat.complete(
@@ -212,7 +212,7 @@ export class MistralHandler extends BaseProvider implements SingleCompletionHand
 					messages: [{ role: "user", content: prompt }],
 					temperature,
 				},
-				Object.keys(requestOptions).length > 0 ? (requestOptions as any) : undefined,
+				Object.keys(requestOptions).length > 0 ? requestOptions : undefined,
 			)
 
 			const content = response.choices?.[0]?.message.content

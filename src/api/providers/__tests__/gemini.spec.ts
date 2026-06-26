@@ -193,7 +193,7 @@ describe("GeminiHandler", () => {
 				model: GEMINI_MODEL_NAME,
 				contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
 				config: {
-					httpOptions: { signal: controller.signal },
+					httpOptions: { signal: controller.signal, timeout: 10000 },
 					temperature: 1,
 				},
 			})
@@ -206,7 +206,7 @@ describe("GeminiHandler", () => {
 				model: GEMINI_MODEL_NAME,
 				contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
 				config: {
-					httpOptions: undefined,
+					httpOptions: { timeout: 5000 },
 					temperature: 1,
 				},
 			})
