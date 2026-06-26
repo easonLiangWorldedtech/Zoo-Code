@@ -9,10 +9,10 @@ import { Package } from "../../../shared/package"
 import axios from "axios"
 
 vitest.mock("../utils/timeout-config", () => ({
-	getApiRequestTimeout: vitest.fn().mockReturnValue(300_000),
+	getApiRequestTimeout: vitest.fn().mockReturnValue(600_000),
 }))
 
-const MOCK_TIMEOUT_MS = 300_000
+const MOCK_TIMEOUT_MS = 600_000
 
 const mockCreate = vitest.fn()
 
@@ -840,6 +840,51 @@ describe("OpenAiHandler", () => {
 				const callOptions = mockCreate.mock.calls[0][1]
 				expect(callOptions?.signal).toBe(controller.signal)
 			})
+
+			it("should pass abort signal through to client in non-streaming createMessage", async () => {
+				const handler = new OpenAiHandler({
+					...mockOptions,
+					openAiStreamingEnabled: false,
+				})
+
+				const controller = new AbortController()
+				const stream = handler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+					// consume stream
+				}
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({ signal: controller.signal }),
+				)
+			})
+
+			it("should pass abort signal with path for Azure AI Inference in non-streaming createMessage", async () => {
+				const localAzureOptions = {
+					...mockOptions,
+					openAiBaseUrl: "https://test.services.ai.azure.com",
+					openAiModelId: "deepseek-v3",
+					azureApiVersion: "2024-05-01-preview",
+				}
+				const azureHandler = new OpenAiHandler(localAzureOptions)
+
+				const controller = new AbortController()
+				const stream = azureHandler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal,
+				})
+				for await (const _ of stream) {
+					// consume stream
+				}
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.objectContaining({ model: localAzureOptions.openAiModelId }),
+					expect.objectContaining({ path: "/models/chat/completions", signal: controller.signal }),
+				)
+			})
 		})
 	})
 
@@ -1536,6 +1581,87 @@ describe("OpenAiHandler", () => {
 					// O3 models do not support max_tokens
 				}),
 				{ path: "/models/chat/completions" },
+			)
+		})
+
+		it("should pass abort signal through to client in O3 streaming createMessage", async () => {
+			const o3Handler = new OpenAiHandler(o3Options)
+			const controller = new AbortController()
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "user",
+					content: "Hello!",
+				},
+			]
+
+			const stream = o3Handler.createMessage(systemPrompt, messages, {
+				taskId: "test-task",
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+				// consume stream
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: controller.signal }),
+			)
+		})
+
+		it("should pass abort signal with path for O3 model with Azure AI Inference", async () => {
+			const o3AzureHandler = new OpenAiHandler({
+				...o3Options,
+				openAiBaseUrl: "https://test.services.ai.azure.com",
+			})
+			const controller = new AbortController()
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "user",
+					content: "Hello!",
+				},
+			]
+
+			const stream = o3AzureHandler.createMessage(systemPrompt, messages, {
+				taskId: "test-task",
+				abortSignal: controller.signal,
+			})
+			for await (const _ of stream) {
+				// consume stream
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: "o3-mini" }),
+				expect.objectContaining({ path: "/models/chat/completions", signal: controller.signal }),
+			)
+		})
+
+		it("should pass abort signal through to client in O3 non-streaming createMessage", async () => {
+			const o3Handler = new OpenAiHandler({
+				...o3Options,
+				openAiStreamingEnabled: false,
+			})
+			const controller = new AbortController()
+			const systemPrompt = "You are a helpful assistant."
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{
+					role: "user",
+					content: "Hello!",
+				},
+			]
+
+			const stream = o3Handler.createMessage(systemPrompt, messages, {
+				taskId: "test-task",
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+				// consume stream
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: controller.signal }),
 			)
 		})
 	})
