@@ -126,7 +126,7 @@ describe("BaseOpenAiCompatibleProvider Timeout Configuration", () => {
 			})
 			handler["client"].chat.completions.create = mockCreate
 
-			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: "test-model" }),
 				expect.objectContaining({ signal: expect.any(AbortSignal), timeout: 5000 }),

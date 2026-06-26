@@ -601,7 +601,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 			...(modelId.startsWith("anthropic/")
 				? { headers: { "x-anthropic-beta": "fine-grained-tool-streaming-2025-05-14" } }
 				: undefined),
-			...(options?.signal && { signal: options.signal }),
+			...(options?.abortSignal && { signal: options.abortSignal }),
 			...(options?.timeoutMs && { timeout: options.timeoutMs }),
 		}
 

@@ -605,7 +605,7 @@ describe("OpencodeGoHandler", () => {
 			mockAnthropicCreate.mockResolvedValue({ content: [{ type: "text", text: "response" }] })
 			const controller = new AbortController()
 			const handler = new OpencodeGoHandler(anthropicOptions)
-			await handler.completePrompt("ping", { signal: controller.signal })
+			await handler.completePrompt("ping", { abortSignal: controller.signal })
 			expect(mockAnthropicCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
 				signal: controller.signal,
 			})
@@ -615,7 +615,7 @@ describe("OpencodeGoHandler", () => {
 			mockAnthropicCreate.mockResolvedValue({ content: [{ type: "text", text: "response" }] })
 			const controller = new AbortController()
 			const handler = new OpencodeGoHandler(anthropicOptions)
-			await handler.completePrompt("ping", { signal: controller.signal, timeoutMs: 10000 })
+			await handler.completePrompt("ping", { abortSignal: controller.signal, timeoutMs: 10000 })
 			expect(mockAnthropicCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
 				signal: controller.signal,
 				timeout: 10000,
@@ -672,7 +672,7 @@ describe("OpencodeGoHandler", () => {
 				const controller = new AbortController()
 				const handler = new OpencodeGoHandler(openaiOptions)
 
-				await handler.completePrompt("ping", { signal: controller.signal })
+				await handler.completePrompt("ping", { abortSignal: controller.signal })
 				expect(mockCreate).toHaveBeenCalledWith(
 					expect.objectContaining({ model: expect.any(String), stream: false }),
 					{ signal: controller.signal },
@@ -686,7 +686,7 @@ describe("OpencodeGoHandler", () => {
 				const controller = new AbortController()
 				const handler = new OpencodeGoHandler(openaiOptions)
 
-				await handler.completePrompt("ping", { signal: controller.signal, timeoutMs: 10000 })
+				await handler.completePrompt("ping", { abortSignal: controller.signal, timeoutMs: 10000 })
 				expect(mockCreate).toHaveBeenCalledWith(
 					expect.objectContaining({ model: expect.any(String), stream: false }),
 					{ signal: controller.signal, timeout: 10000 },

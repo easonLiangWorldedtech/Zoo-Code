@@ -724,7 +724,7 @@ describe("OpenRouterHandler", () => {
 				completions: { create: mockCreate },
 			} as any
 
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: expect.any(String) }),
 				expect.objectContaining({ signal: controller.signal }),

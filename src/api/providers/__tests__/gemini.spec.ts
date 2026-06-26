@@ -160,7 +160,7 @@ describe("GeminiHandler", () => {
 		it("should pass abort signal through to client via httpOptions", async () => {
 			const controller = new AbortController()
 			;(handler["client"].models.generateContent as any).mockResolvedValue({ text: "response" })
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(handler["client"].models.generateContent).toHaveBeenCalledWith({
 				model: GEMINI_MODEL_NAME,
 				contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
@@ -188,7 +188,7 @@ describe("GeminiHandler", () => {
 		it("should pass timeoutMs through to client via httpOptions", async () => {
 			const controller = new AbortController()
 			;(handler["client"].models.generateContent as any).mockResolvedValue({ text: "response" })
-			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 10000 })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 10000 })
 			expect(handler["client"].models.generateContent).toHaveBeenCalledWith({
 				model: GEMINI_MODEL_NAME,
 				contents: [{ role: "user", parts: [{ text: "test prompt" }] }],

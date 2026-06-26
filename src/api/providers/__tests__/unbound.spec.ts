@@ -215,7 +215,7 @@ describe("UnboundHandler", () => {
 			unboundModelId: "openai/gpt-4o",
 		})
 
-		await handler.completePrompt("Write a haiku", { signal: controller.signal })
+		await handler.completePrompt("Write a haiku", { abortSignal: controller.signal })
 		expect(mockCreate).toHaveBeenCalledWith(
 			expect.objectContaining({ model: expect.any(String) }),
 			expect.objectContaining({ signal: controller.signal }),

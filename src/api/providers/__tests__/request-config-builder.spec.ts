@@ -66,7 +66,7 @@ describe("RequestConfigBuilder", () => {
 			const controller1 = new AbortController()
 			const controller2 = new AbortController()
 
-			const builder = new RequestConfigBuilder({ signal: controller1.signal })
+			const builder = new RequestConfigBuilder({ abortSignal: controller1.signal })
 			builder.addAbortSignal({
 				taskId: "test-task",
 				abortSignal: controller2.signal,

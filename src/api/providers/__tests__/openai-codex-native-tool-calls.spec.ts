@@ -546,7 +546,7 @@ describe("OpenAiCodexHandler native tool calls", () => {
 		global.fetch = mockFetch as any
 
 		const controller = new AbortController()
-		await handler.completePrompt("Test prompt", { signal: controller.signal })
+		await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
 
 		const fetchCallArgs = mockFetch.mock.calls[0]
 		// The implementation merges signals using RequestConfigBuilder.mergeAbortSignals,

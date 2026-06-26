@@ -324,7 +324,7 @@ describe("NativeOllamaHandler", () => {
 			})
 
 			const controller = new AbortController()
-			await handler.completePrompt("Test prompt", { signal: controller.signal })
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
 
 			// Verify that the call does NOT include any signal-related options
 			// Ollama implementation only passes the payload, not a second options argument

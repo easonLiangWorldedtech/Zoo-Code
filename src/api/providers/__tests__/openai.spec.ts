@@ -877,7 +877,7 @@ describe("OpenAiHandler", () => {
 		it("should pass abort signal through to client", async () => {
 			const controller = new AbortController()
 			mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(mockCreate).toHaveBeenCalledWith(
 				{ model: mockOptions.openAiModelId, messages: [{ role: "user", content: "test prompt" }] },
 				{ signal: controller.signal },
@@ -906,7 +906,7 @@ describe("OpenAiHandler", () => {
 		it("should merge signal and timeout together", async () => {
 			const controller = new AbortController()
 			mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
-			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 10000 })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 10000 })
 			expect(mockCreate).toHaveBeenCalledWith(
 				{ model: mockOptions.openAiModelId, messages: [{ role: "user", content: "test prompt" }] },
 				{ signal: controller.signal, timeout: 10000 },

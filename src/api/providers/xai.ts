@@ -146,10 +146,10 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 		const model = this.getModel()
 
 		try {
-			// Build request options with both signal and timeout handling
+			// Build request options with abortSignal and/or timeout handling
 			const requestOptions: OpenAI.RequestOptions = {}
-			if (options?.signal) {
-				requestOptions.signal = options.signal
+			if (options?.abortSignal) {
+				requestOptions.signal = options.abortSignal
 			}
 			if (options?.timeoutMs) {
 				requestOptions.timeout = options.timeoutMs

@@ -242,7 +242,7 @@ describe("MoonshotHandler", () => {
 		it("should pass abort signal through to generateText", async () => {
 			const controller = new AbortController()
 			mockGenerateText.mockResolvedValueOnce({ text: "response" })
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(mockGenerateText).toHaveBeenCalledWith(
 				expect.objectContaining({
 					prompt: "test prompt",
@@ -261,7 +261,7 @@ describe("MoonshotHandler", () => {
 			const controller = new AbortController()
 			mockGenerateText.mockResolvedValueOnce({ text: "response" })
 
-			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 			expect(mockGenerateText).toHaveBeenCalledWith(
 				expect.objectContaining({
 					prompt: "test prompt",

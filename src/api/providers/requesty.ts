@@ -217,8 +217,8 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 		}
 
 		const createOptions: OpenAI.RequestOptions = {}
-		if (options?.signal) {
-			createOptions.signal = options.signal
+		if (options?.abortSignal) {
+			createOptions.signal = options.abortSignal
 		}
 		if (options?.timeoutMs) {
 			createOptions.timeout = options.timeoutMs

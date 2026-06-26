@@ -913,7 +913,7 @@ describe("VertexHandler", () => {
 			})
 			;(handler["client"].messages as any).create = mockCreate
 
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
 				signal: controller.signal,
 			})
@@ -943,7 +943,7 @@ describe("VertexHandler", () => {
 			})
 			;(handler["client"].messages as any).create = mockCreate
 
-			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: expect.any(String) }),
 				{ signal: controller.signal }, // only signal is passed, not timeoutMs

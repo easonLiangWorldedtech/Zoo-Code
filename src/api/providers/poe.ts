@@ -146,12 +146,12 @@ export class PoeHandler extends BaseProvider implements SingleCompletionHandler 
 				prompt,
 			}
 
-			// Merge signal and timeoutMs into a single abortSignal
-			if (options?.signal && options?.timeoutMs && options.timeoutMs > 0) {
+			// Merge abortSignal and timeoutMs into a single abortSignal
+			if (options?.abortSignal && options?.timeoutMs && options.timeoutMs > 0) {
 				const controller = new AbortController()
 				const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
 
-				options.signal.addEventListener(
+				options.abortSignal.addEventListener(
 					"abort",
 					() => {
 						clearTimeout(timeoutId)
@@ -161,8 +161,8 @@ export class PoeHandler extends BaseProvider implements SingleCompletionHandler 
 				)
 
 				generateOptions.abortSignal = controller.signal
-			} else if (options?.signal) {
-				generateOptions.abortSignal = options.signal
+			} else if (options?.abortSignal) {
+				generateOptions.abortSignal = options.abortSignal
 			} else if (options?.timeoutMs && options.timeoutMs > 0) {
 				generateOptions.abortSignal = AbortSignal.timeout(options.timeoutMs)
 			}
