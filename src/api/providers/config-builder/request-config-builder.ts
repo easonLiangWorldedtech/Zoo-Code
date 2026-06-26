@@ -121,10 +121,24 @@ export class RequestConfigBuilder<TOptions extends Record<string, any> = Record<
 			return primarySignal
 		}
 
+		// If both are aborted, return primary (as it is already aborted)
+		if (primarySignal.aborted && secondarySignal.aborted) {
+			return primarySignal
+		}
+
+		// If only primary is aborted, return primary
 		if (primarySignal.aborted) {
 			return primarySignal
 		}
 
+		// If only secondary is already aborted, create an immediately aborted controller
+		if (secondarySignal.aborted) {
+			const controller = new AbortController()
+			controller.abort()
+			return controller.signal
+		}
+
+		// Both are active: merge with event listeners
 		const controller = new AbortController()
 
 		primarySignal.addEventListener("abort", () => controller.abort(), { once: true })
