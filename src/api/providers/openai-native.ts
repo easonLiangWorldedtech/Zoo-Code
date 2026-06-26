@@ -1485,10 +1485,10 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 	}
 
 	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
-		// Merge incoming signal with existing class-level controller if needed
+		// Merge incoming abortSignal with existing class-level controller if needed
 		const mergedSignal = RequestConfigBuilder.mergeAbortSignals(
 			this.abortController?.signal ?? new AbortController().signal,
-			options?.signal,
+			options?.abortSignal,
 		)
 
 		// Create AbortController for cancellation (keep for cleanup tracking)

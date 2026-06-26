@@ -840,7 +840,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			const command = new ConverseCommand(payload)
 			const response = await this.client.send(
 				command,
-				options?.signal ? { abortSignal: options.signal } : undefined,
+				options?.abortSignal ? { abortSignal: options.abortSignal } : undefined,
 			)
 
 			if (

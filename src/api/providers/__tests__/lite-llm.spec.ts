@@ -1185,7 +1185,7 @@ describe("LiteLLMHandler", () => {
 		it("should pass abort signal through to client", async () => {
 			mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
 			const controller = new AbortController()
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: expect.any(String) }),
 				expect.objectContaining({ signal: controller.signal }),
@@ -1204,7 +1204,7 @@ describe("LiteLLMHandler", () => {
 		it("should merge signal and timeoutMs together", async () => {
 			const controller = new AbortController()
 			mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
-			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 10000 })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 10000 })
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: expect.any(String) }),
 				expect.objectContaining({ signal: controller.signal, timeout: 10000 }),

@@ -67,7 +67,7 @@ describe("GeminiHandler backend support", () => {
 		const stub = vi.fn().mockResolvedValue({ text: "response" })
 		handler["client"].models.generateContent = stub
 
-		await handler.completePrompt("test prompt", { signal: controller.signal })
+		await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 
 		expect(stub).toHaveBeenCalledWith(
 			expect.objectContaining({

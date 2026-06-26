@@ -144,7 +144,7 @@ describe("VertexHandler", () => {
 				text: "response",
 			})
 
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(handler["client"].models.generateContent).toHaveBeenCalledWith(
 				expect.objectContaining({
 					model: expect.any(String),

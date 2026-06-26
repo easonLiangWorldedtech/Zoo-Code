@@ -506,7 +506,7 @@ describe("MistralHandler", () => {
 			mockComplete.mockResolvedValueOnce({
 				choices: [{ message: { content: "response" } }],
 			})
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(mockComplete).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
 				signal: controller.signal,
 			})
@@ -526,7 +526,7 @@ describe("MistralHandler", () => {
 			mockComplete.mockResolvedValueOnce({
 				choices: [{ message: { content: "response" } }],
 			})
-			await handler.completePrompt("test prompt", { signal: controller.signal, timeoutMs: 5000 })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 			expect(mockComplete).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
 				signal: controller.signal,
 				timeout: 5000,

@@ -257,7 +257,7 @@ describe("OpenAiNativeHandler", () => {
 			})
 
 			const controller = new AbortController()
-			await handler.completePrompt("Test prompt", { signal: controller.signal })
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
 
 			expect(mockResponsesCreate).toHaveBeenCalledWith(
 				expect.any(Object),
@@ -290,7 +290,7 @@ describe("OpenAiNativeHandler", () => {
 			})
 
 			const controller = new AbortController()
-			await handler.completePrompt("Test prompt", { signal: controller.signal })
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
 
 			expect(mockResponsesCreate).toHaveBeenCalledWith(
 				expect.any(Object),
@@ -340,7 +340,7 @@ describe("OpenAiNativeHandler", () => {
 				],
 			})
 
-			await handler.completePrompt("Test prompt", { signal: controller.signal, timeoutMs: 10000 })
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal, timeoutMs: 10000 })
 			expect(mockResponsesCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: expect.any(String) }),
 				expect.objectContaining({ signal: expect.any(AbortSignal) }),

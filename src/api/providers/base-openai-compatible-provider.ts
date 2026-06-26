@@ -226,10 +226,10 @@ export abstract class BaseOpenAiCompatibleProvider<ModelName extends string>
 		}
 
 		try {
-			// Build request options with signal and/or timeout using RequestConfigBuilder
+			// Build request options with abortSignal and/or timeout using RequestConfigBuilder
 			const requestOptions: OpenAI.RequestOptions = {}
-			if (options?.signal) {
-				requestOptions.signal = options.signal
+			if (options?.abortSignal) {
+				requestOptions.signal = options.abortSignal
 			}
 			if (options?.timeoutMs !== undefined) {
 				requestOptions.timeout = options.timeoutMs

@@ -197,10 +197,10 @@ export class MistralHandler extends BaseProvider implements SingleCompletionHand
 		const { id: model, temperature } = this.getModel()
 
 		try {
-			// Build request options with both signal and timeout handling
+			// Build request options with abortSignal and/or timeout handling
 			const requestOptions: Record<string, unknown> = {}
-			if (options?.signal) {
-				requestOptions.signal = options.signal
+			if (options?.abortSignal) {
+				requestOptions.signal = options.abortSignal
 			}
 			if (options?.timeoutMs) {
 				requestOptions.timeout = options.timeoutMs

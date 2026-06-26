@@ -560,7 +560,7 @@ describe("VsCodeLmHandler", () => {
 			handler["client"] = mockLanguageModelChat
 
 			const controller = new AbortController()
-			await handler.completePrompt("Test prompt", { signal: controller.signal })
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
 
 			// Verify that tokenSource.dispose was called (via the mock)
 			const TokenSourceInstance = (vscode.CancellationTokenSource as any).mock.results[0].value
@@ -587,7 +587,7 @@ describe("VsCodeLmHandler", () => {
 
 			const controller = new AbortController()
 			controller.abort()
-			await handler.completePrompt("Test prompt", { signal: controller.signal })
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
 
 			const TokenSourceInstance = (vscode.CancellationTokenSource as any).mock.results[0].value
 			expect(TokenSourceInstance.cancel).toHaveBeenCalled()
@@ -657,7 +657,7 @@ describe("VsCodeLmHandler", () => {
 			handler["client"] = mockLanguageModelChat
 
 			const controller = new AbortController()
-			await handler.completePrompt("Test prompt", { signal: controller.signal, timeoutMs: 10000 })
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal, timeoutMs: 10000 })
 
 			expect(mockLanguageModelChat.sendRequest).toHaveBeenCalled()
 		})
@@ -694,7 +694,7 @@ describe("VsCodeLmHandler", () => {
 			const controller = new AbortController()
 			controller.abort() // Abort before calling completePrompt
 
-			await handler.completePrompt("Test prompt", { signal: controller.signal })
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
 
 			expect(mockLanguageModelChat.sendRequest).toHaveBeenCalled()
 		})

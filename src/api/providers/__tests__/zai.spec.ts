@@ -430,7 +430,7 @@ describe("ZAiHandler", () => {
 		it("completePrompt should pass abort signal through to client", async () => {
 			const controller = new AbortController()
 			mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
-			await handler.completePrompt("test prompt", { signal: controller.signal })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: expect.any(String) }),
 				expect.objectContaining({ signal: controller.signal }),

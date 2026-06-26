@@ -403,10 +403,10 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 
 		let message
 		try {
-			// Build request options with both signal and timeout handling
+			// Build request options with both abortSignal and timeout handling
 			const requestOptions: Anthropic.RequestOptions = {}
-			if (options?.signal) {
-				requestOptions.signal = options.signal
+			if (options?.abortSignal) {
+				requestOptions.signal = options.abortSignal
 			}
 			if (options?.timeoutMs) {
 				requestOptions.timeout = options.timeoutMs
