@@ -495,7 +495,7 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 				if (options?.abortSignal) {
 					requestOptions.signal = options.abortSignal
 				}
-				if (options?.timeoutMs) {
+				if (options?.timeoutMs !== undefined) {
 					requestOptions.timeout = options.timeoutMs
 				}
 
@@ -551,7 +551,7 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 			if (options?.abortSignal) {
 				createOptions.signal = options.abortSignal
 			}
-			if (options?.timeoutMs) {
+			if (options?.timeoutMs !== undefined) {
 				createOptions.timeout = options.timeoutMs
 			}
 
