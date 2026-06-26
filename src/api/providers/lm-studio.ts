@@ -207,7 +207,7 @@ export class LmStudioHandler extends BaseProvider implements SingleCompletionHan
 			if (options?.abortSignal) {
 				createOptions.signal = options.abortSignal
 			}
-			if (options?.timeoutMs) {
+			if (options?.timeoutMs !== undefined) {
 				createOptions.timeout = options.timeoutMs
 			}
 

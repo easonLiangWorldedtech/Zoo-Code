@@ -182,6 +182,17 @@ describe("LmStudioHandler", () => {
 			)
 		})
 
+		it("should pass timeoutMs=0 through to client", async () => {
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+			await handler.completePrompt("test prompt", { timeoutMs: 0 })
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.objectContaining({ timeout: 0 }),
+			)
+		})
+
 		it("should merge signal and timeoutMs together", async () => {
 			const controller = new AbortController()
 			mockCreate.mockResolvedValueOnce({
