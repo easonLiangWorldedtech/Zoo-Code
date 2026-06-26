@@ -87,6 +87,7 @@ export class MistralHandler extends BaseProvider implements SingleCompletionHand
 			temperature: number
 			tools?: MistralTool[]
 			toolChoice?: "auto" | "none" | "any" | "required" | { type: "function"; function: { name: string } }
+			fetchOptions?: { signal?: AbortSignal }
 		} = {
 			model,
 			messages: [{ role: "system", content: systemPrompt }, ...convertToMistralMessages(messages)],
@@ -95,6 +96,12 @@ export class MistralHandler extends BaseProvider implements SingleCompletionHand
 		}
 
 		requestOptions.tools = this.convertToolsForMistral(metadata?.tools ?? [])
+
+		// Wire abortSignal for streaming. The Mistral SDK's `chat.stream()` accepts
+		// `fetchOptions.signal` which is passed to the underlying fetch call.
+		if (metadata?.abortSignal) {
+			requestOptions.fetchOptions = { signal: metadata.abortSignal }
+		}
 		// Always use "any" to require tool use
 		requestOptions.toolChoice = "any"
 

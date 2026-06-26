@@ -304,6 +304,13 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			...(tools.length > 0 ? { tools } : {}),
 		}
 
+		// Wire abortSignal into config. Note: per the @google/genai SDK docs,
+		// `abortSignal` is client-only — Google still charges for server-side
+		// compute that has already been dispatched before the signal propagates.
+		if (metadata?.abortSignal) {
+			config.abortSignal = metadata.abortSignal
+		}
+
 		// Do not pass metadata.allowedFunctionNames to Gemini. Live API testing showed
 		// that allowedFunctionNames triggers a generic 400 INVALID_ARGUMENT at 26 or more
 		// names. It can also
