@@ -344,7 +344,7 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 			fetchOptions.signal = options.abortSignal
 		}
 
-		if (options?.timeoutMs) {
+		if (options?.timeoutMs !== undefined) {
 			fetchOptions.timeout = options.timeoutMs
 		}
 

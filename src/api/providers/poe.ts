@@ -140,6 +140,7 @@ export class PoeHandler extends BaseProvider implements SingleCompletionHandler 
 
 	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
 		const { id } = this.getModel()
+		let timeoutId: ReturnType<typeof setTimeout> | undefined
 		try {
 			const generateOptions: Parameters<typeof generateText>[0] & { abortSignal?: AbortSignal } = {
 				model: this.poe(id),
@@ -149,17 +150,12 @@ export class PoeHandler extends BaseProvider implements SingleCompletionHandler 
 			// Merge abortSignal and timeoutMs into a single abortSignal
 			if (options?.abortSignal && options?.timeoutMs && options.timeoutMs > 0) {
 				const controller = new AbortController()
-				const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
-
-				options.abortSignal.addEventListener(
-					"abort",
-					() => {
-						clearTimeout(timeoutId)
-						controller.abort()
-					},
-					{ once: true },
-				)
-
+				if (options.abortSignal.aborted) {
+					controller.abort()
+				} else {
+					timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
+					options.abortSignal.addEventListener("abort", () => controller.abort(), { once: true })
+				}
 				generateOptions.abortSignal = controller.signal
 			} else if (options?.abortSignal) {
 				generateOptions.abortSignal = options.abortSignal
@@ -173,6 +169,10 @@ export class PoeHandler extends BaseProvider implements SingleCompletionHandler 
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			TelemetryService.instance.captureException(new ApiProviderError(errorMessage, "poe", id, "completePrompt"))
 			throw new Error(`Poe completion error: ${errorMessage}`)
+		} finally {
+			if (timeoutId) {
+				clearTimeout(timeoutId)
+			}
 		}
 	}
 }

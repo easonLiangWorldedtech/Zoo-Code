@@ -392,12 +392,16 @@ describe("PoeHandler", () => {
 			const controller = new AbortController()
 			mockGenerateText.mockResolvedValueOnce({ text: "response" })
 
-			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
-			// The merged abortSignal should be the same as user signal when only signal is provided
+			const promise = handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 			const callArgs = mockGenerateText.mock.calls[0][0]
 			expect(callArgs.abortSignal).toBeDefined()
-			// User didn't abort, so signal should not be aborted yet
-			expect(controller.signal.aborted).toBe(false)
+
+			// Abort the user signal before resolve
+			controller.abort()
+
+			await promise
+			// Merged signal should be aborted when user signal aborts
+			expect(callArgs.abortSignal.aborted).toBe(true)
 		})
 
 		it("completePrompt should handle timeoutMs=0 as no timeout", async () => {
