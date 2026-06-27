@@ -157,7 +157,7 @@ describe("GeminiHandler", () => {
 			expect(result).toBe("")
 		})
 
-		it("should pass abort signal through to client via httpOptions", async () => {
+		it("should pass abort signal through to client via config.abortSignal", async () => {
 			const controller = new AbortController()
 			;(handler["client"].models.generateContent as any).mockResolvedValue({ text: "response" })
 			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
@@ -165,7 +165,8 @@ describe("GeminiHandler", () => {
 				model: GEMINI_MODEL_NAME,
 				contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
 				config: {
-					httpOptions: { signal: controller.signal },
+					abortSignal: controller.signal,
+					httpOptions: undefined,
 					temperature: 1,
 				},
 			})
@@ -185,7 +186,7 @@ describe("GeminiHandler", () => {
 			})
 		})
 
-		it("should pass timeoutMs through to client via httpOptions", async () => {
+		it("should pass timeoutMs through to client via httpOptions with abortSignal on config", async () => {
 			const controller = new AbortController()
 			;(handler["client"].models.generateContent as any).mockResolvedValue({ text: "response" })
 			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 10000 })
@@ -193,7 +194,8 @@ describe("GeminiHandler", () => {
 				model: GEMINI_MODEL_NAME,
 				contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
 				config: {
-					httpOptions: { signal: controller.signal, timeout: 10000 },
+					abortSignal: controller.signal,
+					httpOptions: { timeout: 10000 },
 					temperature: 1,
 				},
 			})

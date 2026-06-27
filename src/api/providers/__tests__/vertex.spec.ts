@@ -138,7 +138,7 @@ describe("VertexHandler", () => {
 			expect(result).toBe("")
 		})
 
-		it("should pass abort signal through to client via httpOptions", async () => {
+		it("should pass abort signal through to client via config.abortSignal", async () => {
 			const controller = new AbortController()
 			;(handler["client"].models.generateContent as any).mockResolvedValue({
 				text: "response",
@@ -150,7 +150,8 @@ describe("VertexHandler", () => {
 					model: expect.any(String),
 					contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
 					config: expect.objectContaining({
-						httpOptions: { signal: controller.signal },
+						abortSignal: controller.signal,
+						httpOptions: undefined,
 						temperature: 1,
 					}),
 				}),

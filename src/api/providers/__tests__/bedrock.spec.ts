@@ -1646,8 +1646,36 @@ describe("AwsBedrockHandler", () => {
 
 				await handler.completePrompt("test prompt", { timeoutMs: 5000 })
 
-				// bedrock.ts uses truthy check for timeoutMs, so it creates AbortSignal.timeout
 				expect(mockSend).toHaveBeenCalled()
+				// Verify the second argument (sendOptions) contains an abortSignal derived from timeoutMs
+				const sendOptions = mockSend.mock.calls[0][1]
+				expect(sendOptions).toBeDefined()
+				expect(sendOptions?.abortSignal).toBeDefined()
+			})
+
+			it("completePrompt should merge abortSignal and timeoutMs", async () => {
+				const mockSend = vi.fn()
+
+				const handler = new AwsBedrockHandler({
+					apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsRegion: "us-east-1",
+				})
+
+				const clientInstance = (handler as any).client
+				clientInstance.send = mockSend
+
+				mockSend.mockResolvedValueOnce({
+					output: { message: { content: [{ type: "text", text: "response" }] }, stopReason: null },
+				})
+
+				const controller = new AbortController()
+				await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
+
+				expect(mockSend).toHaveBeenCalled()
+				const sendOptions = mockSend.mock.calls[0][1]
+				expect(sendOptions?.abortSignal).toBeDefined()
 			})
 		})
 	})

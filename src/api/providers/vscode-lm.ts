@@ -458,7 +458,6 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 						}
 					} catch (error) {
 						console.error("Roo Code <Language Model API>: Failed to process tool call:", error)
-						// Continue processing other chunks even if one fails
 						continue
 					}
 				} else {
@@ -489,18 +488,20 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 					name: error.name,
 				})
 
-				// Return original error if it's already an Error instance
 				throw error
 			} else if (typeof error === "object" && error !== null) {
-				// Handle error-like objects
 				const errorDetails = JSON.stringify(error, null, 2)
 				console.error("Roo Code <Language Model API>: Stream error object:", errorDetails)
 				throw new Error(`Roo Code <Language Model API>: Response stream error: ${errorDetails}`)
 			} else {
-				// Fallback for unknown error types
 				const errorMessage = String(error)
 				console.error("Roo Code <Language Model API>: Unknown stream error:", errorMessage)
 				throw new Error(`Roo Code <Language Model API>: Response stream error: ${errorMessage}`)
+			}
+		} finally {
+			if (this.currentRequestCancellation) {
+				this.currentRequestCancellation.dispose()
+				this.currentRequestCancellation = null
 			}
 		}
 	}

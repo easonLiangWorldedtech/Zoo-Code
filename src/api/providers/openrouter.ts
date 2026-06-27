@@ -602,7 +602,7 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 				? { headers: { "x-anthropic-beta": "fine-grained-tool-streaming-2025-05-14" } }
 				: undefined),
 			...(options?.abortSignal && { signal: options.abortSignal }),
-			...(options?.timeoutMs && { timeout: options.timeoutMs }),
+			...(options?.timeoutMs !== undefined && { timeout: options.timeoutMs }),
 		}
 
 		let response

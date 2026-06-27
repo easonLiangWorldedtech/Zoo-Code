@@ -132,13 +132,12 @@ export class VercelAiGatewayHandler extends RouterProvider implements SingleComp
 			}
 
 			requestOptions.max_completion_tokens = info.maxTokens
-
 			// Build request options with abortSignal and/or timeout
 			const createOptions: OpenAI.RequestOptions = {}
 			if (options?.abortSignal) {
 				createOptions.signal = options.abortSignal
 			}
-			if (options?.timeoutMs) {
+			if (options?.timeoutMs !== undefined) {
 				createOptions.timeout = options.timeoutMs
 			}
 

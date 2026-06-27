@@ -48,11 +48,11 @@ A generic, SDK-agnostic request configuration builder that provides a fluent API
 
 ### Generic Methods vs SDK-Specific Methods
 
-| Category                         | Methods                                                           | Scope             | Implementation Location                                    |
-| -------------------------------- | ----------------------------------------------------------------- | ----------------- | ---------------------------------------------------------- |
-| **Generic Methods** (Base Class) | `addAbortSignal`, `addHeaders`, `setOption`, `getOption`, `build` | All SDKs          | [`RequestConfigBuilder`](../request-config-builder.ts:13)  |
-| **Static Methods**               | `fromMetadata`, `mergeAbortSignals`                               | All SDKs          | [`RequestConfigBuilder`](../request-config-builder.ts:101) |
-| **SDK-Specific Methods**         | `addPath`, `addQueryParams` (OpenAI), `addModelId` (Bedrock)      | Specific SDK only | Extended classes                                           |
+| Category                         | Methods                                                           | Scope             | Implementation Location                               |
+| -------------------------------- | ----------------------------------------------------------------- | ----------------- | ----------------------------------------------------- |
+| **Generic Methods** (Base Class) | `addAbortSignal`, `addHeaders`, `setOption`, `getOption`, `build` | All SDKs          | [`RequestConfigBuilder`](./request-config-builder.ts) |
+| **Static Methods**               | `fromMetadata`, `mergeAbortSignals`                               | All SDKs          | [`RequestConfigBuilder`](./request-config-builder.ts) |
+| **SDK-Specific Methods**         | `addPath`, `addQueryParams` (OpenAI), `addModelId` (Bedrock)      | Specific SDK only | Extended classes                                      |
 
 ---
 
