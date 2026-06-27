@@ -95,18 +95,20 @@ describe("GeminiHandler abort signal", () => {
 	})
 
 	describe("completePrompt", () => {
-		it("should pass abort signal through to client via httpOptions", async () => {
+		it("should pass abort signal through to client via config.abortSignal", async () => {
 			const controller = new AbortController()
 			;(handler["client"].models.generateContent as any).mockResolvedValue({ text: "response" })
 			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
-			expect(handler["client"].models.generateContent).toHaveBeenCalledWith({
-				model: GEMINI_MODEL_NAME,
-				contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
-				config: {
-					httpOptions: { signal: controller.signal },
-					temperature: 1,
-				},
-			})
+			expect(handler["client"].models.generateContent).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: GEMINI_MODEL_NAME,
+					contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
+					config: expect.objectContaining({
+						abortSignal: controller.signal,
+						temperature: 1,
+					}),
+				}),
+			)
 		})
 
 		it("should work without options (backward compatible)", async () => {
