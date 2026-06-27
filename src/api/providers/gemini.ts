@@ -584,11 +584,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			const temperatureConfig: number | undefined = supportsTemperature
 				? (this.options.modelTemperature ?? info.defaultTemperature ?? 1)
 				: info.defaultTemperature
-
 			const httpOpts: Record<string, any> = {}
-			if (options?.abortSignal) {
-				httpOpts.signal = options.abortSignal
-			}
 			if (options?.timeoutMs !== undefined) {
 				httpOpts.timeout = options.timeoutMs
 			}
@@ -599,6 +595,12 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			const promptConfig: GenerateContentConfig = {
 				httpOptions: Object.keys(httpOpts).length > 0 ? httpOpts : undefined,
 				temperature: temperatureConfig,
+			}
+
+			// Pass abortSignal directly to config.abortSignal (not httpOptions.signal)
+			// as @google/genai expects request cancellation on this property
+			if (options?.abortSignal) {
+				promptConfig.abortSignal = options.abortSignal
 			}
 
 			const request = {

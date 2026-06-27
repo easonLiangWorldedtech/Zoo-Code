@@ -946,11 +946,11 @@ describe("VertexHandler", () => {
 			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: expect.any(String) }),
-				{ signal: controller.signal }, // only signal is passed, not timeoutMs
+				expect.objectContaining({ signal: controller.signal, timeout: 5000 }),
 			)
 		})
 
-		it("completePrompt should not pass timeoutMs when no signal provided", async () => {
+		it("completePrompt should pass timeoutMs when provided", async () => {
 			const mockCreate = vitest.fn().mockResolvedValue({
 				content: [{ type: "text", text: "response" }],
 			})
@@ -959,7 +959,7 @@ describe("VertexHandler", () => {
 			await handler.completePrompt("test prompt", { timeoutMs: 3000 })
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: expect.any(String) }),
-				undefined, // anthropic-vertex only passes signal, not timeoutMs
+				expect.objectContaining({ timeout: 3000 }),
 			)
 		})
 	})

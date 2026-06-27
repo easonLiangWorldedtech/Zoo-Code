@@ -1154,16 +1154,46 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 	}
 
 	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
-		// Merge incoming abortSignal with existing class-level controller if needed
-		const defaultSignal = new AbortController().signal
-		const mergedSignal = RequestConfigBuilder.mergeAbortSignals(defaultSignal, options?.abortSignal)
-		this.abortController = new AbortController()
-		// Link the merged signal to our abort controller
-		if (mergedSignal.aborted) {
-			this.abortController.abort()
-		} else {
-			mergedSignal.addEventListener("abort", () => this.abortController?.abort(), { once: true })
+		// Build a request-local abort controller with timeout support (don't mutate this.abortController)
+		let localAbortController: AbortController | undefined
+		let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+		if (options?.timeoutMs !== undefined || options?.abortSignal) {
+			localAbortController = new AbortController()
+
+			// Handle timeout first
+			if (options.timeoutMs !== undefined) {
+				if (options.timeoutMs > 0) {
+					timeoutId = setTimeout(() => localAbortController?.abort(), options.timeoutMs)
+				} else {
+					// timeoutMs is 0 or negative, abort immediately
+					localAbortController.abort()
+				}
+			}
+
+			// Merge with incoming abortSignal if provided
+			if (options.abortSignal) {
+				const mergedSignal = RequestConfigBuilder.mergeAbortSignals(
+					localAbortController.signal,
+					options.abortSignal,
+				)
+				// If the merged signal is different from our local one, link it
+				if (mergedSignal !== localAbortController.signal && !mergedSignal.aborted) {
+					mergedSignal.addEventListener(
+						"abort",
+						() => {
+							localAbortController?.abort()
+							clearTimeout(timeoutId)
+						},
+						{ once: true },
+					)
+				} else if (mergedSignal.aborted) {
+					localAbortController.abort()
+				}
+			}
 		}
+
+		const requestSignal = localAbortController?.signal ?? new AbortController().signal
 
 		try {
 			const model = this.getModel()
@@ -1224,7 +1254,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				method: "POST",
 				headers,
 				body: JSON.stringify(requestBody),
-				signal: mergedSignal,
+				signal: requestSignal,
 			})
 
 			if (!response.ok) {

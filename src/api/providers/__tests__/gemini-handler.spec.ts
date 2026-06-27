@@ -72,7 +72,7 @@ describe("GeminiHandler backend support", () => {
 		expect(stub).toHaveBeenCalledWith(
 			expect.objectContaining({
 				config: expect.objectContaining({
-					httpOptions: { signal: controller.signal },
+					abortSignal: controller.signal,
 				}),
 			}),
 		)

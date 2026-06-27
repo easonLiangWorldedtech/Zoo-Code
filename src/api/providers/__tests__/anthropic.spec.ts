@@ -519,35 +519,14 @@ describe("AnthropicHandler", () => {
 			)
 		})
 
-		it("should trigger timeout when timeoutMs elapses before request completes", async () => {
-			const mockCreateWithTimeout = vitest
-				.fn()
-				.mockImplementation(
-					async () =>
-						new Promise((resolve) =>
-							setTimeout(() => resolve({ content: [{ type: "text", text: "response" }] }), 500),
-						),
-				)
-
-			const handlerTimeout = new AnthropicHandler(mockOptions)
-			// Replace the mock on the existing handler's client
-			handlerTimeout["client"].messages.create = mockCreateWithTimeout
-
+		it("should pass timeoutMs through to client alongside abortSignal", async () => {
 			const controller = new AbortController()
-			let timeoutTriggered = false
-			handlerTimeout
-				.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 50 })
-				.catch(() => {
-					timeoutTriggered = true
-				})
-
-			// Wait for timeout to trigger (50ms timeout + buffer)
-			await new Promise((resolve) => setTimeout(resolve, 150))
-
-			// Verify the API was called with timeout options
-			expect(mockCreateWithTimeout).toHaveBeenCalled()
-			// User signal should not be aborted (timeout mechanism aborts its own internal signal)
-			expect(controller.signal.aborted).toBe(false)
+			mockCreate.mockResolvedValueOnce({ content: [{ type: "text", text: "response" }] })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: mockOptions.apiModelId }),
+				expect.objectContaining({ signal: controller.signal, timeout: 5000 }),
+			)
 		})
 
 		it("should pass the same signal instance", async () => {

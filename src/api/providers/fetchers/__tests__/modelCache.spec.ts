@@ -481,6 +481,18 @@ describe("writeModels", () => {
 			},
 		}
 
-		await expect(writeModels("openrouter", mockModels)).resolves.toBeUndefined()
+		await writeModels("openrouter", mockModels)
+
+		// Import the mocked safeWriteJson to assert it was called correctly
+		const { safeWriteJson } = await import("../../../../utils/safeWriteJson")
+		const mockSafeWriteJson = vi.mocked(safeWriteJson)
+
+		expect(mockSafeWriteJson).toHaveBeenCalledTimes(1)
+		const [filePath, data] = mockSafeWriteJson.mock.calls[0]!
+		// Verify the path contains the cache directory and provider name
+		expect(filePath).toContain("openrouter")
+		expect(filePath).toContain(".json")
+		// Verify the data is serialized correctly
+		expect(data).toEqual({ models: mockModels, provider: "openrouter", timestamp: expect.any(Number) })
 	})
 })

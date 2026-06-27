@@ -299,8 +299,8 @@ export class ZooGatewayHandler extends RouterProvider implements SingleCompletio
 			if (options?.abortSignal) {
 				createOptions.signal = options.abortSignal
 			}
-			if (options?.timeoutMs) {
-				createOptions.timeout = options.timeoutMs
+			if ((options as any)?.timeoutMs !== undefined && (options as any).timeoutMs > 0) {
+				createOptions.timeout = (options as any).timeoutMs
 			}
 
 			const response = await this.client.chat.completions.create(requestOptions, createOptions || undefined)
