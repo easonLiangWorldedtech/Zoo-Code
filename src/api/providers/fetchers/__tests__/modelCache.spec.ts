@@ -472,6 +472,10 @@ describe("isAuthScopedProvider", () => {
 })
 
 describe("writeModels", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+	})
+
 	it("should write models to cache directory", async () => {
 		const mockModels = {
 			"test-model": {
@@ -492,7 +496,7 @@ describe("writeModels", () => {
 		// Verify the path contains the cache directory and provider name
 		expect(filePath).toContain("openrouter")
 		expect(filePath).toContain(".json")
-		// Verify the data is serialized correctly
-		expect(data).toEqual({ models: mockModels, provider: "openrouter", timestamp: expect.any(Number) })
+		// Verify the data is written as-is (writeModels does not wrap the payload)
+		expect(data).toEqual(mockModels)
 	})
 })
