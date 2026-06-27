@@ -297,7 +297,7 @@ export class MiniMaxHandler extends BaseProvider implements SingleCompletionHand
 		if (options?.abortSignal) {
 			requestOptions.signal = options.abortSignal
 		}
-		if (options?.timeoutMs) {
+		if (options?.timeoutMs !== undefined) {
 			requestOptions.timeout = options.timeoutMs
 		}
 

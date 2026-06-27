@@ -151,7 +151,7 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 			if (options?.abortSignal) {
 				requestOptions.signal = options.abortSignal
 			}
-			if (options?.timeoutMs) {
+			if (options?.timeoutMs !== undefined) {
 				requestOptions.timeout = options.timeoutMs
 			}
 

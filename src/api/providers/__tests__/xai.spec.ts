@@ -296,13 +296,13 @@ describe("XAIHandler", () => {
 		})
 	})
 
-	it("completePrompt should not set timeout when timeoutMs=0 (truthy check)", async () => {
+	it("completePrompt should pass timeout when timeoutMs=0 (defined check)", async () => {
 		mockResponsesCreate.mockResolvedValueOnce({ output_text: "response" })
 
 		await handler.completePrompt("test prompt", { timeoutMs: 0 })
 		expect(mockResponsesCreate).toHaveBeenCalledWith(
 			expect.objectContaining({ model: expect.any(String) }),
-			undefined, // truthy check means 0 is falsy
+			{ timeout: 0 }, // !== undefined check means 0 is passed through
 		)
 	})
 

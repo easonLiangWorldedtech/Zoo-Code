@@ -266,14 +266,14 @@ describe("MiniMaxHandler", () => {
 			})
 		})
 
-		it("should not set timeout when timeoutMs=0 (truthy check)", async () => {
+		it("should pass timeout when timeoutMs=0 (defined check)", async () => {
 			mockCreate.mockResolvedValueOnce({
 				content: [{ type: "text", text: "response" }],
 			})
 			await handler.completePrompt("test prompt", { timeoutMs: 0 })
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: expect.any(String) }),
-				undefined, // truthy check means 0 is falsy
+				{ timeout: 0 }, // !== undefined check means 0 is passed through
 			)
 		})
 

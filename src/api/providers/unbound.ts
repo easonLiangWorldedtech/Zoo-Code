@@ -203,13 +203,12 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 			messages: openAiMessages,
 			temperature: temperature,
 		}
-
 		// Build request options with abortSignal and/or timeout
 		const createOptions: OpenAI.RequestOptions = {}
 		if (options?.abortSignal) {
 			createOptions.signal = options.abortSignal
 		}
-		if (options?.timeoutMs) {
+		if (options?.timeoutMs !== undefined) {
 			createOptions.timeout = options.timeoutMs
 		}
 

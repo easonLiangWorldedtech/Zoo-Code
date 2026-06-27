@@ -296,9 +296,17 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 				stream: false,
 			} as Anthropic.Messages.MessageCreateParamsNonStreaming
 
+			const requestOptions: Anthropic.RequestOptions = {}
+			if (options?.abortSignal) {
+				requestOptions.signal = options.abortSignal
+			}
+			if (options?.timeoutMs !== undefined) {
+				requestOptions.timeout = options.timeoutMs
+			}
+
 			const response = await this.client.messages.create(
 				params,
-				options?.abortSignal ? { signal: options.abortSignal } : undefined,
+				Object.keys(requestOptions).length > 0 ? requestOptions : undefined,
 			)
 			const content = response.content[0]
 
