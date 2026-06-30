@@ -167,15 +167,7 @@ function getSelectedModel({
 			return { id, info: routerInfo }
 		}
 		case "litellm": {
-			// When the model list is empty (not yet loaded or still loading),
-			// preserve the configured model ID. LiteLLM is a proxy with no inherent
-			// default model, so we never substitute a hardcoded default here -- when
-			// nothing is configured we return an empty ID so the picker shows "no
-			// selection" rather than a phantom model that does not exist on the server.
-			const hasModels = routerModels.litellm && Object.keys(routerModels.litellm).length > 0
-			const id = hasModels
-				? getValidatedModelId(apiConfiguration.litellmModelId, routerModels.litellm, defaultModelId)
-				: (apiConfiguration.litellmModelId ?? "")
+			const id = getValidatedModelId(apiConfiguration.litellmModelId, routerModels.litellm, defaultModelId)
 			const routerInfo = routerModels.litellm?.[id]
 			return { id, info: routerInfo ?? litellmDefaultModelInfo }
 		}

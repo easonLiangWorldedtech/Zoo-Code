@@ -304,6 +304,13 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			...(tools.length > 0 ? { tools } : {}),
 		}
 
+		// Wire abortSignal into config. Note: per the @google/genai SDK docs,
+		// `abortSignal` is client-only — Google still charges for server-side
+		// compute that has already been dispatched before the signal propagates.
+		if (metadata?.abortSignal) {
+			config.abortSignal = metadata.abortSignal
+		}
+
 		// Do not pass metadata.allowedFunctionNames to Gemini. Live API testing showed
 		// that allowedFunctionNames triggers a generic 400 INVALID_ARGUMENT at 26 or more
 		// names. It can also
@@ -576,7 +583,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 		return citationLinks.join(", ")
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
 		const { id: model, info } = this.getModel()
 
 		try {
@@ -584,12 +591,23 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			const temperatureConfig: number | undefined = supportsTemperature
 				? (this.options.modelTemperature ?? info.defaultTemperature ?? 1)
 				: info.defaultTemperature
+			const httpOpts: Record<string, any> = {}
+			if (options?.timeoutMs !== undefined) {
+				httpOpts.timeout = options.timeoutMs
+			}
+			if (this.options.googleGeminiBaseUrl) {
+				httpOpts.baseUrl = this.options.googleGeminiBaseUrl
+			}
 
 			const promptConfig: GenerateContentConfig = {
-				httpOptions: this.options.googleGeminiBaseUrl
-					? { baseUrl: this.options.googleGeminiBaseUrl }
-					: undefined,
+				httpOptions: Object.keys(httpOpts).length > 0 ? httpOpts : undefined,
 				temperature: temperatureConfig,
+			}
+
+			// Pass abortSignal directly to config.abortSignal (not httpOptions.signal)
+			// as @google/genai expects request cancellation on this property
+			if (options?.abortSignal) {
+				promptConfig.abortSignal = options.abortSignal
 			}
 
 			const request = {

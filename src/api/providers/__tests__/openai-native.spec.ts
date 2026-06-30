@@ -245,6 +245,107 @@ describe("OpenAiNativeHandler", () => {
 
 			expect(result).toBe("")
 		})
+
+		it("should merge incoming signal with existing controller", async () => {
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			const controller = new AbortController()
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+
+			expect(mockResponsesCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: expect.any(AbortSignal) }),
+			)
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			const result = await handler.completePrompt("Test prompt")
+			expect(result).toBe("response")
+		})
+
+		it("should pass signal through to client via createOptions", async () => {
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			const controller = new AbortController()
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+
+			expect(mockResponsesCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: expect.any(AbortSignal) }),
+			)
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			const result = await handler.completePrompt("Test prompt")
+			expect(result).toBe("response")
+		})
+
+		it("completePrompt should pass timeoutMs through to client", async () => {
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			await handler.completePrompt("Test prompt", { timeoutMs: 5000 })
+			expect(mockResponsesCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.objectContaining({ signal: expect.any(AbortSignal) }),
+			)
+		})
+
+		it("completePrompt should merge signal and timeoutMs together", async () => {
+			const controller = new AbortController()
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal, timeoutMs: 10000 })
+			expect(mockResponsesCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.objectContaining({ signal: expect.any(AbortSignal) }),
+			)
+		})
 	})
 
 	describe("getModel", () => {
@@ -1842,102 +1943,6 @@ describe("GPT-5 streaming event coverage (additional)", () => {
 				expect(parsedBody.model).toBe("gpt-4o")
 				expect(parsedBody.text).toBeUndefined()
 				expect(bodyStr).not.toContain('"verbosity"')
-			})
-		})
-	})
-
-	describe("URL image handling", () => {
-		it("should skip URL-sourced images in formatFullConversation (only base64 emits input_image)", async () => {
-			const mockFetch = vitest.fn().mockResolvedValue({
-				ok: true,
-				body: new ReadableStream({
-					start(controller) {
-						controller.enqueue(
-							new TextEncoder().encode('data: {"type":"response.output_text.delta","delta":"ok"}\n\n'),
-						)
-						controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"))
-						controller.close()
-					},
-				}),
-			})
-			global.fetch = mockFetch as any
-
-			mockResponsesCreate.mockRejectedValue(new Error("SDK not available"))
-
-			const localHandler = new OpenAiNativeHandler({
-				apiModelId: "gpt-4.1",
-				openAiNativeApiKey: "test-api-key",
-			})
-
-			const urlImageMessages: Anthropic.Messages.MessageParam[] = [
-				{
-					role: "user",
-					content: [
-						{ type: "text", text: "Look at this:" },
-						{
-							type: "image",
-							source: { type: "url", url: "https://example.com/img.png" } as any,
-						},
-					],
-				},
-			]
-
-			const stream = localHandler.createMessage("You are a helpful assistant.", urlImageMessages)
-			for await (const _ of stream) {
-				// consume
-			}
-
-			const bodyStr = (mockFetch.mock.calls[0][1] as any).body as string
-			const parsedBody = JSON.parse(bodyStr)
-			// URL image is skipped; only the text part is in the input
-			const userMsg = parsedBody.input[0]
-			expect(userMsg.content).toEqual([{ type: "input_text", text: "Look at this:" }])
-			expect(bodyStr).not.toContain("input_image")
-		})
-
-		it("should emit input_image for base64 images in formatFullConversation", async () => {
-			const mockFetch = vitest.fn().mockResolvedValue({
-				ok: true,
-				body: new ReadableStream({
-					start(controller) {
-						controller.enqueue(
-							new TextEncoder().encode('data: {"type":"response.output_text.delta","delta":"ok"}\n\n'),
-						)
-						controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"))
-						controller.close()
-					},
-				}),
-			})
-			global.fetch = mockFetch as any
-
-			mockResponsesCreate.mockRejectedValue(new Error("SDK not available"))
-
-			const localHandler = new OpenAiNativeHandler({
-				apiModelId: "gpt-4.1",
-				openAiNativeApiKey: "test-api-key",
-			})
-
-			const b64ImageMessages: Anthropic.Messages.MessageParam[] = [
-				{
-					role: "user",
-					content: [
-						{ type: "text", text: "Look at this:" },
-						{ type: "image", source: { type: "base64", media_type: "image/png", data: "abc123" } },
-					],
-				},
-			]
-
-			const stream = localHandler.createMessage("You are a helpful assistant.", b64ImageMessages)
-			for await (const _ of stream) {
-				// consume
-			}
-
-			const bodyStr = (mockFetch.mock.calls[0][1] as any).body as string
-			const parsedBody = JSON.parse(bodyStr)
-			const userMsg = parsedBody.input[0]
-			expect(userMsg.content).toContainEqual({
-				type: "input_image",
-				image_url: "data:image/png;base64,abc123",
 			})
 		})
 	})

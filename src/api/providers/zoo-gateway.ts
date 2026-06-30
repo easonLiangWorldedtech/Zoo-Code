@@ -276,7 +276,7 @@ export class ZooGatewayHandler extends RouterProvider implements SingleCompletio
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
 		this.ensureAuthenticated()
 
 		const { id: modelId, info } = await this.fetchModel()
@@ -294,7 +294,16 @@ export class ZooGatewayHandler extends RouterProvider implements SingleCompletio
 
 			requestOptions.max_completion_tokens = info.maxTokens
 
-			const response = await this.client.chat.completions.create(requestOptions)
+			// Build request options with abortSignal and/or timeout
+			const createOptions: OpenAI.RequestOptions = {}
+			if (options?.abortSignal) {
+				createOptions.signal = options.abortSignal
+			}
+			if ((options as any)?.timeoutMs !== undefined && (options as any).timeoutMs > 0) {
+				createOptions.timeout = (options as any).timeoutMs
+			}
+
+			const response = await this.client.chat.completions.create(requestOptions, createOptions || undefined)
 			return response.choices[0]?.message.content || ""
 		} catch (error) {
 			try {

@@ -384,7 +384,18 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 		]
 
 		// Initialize cancellation token for the request
-		this.currentRequestCancellation = new vscode.CancellationTokenSource()
+		const tokenSource = new vscode.CancellationTokenSource()
+		this.currentRequestCancellation = tokenSource
+
+		// Bridge external AbortSignal to VSCode CancellationToken.
+		// metadata.abortSignal is set by the task layer when the user clicks "Stop".
+		if (metadata?.abortSignal) {
+			if (metadata.abortSignal.aborted) {
+				tokenSource.cancel()
+			} else {
+				metadata.abortSignal.addEventListener("abort", () => tokenSource.cancel(), { once: true })
+			}
+		}
 
 		// Calculate input tokens before starting the stream
 		const totalInputTokens: number = await this.calculateTotalInputTokens(vsCodeLmMessages)
@@ -402,7 +413,7 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 			const response: vscode.LanguageModelChatResponse = await client.sendRequest(
 				vsCodeLmMessages,
 				requestOptions,
-				this.currentRequestCancellation.token,
+				tokenSource.token,
 			)
 
 			// Consume the stream and handle both text and tool call chunks
@@ -458,7 +469,6 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 						}
 					} catch (error) {
 						console.error("Roo Code <Language Model API>: Failed to process tool call:", error)
-						// Continue processing other chunks even if one fails
 						continue
 					}
 				} else {
@@ -489,18 +499,20 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 					name: error.name,
 				})
 
-				// Return original error if it's already an Error instance
 				throw error
 			} else if (typeof error === "object" && error !== null) {
-				// Handle error-like objects
 				const errorDetails = JSON.stringify(error, null, 2)
 				console.error("Roo Code <Language Model API>: Stream error object:", errorDetails)
 				throw new Error(`Roo Code <Language Model API>: Response stream error: ${errorDetails}`)
 			} else {
-				// Fallback for unknown error types
 				const errorMessage = String(error)
 				console.error("Roo Code <Language Model API>: Unknown stream error:", errorMessage)
 				throw new Error(`Roo Code <Language Model API>: Response stream error: ${errorMessage}`)
+			}
+		} finally {
+			if (this.currentRequestCancellation) {
+				this.currentRequestCancellation.dispose()
+				this.currentRequestCancellation = null
 			}
 		}
 	}
@@ -562,13 +574,31 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
+		const client = await this.getClient()
+
+		// Bridge external AbortSignal to VSCode CancellationToken
+		const tokenSource = new vscode.CancellationTokenSource()
+
+		// Handle timeoutMs by creating a timeout-based cancellation
+		let timeoutTimeout: ReturnType<typeof setTimeout> | undefined
+		if (options?.timeoutMs && options.timeoutMs > 0) {
+			timeoutTimeout = setTimeout(() => tokenSource.cancel(), options.timeoutMs)
+		}
+
+		if (options?.abortSignal) {
+			if (options.abortSignal.aborted) {
+				tokenSource.cancel()
+			} else {
+				options.abortSignal.addEventListener("abort", () => tokenSource.cancel(), { once: true })
+			}
+		}
+
 		try {
-			const client = await this.getClient()
 			const response = await client.sendRequest(
 				[vscode.LanguageModelChatMessage.User(prompt)],
 				{},
-				new vscode.CancellationTokenSource().token,
+				tokenSource.token,
 			)
 			let result = ""
 			for await (const chunk of response.stream) {
@@ -577,11 +607,16 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 				}
 			}
 			return result
-		} catch (error) {
+		} catch (error: any) {
 			if (error instanceof Error) {
 				throw new Error(`VSCode LM completion error: ${error.message}`)
 			}
 			throw error
+		} finally {
+			if (timeoutTimeout) {
+				clearTimeout(timeoutTimeout)
+			}
+			tokenSource.dispose()
 		}
 	}
 }

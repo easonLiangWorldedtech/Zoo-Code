@@ -26,6 +26,7 @@ import { isMcpTool } from "../../utils/mcp-name"
 import { sanitizeOpenAiCallId } from "../../utils/tool-id"
 import { openAiCodexOAuthManager } from "../../integrations/openai-codex/oauth"
 import { t } from "../../i18n"
+import { RequestConfigBuilder } from "./config-builder/request-config-builder"
 
 export type OpenAiCodexModel = ReturnType<OpenAiCodexHandler["getModel"]>
 
@@ -429,10 +430,8 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 							content.push({ type: "input_text", text: block.text })
 						} else if (block.type === "image") {
 							const image = block as Anthropic.Messages.ImageBlockParam
-							if (image.source.type === "base64") {
-								const imageUrl = `data:${image.source.media_type};base64,${image.source.data}`
-								content.push({ type: "input_image", image_url: imageUrl })
-							}
+							const imageUrl = `data:${image.source.media_type};base64,${image.source.data}`
+							content.push({ type: "input_image", image_url: imageUrl })
 						} else if (block.type === "tool_result") {
 							const result =
 								typeof block.content === "string"
@@ -1154,8 +1153,47 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		return this.lastResponseId
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
-		this.abortController = new AbortController()
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
+		// Build a request-local abort controller with timeout support (don't mutate this.abortController)
+		let localAbortController: AbortController | undefined
+		let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+		if (options?.timeoutMs !== undefined || options?.abortSignal) {
+			localAbortController = new AbortController()
+
+			// Handle timeout first
+			if (options.timeoutMs !== undefined) {
+				if (options.timeoutMs > 0) {
+					timeoutId = setTimeout(() => localAbortController?.abort(), options.timeoutMs)
+				} else {
+					// timeoutMs is 0 or negative, abort immediately
+					localAbortController.abort()
+				}
+			}
+
+			// Merge with incoming abortSignal if provided
+			if (options.abortSignal) {
+				const mergedSignal = RequestConfigBuilder.mergeAbortSignals(
+					localAbortController.signal,
+					options.abortSignal,
+				)
+				// If the merged signal is different from our local one, link it
+				if (mergedSignal !== localAbortController.signal && !mergedSignal.aborted) {
+					mergedSignal.addEventListener(
+						"abort",
+						() => {
+							localAbortController?.abort()
+							clearTimeout(timeoutId)
+						},
+						{ once: true },
+					)
+				} else if (mergedSignal.aborted) {
+					localAbortController.abort()
+				}
+			}
+		}
+
+		const requestSignal = localAbortController?.signal ?? new AbortController().signal
 
 		try {
 			const model = this.getModel()
@@ -1216,7 +1254,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				method: "POST",
 				headers,
 				body: JSON.stringify(requestBody),
-				signal: this.abortController.signal,
+				signal: requestSignal,
 			})
 
 			if (!response.ok) {

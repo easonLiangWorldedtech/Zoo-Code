@@ -679,7 +679,7 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 		})
 	})
 
-	it("prefers message values over config values for LiteLLM", async () => {
+	it("prefers config values over message values for LiteLLM", async () => {
 		const mockModels: ModelRecord = {}
 		mockGetModels.mockResolvedValue(mockModels)
 
@@ -691,11 +691,11 @@ describe("webviewMessageHandler - requestRouterModels", () => {
 			},
 		})
 
-		// Verify message values take precedence over saved config (current unsaved field state wins)
+		// Verify config values are used over message values
 		expect(mockGetModels).toHaveBeenCalledWith({
 			provider: "litellm",
-			apiKey: "message-key", // From message.values
-			baseUrl: "http://message-url", // From message.values
+			apiKey: "litellm-key", // From config
+			baseUrl: "http://localhost:4000", // From config
 		})
 	})
 })

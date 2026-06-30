@@ -38,11 +38,7 @@ export class PoeHandler extends BaseProvider implements SingleCompletionHandler 
 
 	override getModel() {
 		const id = this.options.apiModelId ?? poeDefaultModelId
-		const cached = getModelsFromCache({
-			provider: "poe",
-			apiKey: this.options.poeApiKey,
-			baseUrl: this.options.poeBaseUrl,
-		})
+		const cached = getModelsFromCache("poe")
 		const info: ModelInfo = cached?.[id] ?? getPoeDefaultModelInfo()
 		return { id, info }
 	}
@@ -138,18 +134,41 @@ export class PoeHandler extends BaseProvider implements SingleCompletionHandler 
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
 		const { id } = this.getModel()
+		let timeoutId: ReturnType<typeof setTimeout> | undefined
 		try {
-			const { text } = await generateText({
+			const generateOptions: Parameters<typeof generateText>[0] & { abortSignal?: AbortSignal } = {
 				model: this.poe(id),
 				prompt,
-			})
+			}
+
+			// Merge abortSignal and timeoutMs into a single abortSignal
+			if (options?.abortSignal && options?.timeoutMs && options.timeoutMs > 0) {
+				const controller = new AbortController()
+				if (options.abortSignal.aborted) {
+					controller.abort()
+				} else {
+					timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
+					options.abortSignal.addEventListener("abort", () => controller.abort(), { once: true })
+				}
+				generateOptions.abortSignal = controller.signal
+			} else if (options?.abortSignal) {
+				generateOptions.abortSignal = options.abortSignal
+			} else if (options?.timeoutMs && options.timeoutMs > 0) {
+				generateOptions.abortSignal = AbortSignal.timeout(options.timeoutMs)
+			}
+
+			const { text } = await generateText(generateOptions)
 			return text
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			TelemetryService.instance.captureException(new ApiProviderError(errorMessage, "poe", id, "completePrompt"))
 			throw new Error(`Poe completion error: ${errorMessage}`)
+		} finally {
+			if (timeoutId) {
+				clearTimeout(timeoutId)
+			}
 		}
 	}
 }

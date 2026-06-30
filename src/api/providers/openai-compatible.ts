@@ -197,16 +197,58 @@ export abstract class OpenAICompatibleHandler extends BaseProvider implements Si
 	/**
 	 * Complete a prompt using the AI SDK generateText.
 	 */
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
 		const languageModel = this.getLanguageModel()
 
-		const { text } = await generateText({
+		const generateOptions: Parameters<typeof generateText>[0] & { abortSignal?: AbortSignal } = {
 			model: languageModel,
 			prompt,
 			maxOutputTokens: this.getMaxOutputTokens(),
 			temperature: this.config.temperature ?? 0,
-		})
+		}
 
-		return text
+		// Merge abortSignal and timeoutMs into a single abortSignal
+		let timeoutId: ReturnType<typeof setTimeout> | undefined
+		if (options?.abortSignal && options?.timeoutMs !== undefined) {
+			// When both are provided, create a merged signal that aborts when either fires
+			const controller = new AbortController()
+			if (options.abortSignal.aborted) {
+				controller.abort()
+			} else if (options.timeoutMs > 0) {
+				timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
+				options.abortSignal.addEventListener(
+					"abort",
+					() => {
+						clearTimeout(timeoutId)
+						controller.abort()
+					},
+					{ once: true },
+				)
+			} else {
+				// timeoutMs is 0 or negative, abort immediately
+				controller.abort()
+			}
+
+			generateOptions.abortSignal = controller.signal
+		} else if (options?.abortSignal) {
+			generateOptions.abortSignal = options.abortSignal
+		} else if (options?.timeoutMs !== undefined) {
+			if (options.timeoutMs > 0) {
+				generateOptions.abortSignal = AbortSignal.timeout(options.timeoutMs)
+			} else if (options.timeoutMs === 0) {
+				const controller = new AbortController()
+				controller.abort()
+				generateOptions.abortSignal = controller.signal
+			}
+		}
+
+		try {
+			const { text } = await generateText(generateOptions)
+			return text
+		} finally {
+			if (timeoutId !== undefined) {
+				clearTimeout(timeoutId)
+			}
+		}
 	}
 }

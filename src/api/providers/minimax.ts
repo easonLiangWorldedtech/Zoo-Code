@@ -289,16 +289,28 @@ export class MiniMaxHandler extends BaseProvider implements SingleCompletionHand
 		}
 	}
 
-	async completePrompt(prompt: string) {
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions) {
 		const { id: model, temperature } = this.getModel()
 
-		const message = await this.client.messages.create({
-			model,
-			max_tokens: 16_384,
-			temperature: temperature ?? 1.0,
-			messages: [{ role: "user", content: prompt }],
-			stream: false,
-		})
+		// Build request options with abortSignal and/or timeout handling
+		const requestOptions: Anthropic.RequestOptions = {}
+		if (options?.abortSignal) {
+			requestOptions.signal = options.abortSignal
+		}
+		if (options?.timeoutMs !== undefined) {
+			requestOptions.timeout = options.timeoutMs
+		}
+
+		const message = await this.client.messages.create(
+			{
+				model,
+				max_tokens: 16_384,
+				temperature: temperature ?? 1.0,
+				messages: [{ role: "user", content: prompt }],
+				stream: false,
+			},
+			Object.keys(requestOptions).length > 0 ? requestOptions : undefined,
+		)
 
 		const content = message.content.find(({ type }) => type === "text")
 		return content?.type === "text" ? content.text : ""

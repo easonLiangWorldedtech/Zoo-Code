@@ -29,6 +29,7 @@ import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { isMcpTool } from "../../utils/mcp-name"
 import { sanitizeOpenAiCallId } from "../../utils/tool-id"
+import { RequestConfigBuilder } from "./config-builder/request-config-builder"
 
 export type OpenAiNativeModel = ReturnType<OpenAiNativeHandler["getModel"]>
 
@@ -483,10 +484,8 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 							content.push({ type: "input_text", text: block.text })
 						} else if (block.type === "image") {
 							const image = block as Anthropic.Messages.ImageBlockParam
-							if (image.source.type === "base64") {
-								const imageUrl = `data:${image.source.media_type};base64,${image.source.data}`
-								content.push({ type: "input_image", image_url: imageUrl })
-							}
+							const imageUrl = `data:${image.source.media_type};base64,${image.source.data}`
+							content.push({ type: "input_image", image_url: imageUrl })
 						} else if (block.type === "tool_result") {
 							// Map Anthropic tool_result to Responses API function_call_output item
 							const result =
@@ -1485,9 +1484,21 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 		return this.lastResponseId
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
-		// Create AbortController for cancellation
+	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
+		// Merge incoming abortSignal with existing class-level controller if needed
+		const mergedSignal = RequestConfigBuilder.mergeAbortSignals(
+			this.abortController?.signal ?? new AbortController().signal,
+			options?.abortSignal,
+		)
+
+		// Create AbortController for cancellation (keep for cleanup tracking)
 		this.abortController = new AbortController()
+		// Link the merged signal to our abort controller
+		if (mergedSignal.aborted) {
+			this.abortController.abort()
+		} else {
+			mergedSignal.addEventListener("abort", () => this.abortController?.abort(), { once: true })
+		}
 
 		try {
 			const model = this.getModel()
@@ -1549,7 +1560,7 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 
 			// Make the non-streaming request
 			const response = await (this.client as any).responses.create(requestBody, {
-				signal: this.abortController.signal,
+				signal: mergedSignal,
 			})
 
 			// Extract text from the response

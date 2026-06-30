@@ -357,29 +357,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	assistantMessageSavedToHistory = false
 
 	/**
-	 * Fire-and-forget wrapper around `presentAssistantMessage` that swallows the
-	 * expected cancellation rejection (the presenter throws when `this.abort` is set)
-	 * and logs any other failure. Keeping it non-blocking preserves the streaming
-	 * presenter's self-locking semantics while preventing unhandled promise rejections
-	 * from crashing the extension host.
-	 */
-	private presentAssistantMessageSafe(): void {
-		void presentAssistantMessage(this).catch((error) => {
-			// Discriminate on the error message rather than `this.abort` state,
-			// which can flip between the throw and the catch microtask running:
-			// a real failure followed by an abort flip would otherwise be
-			// silently swallowed, and a stale abort error logged as a failure.
-			// The abort throw site in presentAssistantMessage emits a message
-			// ending in "aborted" (matching the other abort-throw contracts in
-			// this file), so we suppress exactly that.
-			if (error instanceof Error && error.message.endsWith("aborted")) {
-				return
-			}
-			console.error(`[Task#presentAssistantMessage] task ${this.taskId}.${this.instanceId} failed:`, error)
-		})
-	}
-
-	/**
 	 * Push a tool_result block to userMessageContent, preventing duplicates.
 	 * Duplicate tool_use_ids cause API errors.
 	 *
@@ -545,15 +522,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.messageQueueStateChangedHandler = () => {
 			this.emit(RooCodeEventName.TaskUserMessage, this.taskId)
 			this.emit(RooCodeEventName.QueuedMessagesUpdated, this.taskId, this.messageQueueService.messages)
-			void this.providerRef
-				.deref()
-				?.postStateToWebviewWithoutTaskHistory()
-				.catch((error) => {
-					console.error(
-						"[Task#messageQueueStateChangedHandler] postStateToWebviewWithoutTaskHistory failed:",
-						error,
-					)
-				})
+			this.providerRef.deref()?.postStateToWebviewWithoutTaskHistory()
 		}
 
 		this.messageQueueService.on("stateChanged", this.messageQueueStateChangedHandler)
@@ -598,13 +567,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		if (startTask) {
 			this._started = true
 			if (task || images) {
-				void this.startTask(task, images).catch((error) => {
-					console.error("[Task#constructor] startTask failed:", error)
-				})
+				this.startTask(task, images)
 			} else if (historyItem) {
-				void this.resumeTaskFromHistory().catch((error) => {
-					console.error("[Task#constructor] resumeTaskFromHistory failed:", error)
-				})
+				this.resumeTaskFromHistory()
 			} else {
 				throw new Error("Either historyItem or task/images must be provided")
 			}
@@ -1197,13 +1162,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// data or one whole message at a time so ignore partial for
 					// saves, and only post parts of partial message instead of
 					// whole array in new listener.
-					// Fire-and-forget: the webview post is internally guarded, but
-					// the `RooCodeEventName.Message` emit can synchronously throw
-					// if any consumer-attached listener does, which would surface
-					// here as an unhandled rejection. Log it instead.
-					this.updateClineMessage(lastMessage).catch((error) => {
-						console.error("[Task#ask] updateClineMessage failed:", error)
-					})
+					this.updateClineMessage(lastMessage)
 					// console.log("Task#ask: current ask promise was ignored (#1)")
 					throw new AskIgnoredError("updating existing partial")
 				} else {
@@ -1244,11 +1203,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						lastMessage.isAnswered = true
 					}
 					await this.saveClineMessages()
-					// Fire-and-forget: see updateClineMessage call above for the
-					// rationale on the .catch arm.
-					this.updateClineMessage(lastMessage).catch((error) => {
-						console.error("[Task#ask] updateClineMessage failed:", error)
-					})
+					this.updateClineMessage(lastMessage)
 				} else {
 					// This is a new and complete message, so add it like normal.
 					this.askResponse = undefined
@@ -1319,10 +1274,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						if (message) {
 							this.interactiveAsk = message
 							this.emit(RooCodeEventName.TaskInteractive, this.taskId)
-							/* v8 ignore next 3 -- fires inside 2s timer after ask() resolves; not reachable in unit tests */
-							void provider?.postMessageToWebview({ type: "interactionRequired" }).catch((error) => {
-								console.error("[Task#ask] postMessageToWebview interactionRequired failed:", error)
-							})
+							provider?.postMessageToWebview({ type: "interactionRequired" })
 						}
 					}, statusMutationTimeout),
 				)
@@ -1462,9 +1414,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			)
 			if (lastToolAskIndex !== -1) {
 				this.clineMessages[lastToolAskIndex].isAnswered = true
-				void this.updateClineMessage(this.clineMessages[lastToolAskIndex]).catch((error) => {
-					console.error("[Task#handleWebviewAskResponse] updateClineMessage failed:", error)
-				})
+				void this.updateClineMessage(this.clineMessages[lastToolAskIndex])
 				this.saveClineMessages().catch((error) => {
 					console.error("Failed to save answered tool-ask state:", error)
 				})
@@ -1712,13 +1662,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					lastMessage.images = images
 					lastMessage.partial = partial
 					lastMessage.progressStatus = progressStatus
-					// Fire-and-forget: webview post is internally guarded, but the
-					// `RooCodeEventName.Message` emit can synchronously throw via a
-					// consumer-attached listener. Surface that as a log, not an
-					// unhandled rejection.
-					this.updateClineMessage(lastMessage).catch((error) => {
-						console.error("[Task#say] updateClineMessage failed:", error)
-					})
+					this.updateClineMessage(lastMessage)
 				} else {
 					// This is a new partial message, so add it with partial state.
 					const sayTs = Date.now()
@@ -1757,11 +1701,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					await this.saveClineMessages()
 
 					// More performant than an entire `postStateToWebview`.
-					// Fire-and-forget: see updateClineMessage call above for the
-					// rationale on the .catch arm.
-					this.updateClineMessage(lastMessage).catch((error) => {
-						console.error("[Task#say] updateClineMessage failed:", error)
-					})
+					this.updateClineMessage(lastMessage)
 				} else {
 					// This is a new and complete message, so add it like normal.
 					const sayTs = Date.now()
@@ -1870,9 +1810,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const { task, images } = this.metadata
 
 		if (task || images) {
-			void this.startTask(task ?? undefined, images ?? undefined).catch((error) => {
-				console.error("[Task#start] startTask failed:", error)
-			})
+			this.startTask(task ?? undefined, images ?? undefined)
 		}
 	}
 
@@ -2413,11 +2351,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	private async initiateTaskLoop(userContent: Anthropic.Messages.ContentBlockParam[]): Promise<void> {
 		// Kicks off the checkpoints initialization process in the background.
-		// `getCheckpointService` wraps its full body in a try/catch and returns
-		// `undefined` on failure (see src/core/checkpoints/index.ts), so the
-		// returned promise cannot reject. `void` is sufficient — no `.catch`
-		// arm needed.
-		void getCheckpointService(this)
+		getCheckpointService(this)
 
 		let nextUserContent = userContent
 		let includeFileDetails = true
@@ -2864,8 +2798,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 										// Add to content and present
 										this.assistantMessageContent.push(partialToolUse)
 										this.userMessageContentReady = false
-										/* v8 ignore next -- streaming presenter; .catch lives in presentAssistantMessageSafe (covered) */
-										this.presentAssistantMessageSafe()
+										presentAssistantMessage(this)
 									} else if (event.type === "tool_call_delta") {
 										// Process chunk using streaming JSON parser
 										const partialToolUse = NativeToolCallParser.processStreamingChunk(
@@ -2884,8 +2817,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 												this.assistantMessageContent[toolUseIndex] = partialToolUse
 
 												// Present updated tool use
-												/* v8 ignore next -- streaming presenter; .catch lives in presentAssistantMessageSafe (covered) */
-												this.presentAssistantMessageSafe()
+												presentAssistantMessage(this)
 											}
 										}
 									} else if (event.type === "tool_call_end") {
@@ -2911,8 +2843,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 											this.userMessageContentReady = false
 
 											// Present the finalized tool call
-											/* v8 ignore next -- streaming presenter; .catch lives in presentAssistantMessageSafe (covered) */
-											this.presentAssistantMessageSafe()
+											presentAssistantMessage(this)
 										} else if (toolUseIndex !== undefined) {
 											// finalizeStreamingToolCall returned null (malformed JSON or missing args)
 											// Mark the tool as non-partial so it's presented as complete, but execution
@@ -2931,8 +2862,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 											this.userMessageContentReady = false
 
 											// Present the tool call - validation will handle missing params
-											/* v8 ignore next -- streaming presenter; .catch lives in presentAssistantMessageSafe (covered) */
-											this.presentAssistantMessageSafe()
+											presentAssistantMessage(this)
 										}
 									}
 								}
@@ -2965,8 +2895,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 								// Present the tool call to user - presentAssistantMessage will execute
 								// tools sequentially and accumulate all results in userMessageContent
-								/* v8 ignore next -- streaming presenter; .catch lives in presentAssistantMessageSafe (covered) */
-								this.presentAssistantMessageSafe()
+								presentAssistantMessage(this)
 								break
 							}
 							case "text": {
@@ -2985,8 +2914,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 									})
 									this.userMessageContentReady = false
 								}
-								/* v8 ignore next -- streaming presenter; .catch lives in presentAssistantMessageSafe (covered) */
-								this.presentAssistantMessageSafe()
+								presentAssistantMessage(this)
 								break
 							}
 						}
@@ -3313,8 +3241,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							this.userMessageContentReady = false
 
 							// Present the finalized tool call
-							/* v8 ignore next -- streaming presenter; .catch lives in presentAssistantMessageSafe (covered) */
-							this.presentAssistantMessageSafe()
+							presentAssistantMessage(this)
 						} else if (toolUseIndex !== undefined) {
 							// finalizeStreamingToolCall returned null (malformed JSON or missing args)
 							// We still need to mark the tool as non-partial so it gets executed
@@ -3333,8 +3260,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 							this.userMessageContentReady = false
 
 							// Present the tool call - validation will handle missing params
-							/* v8 ignore next -- streaming presenter; .catch lives in presentAssistantMessageSafe (covered) */
-							this.presentAssistantMessageSafe()
+							presentAssistantMessage(this)
 						}
 					}
 				}
@@ -3533,8 +3459,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 					// If there is content to update then it will complete and
 					// update `this.userMessageContentReady` to true, which we
 					// `pWaitFor` before making the next request.
-					/* v8 ignore next -- streaming presenter; .catch lives in presentAssistantMessageSafe (covered) */
-					this.presentAssistantMessageSafe()
+					presentAssistantMessage(this)
 				}
 
 				if (hasTextContent || hasToolUses) {

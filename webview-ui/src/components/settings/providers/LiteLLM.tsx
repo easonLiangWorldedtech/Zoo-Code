@@ -1,6 +1,5 @@
 import { useCallback, useState, useEffect, useRef } from "react"
 import { VSCodeTextField, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useQueryClient } from "@tanstack/react-query"
 
 import {
 	type ProviderSettings,
@@ -35,7 +34,6 @@ export const LiteLLM = ({
 	simplifySettings,
 }: LiteLLMProps) => {
 	const { t } = useAppTranslation()
-	const queryClient = useQueryClient()
 	const { routerModels } = useExtensionState()
 	const [refreshStatus, setRefreshStatus] = useState<"idle" | "loading" | "success" | "error">("idle")
 	const [refreshError, setRefreshError] = useState<string | undefined>()
@@ -57,12 +55,6 @@ export const LiteLLM = ({
 				if (refreshStatus === "loading") {
 					if (!litellmErrorJustReceived.current) {
 						setRefreshStatus("success")
-						// Invalidate only the LiteLLM router-models query so useSelectedModel
-						// picks up the refreshed list. useSelectedModel reads LiteLLM under the
-						// compound key ["routerModels", "litellm"] (see useRouterModels), so we
-						// target that exact key rather than the bare ["routerModels"] prefix,
-						// which would needlessly invalidate every other provider's query too.
-						queryClient.invalidateQueries({ queryKey: ["routerModels", "litellm"] })
 					}
 					// If litellmErrorJustReceived.current is true, status is already (or will be) "error".
 				}
@@ -73,7 +65,7 @@ export const LiteLLM = ({
 		return () => {
 			window.removeEventListener("message", handleMessage)
 		}
-	}, [refreshStatus, queryClient])
+	}, [refreshStatus, refreshError, setRefreshStatus, setRefreshError])
 
 	const handleInputChange = useCallback(
 		<K extends keyof ProviderSettings, E>(
