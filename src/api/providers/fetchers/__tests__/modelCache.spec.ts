@@ -602,7 +602,7 @@ describe("compound cache key derivation across scoping dimensions", () => {
 	})
 
 	it("includes only the server URL when a url-scoped provider has no API key", async () => {
-		await getModels({ provider: "litellm", baseUrl: "http://host:4000" })
+		await getModels({ provider: "litellm", apiKey: "", baseUrl: "http://host:4000" })
 		const cacheKey = writtenCacheKey()
 
 		// No trailing key discriminator when apiKey is absent.

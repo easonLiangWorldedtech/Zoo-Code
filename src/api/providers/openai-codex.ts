@@ -26,8 +26,6 @@ import { isMcpTool } from "../../utils/mcp-name"
 import { sanitizeOpenAiCallId } from "../../utils/tool-id"
 import { openAiCodexOAuthManager } from "../../integrations/openai-codex/oauth"
 import { t } from "../../i18n"
-import { RequestConfigBuilder } from "./config-builder/request-config-builder"
-
 export type OpenAiCodexModel = ReturnType<OpenAiCodexHandler["getModel"]>
 
 /**
@@ -1173,10 +1171,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 
 			// Merge with incoming abortSignal if provided
 			if (options.abortSignal) {
-				const mergedSignal = RequestConfigBuilder.mergeAbortSignals(
-					localAbortController.signal,
-					options.abortSignal,
-				)
+				const mergedSignal = AbortSignal.any([localAbortController.signal, options.abortSignal])
 				// If the merged signal is different from our local one, link it
 				if (mergedSignal !== localAbortController.signal && !mergedSignal.aborted) {
 					mergedSignal.addEventListener(

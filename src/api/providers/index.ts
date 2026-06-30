@@ -1,5 +1,4 @@
-export { RequestConfigBuilder } from "./config-builder/request-config-builder"
-export { AnthropicVertexHandler } from "./anthropic-vertex"
+export { AnthropicVertexHandler }
 export { AnthropicHandler } from "./anthropic"
 export { AwsBedrockHandler } from "./bedrock"
 export { DeepSeekHandler } from "./deepseek"

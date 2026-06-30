@@ -29,7 +29,6 @@ import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { isMcpTool } from "../../utils/mcp-name"
 import { sanitizeOpenAiCallId } from "../../utils/tool-id"
-import { RequestConfigBuilder } from "./config-builder/request-config-builder"
 
 export type OpenAiNativeModel = ReturnType<OpenAiNativeHandler["getModel"]>
 
@@ -1486,10 +1485,8 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 
 	async completePrompt(prompt: string, options?: import("../index").CompletePromptOptions): Promise<string> {
 		// Merge incoming abortSignal with existing class-level controller if needed
-		const mergedSignal = RequestConfigBuilder.mergeAbortSignals(
-			this.abortController?.signal ?? new AbortController().signal,
-			options?.abortSignal,
-		)
+		const baseSignal = this.abortController?.signal ?? new AbortController().signal
+		const mergedSignal = options?.abortSignal ? AbortSignal.any([baseSignal, options.abortSignal]) : baseSignal
 
 		// Create AbortController for cancellation (keep for cleanup tracking)
 		this.abortController = new AbortController()
