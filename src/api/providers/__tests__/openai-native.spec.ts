@@ -290,7 +290,7 @@ describe("OpenAiNativeHandler", () => {
 			})
 
 			await handler.completePrompt("Test prompt", { timeoutMs: 5000 })
-			// Implementation creates an AbortSignal when timeoutMs is provided.
+			// Implementation passes a signal to the client (uses baseSignal when no abortSignal provided).
 			expect(mockResponsesCreate.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
 		})
 
