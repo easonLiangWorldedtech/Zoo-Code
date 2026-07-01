@@ -309,5 +309,121 @@ describe("PoeHandler", () => {
 				}),
 			)
 		})
+
+		it("completePrompt should pass abort signal through to generateText", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+			const controller = new AbortController()
+			mockGenerateText.mockResolvedValueOnce({ text: "response" })
+
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+			expect(mockGenerateText).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: mockLanguageModel,
+					prompt: "test prompt",
+					abortSignal: controller.signal,
+				}),
+			)
+		})
+
+		it("completePrompt should work without options (backward compatible)", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+			mockGenerateText.mockResolvedValueOnce({ text: "response" })
+
+			const result = await handler.completePrompt("test prompt")
+			expect(result).toBe("response")
+			expect(mockGenerateText).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: mockLanguageModel,
+					prompt: "test prompt",
+				}),
+			)
+		})
+
+		it("completePrompt should merge signal and timeoutMs into combined abortSignal", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+			const controller = new AbortController()
+			mockGenerateText.mockResolvedValueOnce({ text: "response" })
+
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
+			expect(mockGenerateText).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: mockLanguageModel,
+					prompt: "test prompt",
+					abortSignal: expect.any(AbortSignal),
+				}),
+			)
+			// The abortSignal should be a merged signal (not the original controller.signal)
+			const callArgs = mockGenerateText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBeDefined()
+			expect(callArgs.abortSignal).toBeInstanceOf(AbortSignal)
+		})
+
+		it("completePrompt should use AbortSignal.timeout when only timeoutMs is provided", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+			mockGenerateText.mockResolvedValueOnce({ text: "response" })
+
+			await handler.completePrompt("test prompt", { timeoutMs: 3000 })
+			expect(mockGenerateText).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: mockLanguageModel,
+					prompt: "test prompt",
+					abortSignal: expect.any(AbortSignal),
+				}),
+			)
+			const callArgs = mockGenerateText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBeDefined()
+			expect(callArgs.abortSignal).not.toBeUndefined()
+		})
+
+		it("completePrompt should prefer signal over timeoutMs when both are provided", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+			const controller = new AbortController()
+			mockGenerateText.mockResolvedValueOnce({ text: "response" })
+
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
+			const callArgs = mockGenerateText.mock.calls[0][0]
+			// Should have a merged abortSignal (not the original controller.signal)
+			expect(callArgs.abortSignal).toBeInstanceOf(AbortSignal)
+			expect(callArgs.abortSignal).not.toBe(controller.signal)
+		})
+
+		it("completePrompt should clear timeout when user signal aborts", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+			const controller = new AbortController()
+			mockGenerateText.mockResolvedValueOnce({ text: "response" })
+
+			const promise = handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
+			const callArgs = mockGenerateText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBeDefined()
+
+			// Abort the user signal before resolve
+			controller.abort()
+
+			await promise
+			// Merged signal should be aborted when user signal aborts
+			expect(callArgs.abortSignal.aborted).toBe(true)
+		})
+
+		it("completePrompt should handle timeoutMs=0 as no timeout", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+			mockGenerateText.mockResolvedValueOnce({ text: "response" })
+
+			await handler.completePrompt("test prompt", { timeoutMs: 0 })
+			expect(mockGenerateText).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: mockLanguageModel,
+					prompt: "test prompt",
+				}),
+			)
+			const callArgs = mockGenerateText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBeUndefined()
+		})
+
+		it("completePrompt should handle non-Error values in catch block", async () => {
+			const handler = new PoeHandler({ poeApiKey: "key", apiModelId: "openai/gpt-4o" })
+			mockGenerateText.mockRejectedValueOnce("not an error")
+
+			await expect(handler.completePrompt("test prompt")).rejects.toThrow()
+		})
 	})
 })

@@ -44,7 +44,7 @@ import { convertToBedrockConverseMessages as sharedConverter } from "../transfor
 import { getModelParams } from "../transform/model-params"
 import { shouldUseReasoningBudget } from "../../shared/api"
 import { normalizeToolSchema } from "../../utils/json-schema"
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 
 /************************************************************************************
  *
@@ -796,7 +796,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
 		try {
 			const modelConfig = this.getModel()
 
@@ -838,7 +838,41 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 			}
 
 			const command = new ConverseCommand(payload)
-			const response = await this.client.send(command)
+
+			// Build request options with abortSignal and/or timeoutMs
+			const sendOptions: { abortSignal?: AbortSignal } | undefined = (() => {
+				let signal: AbortSignal | undefined = options?.abortSignal
+				if (options?.timeoutMs !== undefined) {
+					if (signal) {
+						// When both are provided, create a merged signal that aborts when either fires
+						const controller = new AbortController()
+						if (signal.aborted) {
+							controller.abort()
+						} else if (options.timeoutMs > 0) {
+							const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
+							signal.addEventListener(
+								"abort",
+								() => {
+									clearTimeout(timeoutId)
+									controller.abort()
+								},
+								{ once: true },
+							)
+						} else {
+							// timeoutMs is 0, abort immediately
+							controller.abort()
+						}
+						signal = controller.signal
+					} else if (options.timeoutMs !== undefined) {
+						if (options.timeoutMs > 0) {
+							signal = AbortSignal.timeout(options.timeoutMs)
+						}
+					}
+				}
+				return signal ? { abortSignal: signal } : undefined
+			})()
+
+			const response = await this.client.send(command, sendOptions)
 
 			if (
 				response?.output?.message?.content &&

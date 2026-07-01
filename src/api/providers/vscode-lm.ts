@@ -12,7 +12,7 @@ import { ApiStream } from "../transform/stream"
 import { convertToVsCodeLmMessages, extractTextCountFromMessage } from "../transform/vscode-lm-format"
 
 import { BaseProvider } from "./base-provider"
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 
 /**
  * Converts OpenAI-format tools to VSCode Language Model tools.
@@ -458,7 +458,6 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 						}
 					} catch (error) {
 						console.error("Roo Code <Language Model API>: Failed to process tool call:", error)
-						// Continue processing other chunks even if one fails
 						continue
 					}
 				} else {
@@ -489,18 +488,20 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 					name: error.name,
 				})
 
-				// Return original error if it's already an Error instance
 				throw error
 			} else if (typeof error === "object" && error !== null) {
-				// Handle error-like objects
 				const errorDetails = JSON.stringify(error, null, 2)
 				console.error("Roo Code <Language Model API>: Stream error object:", errorDetails)
 				throw new Error(`Roo Code <Language Model API>: Response stream error: ${errorDetails}`)
 			} else {
-				// Fallback for unknown error types
 				const errorMessage = String(error)
 				console.error("Roo Code <Language Model API>: Unknown stream error:", errorMessage)
 				throw new Error(`Roo Code <Language Model API>: Response stream error: ${errorMessage}`)
+			}
+		} finally {
+			if (this.currentRequestCancellation) {
+				this.currentRequestCancellation.dispose()
+				this.currentRequestCancellation = null
 			}
 		}
 	}
@@ -582,13 +583,31 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 		return this.getModel().info.contextWindow
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
+		const client = await this.getClient()
+
+		// Bridge external AbortSignal to VSCode CancellationToken
+		const tokenSource = new vscode.CancellationTokenSource()
+
+		// Handle timeoutMs by creating a timeout-based cancellation
+		let timeoutTimeout: ReturnType<typeof setTimeout> | undefined
+		if (options?.timeoutMs && options.timeoutMs > 0) {
+			timeoutTimeout = setTimeout(() => tokenSource.cancel(), options.timeoutMs)
+		}
+
+		if (options?.abortSignal) {
+			if (options.abortSignal.aborted) {
+				tokenSource.cancel()
+			} else {
+				options.abortSignal.addEventListener("abort", () => tokenSource.cancel(), { once: true })
+			}
+		}
+
 		try {
-			const client = await this.getClient()
 			const response = await client.sendRequest(
 				[vscode.LanguageModelChatMessage.User(prompt)],
 				{},
-				new vscode.CancellationTokenSource().token,
+				tokenSource.token,
 			)
 			let result = ""
 			for await (const chunk of response.stream) {
@@ -597,11 +616,16 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 				}
 			}
 			return result
-		} catch (error) {
+		} catch (error: any) {
 			if (error instanceof Error) {
 				throw new Error(`VSCode LM completion error: ${error.message}`)
 			}
 			throw error
+		} finally {
+			if (timeoutTimeout) {
+				clearTimeout(timeoutTimeout)
+			}
+			tokenSource.dispose()
 		}
 	}
 }

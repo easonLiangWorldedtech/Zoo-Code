@@ -11,7 +11,7 @@ import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { sanitizeOpenAiCallId } from "../../utils/tool-id"
 
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { RouterProvider } from "./router-provider"
 import { extractReasoningFromDelta } from "./utils/extract-reasoning"
 
@@ -311,7 +311,7 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
 		const { id: modelId, info } = await this.fetchModel()
 
 		// Check if this is a GPT-5 model that requires max_completion_tokens instead of max_tokens
@@ -334,7 +334,16 @@ export class LiteLLMHandler extends RouterProvider implements SingleCompletionHa
 				requestOptions.max_tokens = info.maxTokens
 			}
 
-			const response = await this.client.chat.completions.create(requestOptions)
+			// Build request options with abortSignal and/or timeout
+			const createOptions: OpenAI.RequestOptions = {}
+			if (options?.abortSignal) {
+				createOptions.signal = options.abortSignal
+			}
+			if (options?.timeoutMs !== undefined) {
+				createOptions.timeout = options.timeoutMs
+			}
+
+			const response = await this.client.chat.completions.create(requestOptions, createOptions || undefined)
 			return response.choices[0]?.message.content || ""
 		} catch (error) {
 			if (error instanceof Error) {

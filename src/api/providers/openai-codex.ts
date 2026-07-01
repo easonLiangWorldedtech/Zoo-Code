@@ -21,7 +21,7 @@ import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
 
 import { BaseProvider } from "./base-provider"
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { isMcpTool } from "../../utils/mcp-name"
 import { sanitizeOpenAiCallId } from "../../utils/tool-id"
 import { openAiCodexOAuthManager } from "../../integrations/openai-codex/oauth"
@@ -1154,8 +1154,39 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		return this.lastResponseId
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
-		this.abortController = new AbortController()
+	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
+		// Build a request-local abort controller with timeout support (don't mutate this.abortController)
+		let localAbortController: AbortController | undefined
+		let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+		if (options?.timeoutMs !== undefined || options?.abortSignal) {
+			localAbortController = new AbortController()
+
+			// Handle timeout first
+			if (options.timeoutMs !== undefined) {
+				if (options.timeoutMs > 0) {
+					timeoutId = setTimeout(() => localAbortController?.abort(), options.timeoutMs)
+				} else {
+					// timeoutMs is 0 or negative, abort immediately
+					localAbortController.abort()
+				}
+			}
+
+			// Merge with incoming abortSignal if provided using AbortSignal.any
+			if (options.abortSignal) {
+				const mergedSignal = AbortSignal.any([localAbortController.signal, options.abortSignal])
+				mergedSignal.addEventListener(
+					"abort",
+					() => {
+						localAbortController?.abort()
+						clearTimeout(timeoutId)
+					},
+					{ once: true },
+				)
+			}
+		}
+
+		const requestSignal = localAbortController?.signal ?? new AbortController().signal
 
 		try {
 			const model = this.getModel()
@@ -1216,7 +1247,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				method: "POST",
 				headers,
 				body: JSON.stringify(requestBody),
-				signal: this.abortController.signal,
+				signal: requestSignal,
 			})
 
 			if (!response.ok) {

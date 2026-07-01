@@ -22,7 +22,7 @@ import { getAnthropicProviderReasoning } from "../transform/reasoning"
 import { handleProviderError } from "./utils/error-handler"
 
 import { BaseProvider } from "./base-provider"
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { calculateApiCostAnthropic } from "../../shared/cost"
 import {
 	convertOpenAIToolsToAnthropic,
@@ -398,19 +398,31 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 		}
 	}
 
-	async completePrompt(prompt: string) {
+	async completePrompt(prompt: string, options?: CompletePromptOptions) {
 		const { id: model, temperature } = this.getModel()
 
 		let message
 		try {
-			message = await this.client.messages.create({
-				model,
-				max_tokens: ANTHROPIC_DEFAULT_MAX_TOKENS,
-				thinking: undefined,
-				temperature,
-				messages: [{ role: "user", content: prompt }],
-				stream: false,
-			})
+			// Build request options with both abortSignal and timeout handling
+			const requestOptions: Anthropic.RequestOptions = {}
+			if (options?.abortSignal) {
+				requestOptions.signal = options.abortSignal
+			}
+			if (options?.timeoutMs) {
+				requestOptions.timeout = options.timeoutMs
+			}
+
+			message = await this.client.messages.create(
+				{
+					model,
+					max_tokens: ANTHROPIC_DEFAULT_MAX_TOKENS,
+					thinking: undefined,
+					temperature,
+					messages: [{ role: "user", content: prompt }],
+					stream: false,
+				},
+				Object.keys(requestOptions).length > 0 ? requestOptions : undefined,
+			)
 		} catch (error) {
 			TelemetryService.instance.captureException(
 				new ApiProviderError(
