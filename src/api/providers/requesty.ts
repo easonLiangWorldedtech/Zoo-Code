@@ -162,8 +162,11 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 
 		let stream
 		try {
+			const createOpts: OpenAI.RequestOptions | undefined = metadata?.abortSignal
+				? { signal: metadata.abortSignal }
+				: undefined
 			// With streaming params type, SDK returns an async iterable stream
-			stream = await this.client.chat.completions.create(completionParams)
+			stream = await this.client.chat.completions.create(completionParams, createOpts)
 		} catch (error) {
 			throw handleOpenAIError(error, this.providerName)
 		}

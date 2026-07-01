@@ -151,7 +151,10 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 
 		let stream
 		try {
-			stream = await this.client.chat.completions.create(completionParams)
+			const createOpts: OpenAI.RequestOptions | undefined = metadata?.abortSignal
+				? { signal: metadata.abortSignal }
+				: undefined
+			stream = await this.client.chat.completions.create(completionParams, createOpts)
 		} catch (error) {
 			throw handleOpenAIError(error, this.providerName)
 		}

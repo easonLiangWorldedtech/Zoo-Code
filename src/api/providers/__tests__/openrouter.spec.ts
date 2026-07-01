@@ -544,6 +544,84 @@ describe("OpenRouterHandler", () => {
 		})
 	})
 
+	describe("abort signal", () => {
+		it("should pass abort signal through to client in createMessage", async () => {
+			const controller = new AbortController()
+			const testHandler = new OpenRouterHandler(mockOptions)
+
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield {
+						id: mockOptions.openRouterModelId,
+						choices: [{ delta: { content: "test response" } }],
+					}
+					yield {
+						id: "test-id",
+						choices: [{ delta: {} }],
+						usage: { prompt_tokens: 10, completion_tokens: 20, cost: 0.001 },
+					}
+				},
+			}
+
+			const mockCreate = vitest.fn().mockResolvedValue(mockStream)
+			;(OpenAI as any).prototype.chat = {
+				completions: { create: mockCreate },
+			} as any
+
+			const systemPrompt = "test system prompt"
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "test message" }]
+
+			const stream = testHandler.createMessage(systemPrompt, messages, {
+				taskId: "test-task",
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: controller.signal }),
+			)
+		})
+
+		it("should pass the exact same signal reference (reference identity)", async () => {
+			const controller = new AbortController()
+			const testHandler = new OpenRouterHandler(mockOptions)
+
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield {
+						id: mockOptions.openRouterModelId,
+						choices: [{ delta: { content: "test response" } }],
+					}
+					yield {
+						id: "test-id",
+						choices: [{ delta: {} }],
+						usage: { prompt_tokens: 10, completion_tokens: 20, cost: 0.001 },
+					}
+				},
+			}
+
+			const mockCreate = vitest.fn().mockResolvedValue(mockStream)
+			;(OpenAI as any).prototype.chat = {
+				completions: { create: mockCreate },
+			} as any
+
+			const systemPrompt = "test system prompt"
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "test message" }]
+
+			const stream = testHandler.createMessage(systemPrompt, messages, {
+				taskId: "test-task",
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+			}
+
+			const callOptions = mockCreate.mock.calls[0][1]
+			expect(callOptions?.signal).toBe(controller.signal)
+		})
+	})
+
 	describe("completePrompt", () => {
 		it("returns correct response", async () => {
 			const handler = new OpenRouterHandler(mockOptions)

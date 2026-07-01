@@ -166,6 +166,55 @@ describe("PoeHandler", () => {
 		})
 	})
 
+	describe("abort signal", () => {
+		it("should pass abort signal through to client in createMessage", async () => {
+			const controller = new AbortController()
+			const testHandler = new PoeHandler({ poeApiKey: "test-key", apiModelId: "anthropic/claude-sonnet-4" })
+
+			const fullStream = (async function* () {
+				yield { type: "text-delta", text: "Hello" }
+			})()
+
+			mockStreamText.mockReturnValue({
+				fullStream,
+				usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+			})
+
+			const stream = testHandler.createMessage("system prompt", [{ role: "user" as const, content: "Hi" }], {
+				taskId: "test-task",
+				abortSignal: controller.signal,
+			})
+			for await (const _ of stream) {
+			}
+
+			expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ abortSignal: controller.signal }))
+		})
+
+		it("should pass the exact same signal reference (reference identity)", async () => {
+			const controller = new AbortController()
+			const testHandler = new PoeHandler({ poeApiKey: "test-key", apiModelId: "anthropic/claude-sonnet-4" })
+
+			const fullStream = (async function* () {
+				yield { type: "text-delta", text: "Hello" }
+			})()
+
+			mockStreamText.mockReturnValue({
+				fullStream,
+				usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+			})
+
+			const stream = testHandler.createMessage("system prompt", [{ role: "user" as const, content: "Hi" }], {
+				taskId: "test-task",
+				abortSignal: controller.signal,
+			})
+			for await (const _ of stream) {
+			}
+
+			const callArgs = mockStreamText.mock.calls[0][0]
+			expect(callArgs.abortSignal).toBe(controller.signal)
+		})
+	})
+
 	describe("reasoning", () => {
 		it("passes anthropic thinking config for budget models", async () => {
 			const handler = new PoeHandler({

@@ -218,9 +218,11 @@ export class ZooGatewayHandler extends RouterProvider implements SingleCompletio
 		}
 
 		try {
-			const completion = await this.client.chat.completions.create(body, {
+			const createOpts: OpenAI.RequestOptions & { headers?: Record<string, string> } = {
 				headers: requestHeaders,
-			})
+				...(metadata?.abortSignal && { signal: metadata.abortSignal }),
+			}
+			const completion = await this.client.chat.completions.create(body, createOpts)
 
 			for await (const chunk of completion) {
 				// Once the gateway starts streaming the HTTP status is already 200, so it

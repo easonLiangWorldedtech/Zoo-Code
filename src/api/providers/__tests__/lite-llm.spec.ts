@@ -922,6 +922,62 @@ describe("LiteLLMHandler", () => {
 		})
 	})
 
+	describe("abort signal", () => {
+		it("should pass abort signal through to client in createMessage", async () => {
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield {
+						choices: [{ delta: { content: "response" } }],
+						usage: null,
+					}
+				},
+			}
+
+			mockCreate.mockReturnValue({
+				withResponse: vi.fn().mockResolvedValue({ data: mockStream }),
+			})
+
+			const controller = new AbortController()
+			const stream = handler.createMessage("system", [{ role: "user", content: "Test" }], {
+				taskId: "test-task",
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: controller.signal }),
+			)
+		})
+
+		it("should pass the exact same signal reference (reference identity)", async () => {
+			const mockStream = {
+				async *[Symbol.asyncIterator]() {
+					yield {
+						choices: [{ delta: { content: "response" } }],
+						usage: null,
+					}
+				},
+			}
+
+			mockCreate.mockReturnValue({
+				withResponse: vi.fn().mockResolvedValue({ data: mockStream }),
+			})
+
+			const controller = new AbortController()
+			const stream = handler.createMessage("system", [{ role: "user", content: "Test" }], {
+				taskId: "test-task",
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+			}
+
+			const callOptions = mockCreate.mock.calls[0][1]
+			expect(callOptions?.signal).toBe(controller.signal)
+		})
+	})
+
 	describe("tool ID normalization", () => {
 		it("should truncate tool IDs longer than 64 characters", async () => {
 			const optionsWithBedrock: ApiHandlerOptions = {

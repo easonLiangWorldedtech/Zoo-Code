@@ -179,6 +179,7 @@ describe("UnboundHandler", () => {
 					mode: "architect",
 				},
 			}),
+			undefined,
 		)
 	})
 

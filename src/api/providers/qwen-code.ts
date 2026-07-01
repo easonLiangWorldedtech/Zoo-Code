@@ -239,7 +239,10 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 			parallel_tool_calls: metadata?.parallelToolCalls ?? true,
 		}
 
-		const stream = await this.callApiWithRetry(() => client.chat.completions.create(requestOptions))
+		const createOpts: OpenAI.RequestOptions | undefined = metadata?.abortSignal
+			? { signal: metadata.abortSignal }
+			: undefined
+		const stream = await this.callApiWithRetry(() => client.chat.completions.create(requestOptions, createOpts))
 
 		let fullContent = ""
 

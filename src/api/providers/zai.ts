@@ -62,7 +62,7 @@ export class ZAiHandler extends BaseOpenAiCompatibleProvider<string> {
 
 		if (isThinkingModel) {
 			// Create the stream with our custom thinking parameter
-			return this.createStreamWithThinking(systemPrompt, messages, metadata)
+			return this.createStreamWithThinking(systemPrompt, messages, metadata, requestOptions)
 		}
 
 		// For non-thinking models, use the default behavior
@@ -76,6 +76,7 @@ export class ZAiHandler extends BaseOpenAiCompatibleProvider<string> {
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
+		requestOptions?: OpenAI.RequestOptions,
 	) {
 		const { id: model, info } = this.getModel()
 
@@ -122,9 +123,13 @@ export class ZAiHandler extends BaseOpenAiCompatibleProvider<string> {
 			parallel_tool_calls: metadata?.parallelToolCalls ?? true,
 		}
 
+		const signal = metadata?.abortSignal
+		const finalRequestOptions = signal ? { ...requestOptions, signal } : requestOptions
+
 		try {
 			return this.client.chat.completions.create(
 				params as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
+				finalRequestOptions,
 			)
 		} catch (error) {
 			throw handleOpenAIError(error, this.providerName)

@@ -106,6 +106,7 @@ describe("XAIHandler", () => {
 				store: false,
 				include: ["reasoning.encrypted_content"],
 			}),
+			undefined,
 		)
 	})
 
@@ -235,6 +236,7 @@ describe("XAIHandler", () => {
 				tool_choice: "auto",
 				parallel_tool_calls: true,
 			}),
+			undefined,
 		)
 	})
 
@@ -323,6 +325,7 @@ describe("XAIHandler", () => {
 					reasoning_effort: "high",
 				}),
 			}),
+			undefined,
 		)
 	})
 
@@ -347,5 +350,43 @@ describe("XAIHandler", () => {
 
 		const stream = handler.createMessage("test prompt", [])
 		await expect(stream.next()).rejects.toThrow(`xAI completion error: ${errorMessage}`)
+	})
+
+	describe("abort signal", () => {
+		it("should pass abort signal through to client in createMessage", async () => {
+			const controller = new AbortController()
+			const testHandler = new XAIHandler({})
+
+			mockResponsesCreate.mockResolvedValueOnce(mockStream([]))
+
+			const stream = testHandler.createMessage("test prompt", [], {
+				taskId: "test-task-id",
+				abortSignal: controller.signal,
+			})
+			for await (const _ of stream) {
+			}
+
+			expect(mockResponsesCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: controller.signal }),
+			)
+		})
+
+		it("should pass the exact same signal reference (reference identity)", async () => {
+			const controller = new AbortController()
+			const testHandler = new XAIHandler({})
+
+			mockResponsesCreate.mockResolvedValueOnce(mockStream([]))
+
+			const stream = testHandler.createMessage("test prompt", [], {
+				taskId: "test-task-id",
+				abortSignal: controller.signal,
+			})
+			for await (const _ of stream) {
+			}
+
+			const callOptions = mockResponsesCreate.mock.calls[0][1]
+			expect(callOptions?.signal).toBe(controller.signal)
+		})
 	})
 })

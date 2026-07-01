@@ -98,7 +98,10 @@ export class LmStudioHandler extends BaseProvider implements SingleCompletionHan
 
 			let results
 			try {
-				results = await this.client.chat.completions.create(params)
+				const createOpts: OpenAI.RequestOptions | undefined = metadata?.abortSignal
+					? { signal: metadata.abortSignal }
+					: undefined
+				results = await this.client.chat.completions.create(params, createOpts)
 			} catch (error) {
 				throw handleOpenAIError(error, this.providerName)
 			}

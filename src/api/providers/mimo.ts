@@ -100,7 +100,10 @@ export class MimoHandler extends OpenAiHandler {
 
 		let stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
 		try {
-			stream = (await this.client.chat.completions.create(params as any)) as any
+			const createOpts: OpenAI.RequestOptions | undefined = metadata?.abortSignal
+				? { signal: metadata.abortSignal }
+				: undefined
+			stream = (await this.client.chat.completions.create(params as any, createOpts)) as any
 		} catch (error) {
 			throw handleProviderError(error, "MiMo")
 		}

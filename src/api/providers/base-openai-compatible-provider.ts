@@ -73,6 +73,7 @@ export abstract class BaseOpenAiCompatibleProvider<ModelName extends string>
 		metadata?: ApiHandlerCreateMessageMetadata,
 		requestOptions?: OpenAI.RequestOptions,
 	) {
+		const signal = metadata?.abortSignal
 		const { id: model, info } = this.getModel()
 
 		// Centralized cap: clamp to 20% of the context window (unless provider-specific exceptions apply)
@@ -104,7 +105,8 @@ export abstract class BaseOpenAiCompatibleProvider<ModelName extends string>
 		}
 
 		try {
-			return this.client.chat.completions.create(params, requestOptions)
+			const finalRequestOptions = signal ? { ...requestOptions, signal } : requestOptions
+			return this.client.chat.completions.create(params, finalRequestOptions)
 		} catch (error) {
 			throw handleOpenAIError(error, this.providerName)
 		}
@@ -115,7 +117,12 @@ export abstract class BaseOpenAiCompatibleProvider<ModelName extends string>
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
-		const stream = await this.createStream(systemPrompt, messages, metadata)
+		const stream = await this.createStream(
+			systemPrompt,
+			messages,
+			metadata,
+			metadata?.abortSignal ? { signal: metadata.abortSignal } : undefined,
+		)
 
 		const matcher = new TagMatcher(
 			["think", "thought"],

@@ -379,6 +379,43 @@ describe("OpencodeGoHandler", () => {
 
 			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ max_completion_tokens: 999 }))
 		})
+
+		describe("abort signal", () => {
+			const systemPrompt = "You are helpful."
+			const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hi" }]
+
+			it("should pass abort signal through to client in createMessage", async () => {
+				const controller = new AbortController()
+				const testHandler = new OpencodeGoHandler(mockOptions)
+
+				const stream = testHandler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+				}
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({ signal: controller.signal }),
+				)
+			})
+
+			it("should pass the exact same signal reference (reference identity)", async () => {
+				const controller = new AbortController()
+				const testHandler = new OpencodeGoHandler(mockOptions)
+
+				const stream = testHandler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+				}
+
+				const callOptions = mockCreate.mock.calls[0][1]
+				expect(callOptions?.signal).toBe(controller.signal)
+			})
+		})
 	})
 
 	describe("completePrompt", () => {

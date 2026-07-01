@@ -332,9 +332,15 @@ export class OpenRouterHandler extends BaseProvider implements SingleCompletionH
 		}
 
 		// Add Anthropic beta header for fine-grained tool streaming when using Anthropic models
-		const requestOptions = modelId.startsWith("anthropic/")
-			? { headers: { "x-anthropic-beta": "fine-grained-tool-streaming-2025-05-14" } }
-			: undefined
+		const requestOptions: OpenAI.RequestOptions | undefined =
+			modelId.startsWith("anthropic/") || metadata?.abortSignal
+				? {
+						headers: { "x-anthropic-beta": "fine-grained-tool-streaming-2025-05-14" },
+						...(metadata?.abortSignal && { signal: metadata.abortSignal }),
+					}
+				: metadata?.abortSignal
+					? { signal: metadata.abortSignal }
+					: undefined
 
 		let stream
 		try {

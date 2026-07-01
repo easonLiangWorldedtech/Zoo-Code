@@ -376,6 +376,7 @@ describe("MimoHandler", () => {
 				expect.objectContaining({
 					extra_body: { thinking: { type: "enabled" } },
 				}),
+				undefined,
 			)
 		})
 
@@ -922,6 +923,46 @@ describe("MimoHandler", () => {
 			expect(params.messages[0].role).toBe("system")
 			expect(params.messages[0].content).toBe("You are a helpful assistant")
 			expect(params.messages[1].role).toBe("user")
+		})
+	})
+
+	describe("abort signal", () => {
+		it("should pass abort signal through to client in createMessage", async () => {
+			const controller = new AbortController()
+			const testHandler = new MimoHandler(mockOptions)
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: [{ type: "text", text: "Hello" }] },
+			]
+
+			const stream = testHandler.createMessage("System prompt", messages, {
+				taskId: "test-task",
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+			}
+
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: controller.signal }),
+			)
+		})
+
+		it("should pass the exact same signal reference (reference identity)", async () => {
+			const controller = new AbortController()
+			const testHandler = new MimoHandler(mockOptions)
+			const messages: Anthropic.Messages.MessageParam[] = [
+				{ role: "user", content: [{ type: "text", text: "Hello" }] },
+			]
+
+			const stream = testHandler.createMessage("System prompt", messages, {
+				taskId: "test-task",
+				abortSignal: controller.signal as any,
+			})
+			for await (const _ of stream) {
+			}
+
+			const callOptions = mockCreate.mock.calls[0][1]
+			expect(callOptions?.signal).toBe(controller.signal)
 		})
 	})
 

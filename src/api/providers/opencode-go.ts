@@ -197,7 +197,10 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 			}),
 		}
 
-		const completion = await this.client.chat.completions.create(body)
+		const completion = await this.client.chat.completions.create(
+			body,
+			...(metadata?.abortSignal ? [{ signal: metadata.abortSignal }] : []),
+		)
 
 		for await (const chunk of completion) {
 			const delta = chunk.choices[0]?.delta
@@ -305,7 +308,10 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 		// errors propagate unchanged, matching the OpenAI streaming path.
 		let stream
 		try {
-			stream = await this.anthropicClient.messages.create(requestParams)
+			stream = await this.anthropicClient.messages.create(
+				requestParams,
+				...(metadata?.abortSignal ? [{ signal: metadata.abortSignal }] : []),
+			)
 		} catch (error) {
 			if (error instanceof Error) {
 				throw new Error(`Opencode Go completion error: ${error.message}`)

@@ -127,6 +127,42 @@ describe("LmStudioHandler", () => {
 				}
 			}).rejects.toThrow("Please check the LM Studio developer logs to debug what went wrong")
 		})
+
+		describe("abort signal", () => {
+			it("should pass abort signal through to client in createMessage", async () => {
+				const controller = new AbortController()
+				const testHandler = new LmStudioHandler(mockOptions)
+
+				const stream = testHandler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+					// consume stream
+				}
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({ signal: controller.signal }),
+				)
+			})
+
+			it("should pass the exact same signal reference (reference identity)", async () => {
+				const controller = new AbortController()
+				const testHandler = new LmStudioHandler(mockOptions)
+
+				const stream = testHandler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+					// consume stream
+				}
+
+				const callOptions = mockCreate.mock.calls[0][1]
+				expect(callOptions?.signal).toBe(controller.signal)
+			})
+		})
 	})
 
 	describe("completePrompt", () => {

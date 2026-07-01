@@ -270,6 +270,7 @@ describe("VercelAiGatewayHandler", () => {
 				expect.objectContaining({
 					temperature: customTemp,
 				}),
+				undefined,
 			)
 		})
 
@@ -285,6 +286,7 @@ describe("VercelAiGatewayHandler", () => {
 				expect.objectContaining({
 					temperature: VERCEL_AI_GATEWAY_DEFAULT_TEMPERATURE,
 				}),
+				undefined,
 			)
 		})
 
@@ -302,6 +304,7 @@ describe("VercelAiGatewayHandler", () => {
 					temperature: undefined,
 					max_completion_tokens: 128000,
 				}),
+				undefined,
 			)
 		})
 
@@ -332,6 +335,7 @@ describe("VercelAiGatewayHandler", () => {
 				expect.objectContaining({
 					max_completion_tokens: 64000, // max tokens for sonnet 4
 				}),
+				undefined,
 			)
 		})
 
@@ -410,6 +414,7 @@ describe("VercelAiGatewayHandler", () => {
 							}),
 						]),
 					}),
+					undefined,
 				)
 			})
 
@@ -427,6 +432,7 @@ describe("VercelAiGatewayHandler", () => {
 					expect.objectContaining({
 						tool_choice: "auto",
 					}),
+					undefined,
 				)
 			})
 
@@ -444,6 +450,7 @@ describe("VercelAiGatewayHandler", () => {
 					expect.objectContaining({
 						parallel_tool_calls: true,
 					}),
+					undefined,
 				)
 			})
 
@@ -461,6 +468,7 @@ describe("VercelAiGatewayHandler", () => {
 						tools: expect.any(Array),
 						parallel_tool_calls: true,
 					}),
+					undefined,
 				)
 			})
 
@@ -560,7 +568,46 @@ describe("VercelAiGatewayHandler", () => {
 					expect.objectContaining({
 						stream_options: { include_usage: true },
 					}),
+					undefined,
 				)
+			})
+		})
+
+		describe("abort signal", () => {
+			it("should pass abort signal through to client in createMessage", async () => {
+				const systemPrompt = "You are a helpful assistant."
+				const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+				const controller = new AbortController()
+				const testHandler = new VercelAiGatewayHandler(mockOptions)
+
+				const stream = testHandler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+				}
+
+				expect(mockCreate).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({ signal: controller.signal }),
+				)
+			})
+
+			it("should pass the exact same signal reference (reference identity)", async () => {
+				const systemPrompt = "You are a helpful assistant."
+				const messages: Anthropic.Messages.MessageParam[] = [{ role: "user", content: "Hello" }]
+				const controller = new AbortController()
+				const testHandler = new VercelAiGatewayHandler(mockOptions)
+
+				const stream = testHandler.createMessage(systemPrompt, messages, {
+					taskId: "test-task",
+					abortSignal: controller.signal as any,
+				})
+				for await (const _ of stream) {
+				}
+
+				const callOptions = mockCreate.mock.calls[0][1]
+				expect(callOptions?.signal).toBe(controller.signal)
 			})
 		})
 	})
