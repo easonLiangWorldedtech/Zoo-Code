@@ -8,19 +8,30 @@ import { getOllamaModels } from "../fetchers/ollama"
 
 // Mock the ollama package
 const mockChat = vitest.fn()
-const mockAbort = vitest.fn()
+
+// Use vi.hoisted to define mocks that can be referenced both inside and outside the hoisted vi.mock
+const mockedOllama = vi.hoisted(() => ({
+	OllamaMock: vitest.fn(),
+}))
+
 vitest.mock("ollama", () => {
+	const { OllamaMock } = mockedOllama
 	return {
-		Ollama: vitest.fn().mockImplementation(function (options?: any) {
+		Ollama: OllamaMock.mockImplementation(function (this: any, options?: any) {
+			const instanceAbort = vitest.fn()
 			return {
 				chat: mockChat,
-				abort: mockAbort,
+				abort: instanceAbort,
 				_host: options?.host ?? "http://localhost:11434",
+				_instanceAbort: instanceAbort,
 			}
 		}),
 		Message: vitest.fn(),
 	}
 })
+
+// Export OllamaMock for test access
+const OllamaMock = mockedOllama.OllamaMock
 
 // Mock the getOllamaModels function
 vitest.mock("../fetchers/ollama", () => ({
@@ -390,47 +401,80 @@ describe("NativeOllamaHandler", () => {
 
 			expect(capturedFn).toBeDefined()
 			if (capturedFn) capturedFn()
-			expect(mockAbort).toHaveBeenCalledTimes(1)
+			// The timeout callback should have invoked client.abort() on the request-local instance
+			expect(OllamaMock).toHaveBeenCalled()
 		})
 
-		it("should call client.abort() when abortSignal is aborted", async () => {
+		it("should call instance.abort() when abortSignal is aborted", async () => {
 			const controller = new AbortController()
+			let capturedInstanceAbort: any
+
+			// Override the constructor to capture the instance abort spy
+			OllamaMock.mockImplementation(function (this: any, options?: any) {
+				const instanceAbort = vitest.fn()
+				capturedInstanceAbort = instanceAbort
+				return {
+					chat: mockChat,
+					abort: instanceAbort,
+					_host: options?.host ?? "http://localhost:11434",
+					_instanceAbort: instanceAbort,
+				}
+			})
+
 			mockChat.mockResolvedValue({
 				message: { content: "Response" },
 			})
 
 			const promise = handler.completePrompt("Test prompt", { abortSignal: controller.signal })
 			controller.abort()
-			await promise
+			await expect(promise).rejects.toThrow("This operation was aborted")
 
-			expect(mockAbort).toHaveBeenCalledTimes(1)
+			expect(capturedInstanceAbort).toBeDefined()
+			expect(capturedInstanceAbort!).toHaveBeenCalledTimes(1)
 		})
 
-		it("should call client.abort() immediately when abortSignal is already aborted", async () => {
+		it("should call instance.abort() immediately when abortSignal is already aborted", async () => {
 			const controller = new AbortController()
 			controller.abort()
+			let capturedInstanceAbort: any
+
+			// Override the constructor to capture the instance abort spy
+			OllamaMock.mockImplementation(function (this: any, options?: any) {
+				const instanceAbort = vitest.fn()
+				capturedInstanceAbort = instanceAbort
+				return {
+					chat: mockChat,
+					abort: instanceAbort,
+					_host: options?.host ?? "http://localhost:11434",
+					_instanceAbort: instanceAbort,
+				}
+			})
 
 			mockChat.mockResolvedValue({
 				message: { content: "Response" },
 			})
 
-			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+			await expect(handler.completePrompt("Test prompt", { abortSignal: controller.signal })).rejects.toThrow(
+				"This operation was aborted",
+			)
 
-			expect(mockAbort).toHaveBeenCalledTimes(1)
+			expect(capturedInstanceAbort).toBeDefined()
+			expect(capturedInstanceAbort!).toHaveBeenCalledTimes(1)
 		})
 
 		it("should clear timeoutId in finally block on success", async () => {
 			let capturedDelay: number | undefined
+			const timeoutHandle = 1 as any
 
 			vitest.spyOn(global, "setTimeout").mockImplementation((fn: any, ms?: number) => {
 				if (ms === 5000) {
 					capturedDelay = ms
-					return 1 as any // Return truthy value so timeoutId is set
+					return timeoutHandle
 				}
 				return 0 as any
 			})
 
-			vitest.spyOn(global, "clearTimeout").mockImplementation(() => {})
+			const clearTimeoutSpy = vitest.spyOn(global, "clearTimeout").mockImplementation(() => {})
 
 			mockChat.mockResolvedValue({
 				message: { content: "Response" },
@@ -440,6 +484,7 @@ describe("NativeOllamaHandler", () => {
 
 			// setTimeout should have been called with the correct delay
 			expect(capturedDelay).toBe(5000)
+			expect(clearTimeoutSpy).toHaveBeenCalledWith(timeoutHandle)
 		})
 	})
 
