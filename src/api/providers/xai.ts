@@ -13,7 +13,7 @@ import { getModelParams } from "../transform/model-params"
 
 import { DEFAULT_HEADERS } from "./constants"
 import { BaseProvider } from "./base-provider"
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { handleOpenAIError } from "./utils/openai-error-handler"
 import { isMcpTool } from "../../utils/mcp-name"
 
@@ -142,15 +142,27 @@ export class XAIHandler extends BaseProvider implements SingleCompletionHandler 
 		yield* processResponsesApiStream(stream, normalizeUsage)
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
 		const model = this.getModel()
 
 		try {
-			const response = await this.client.responses.create({
-				model: model.id,
-				input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
-				store: false,
-			})
+			// Build request options with abortSignal and/or timeout handling
+			const requestOptions: OpenAI.RequestOptions = {}
+			if (options?.abortSignal) {
+				requestOptions.signal = options.abortSignal
+			}
+			if (options?.timeoutMs !== undefined) {
+				requestOptions.timeout = options.timeoutMs
+			}
+
+			const response = await this.client.responses.create(
+				{
+					model: model.id,
+					input: [{ role: "user", content: [{ type: "input_text", text: prompt }] }],
+					store: false,
+				},
+				Object.keys(requestOptions).length > 0 ? requestOptions : undefined,
+			)
 
 			// output_text is a convenience field on the Responses API response
 			return response.output_text || ""

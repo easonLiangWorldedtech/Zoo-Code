@@ -245,6 +245,107 @@ describe("OpenAiNativeHandler", () => {
 
 			expect(result).toBe("")
 		})
+
+		it("should merge incoming signal with existing controller", async () => {
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			const controller = new AbortController()
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+
+			expect(mockResponsesCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: expect.any(AbortSignal) }),
+			)
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			const result = await handler.completePrompt("Test prompt")
+			expect(result).toBe("response")
+		})
+
+		it("should pass signal through to client via createOptions", async () => {
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			const controller = new AbortController()
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+
+			expect(mockResponsesCreate).toHaveBeenCalledWith(
+				expect.any(Object),
+				expect.objectContaining({ signal: expect.any(AbortSignal) }),
+			)
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			const result = await handler.completePrompt("Test prompt")
+			expect(result).toBe("response")
+		})
+
+		it("completePrompt should pass timeoutMs through to client", async () => {
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			await handler.completePrompt("Test prompt", { timeoutMs: 5000 })
+			expect(mockResponsesCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.objectContaining({ signal: expect.any(AbortSignal) }),
+			)
+		})
+
+		it("completePrompt should merge signal and timeoutMs together", async () => {
+			const controller = new AbortController()
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal, timeoutMs: 10000 })
+			expect(mockResponsesCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.objectContaining({ signal: expect.any(AbortSignal) }),
+			)
+		})
 	})
 
 	describe("getModel", () => {

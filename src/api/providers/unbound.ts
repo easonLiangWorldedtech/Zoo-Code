@@ -14,7 +14,7 @@ import { OpenAiReasoningParams } from "../transform/reasoning"
 import { DEFAULT_HEADERS } from "./constants"
 import { getModels } from "./fetchers/modelCache"
 import { BaseProvider } from "./base-provider"
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { handleOpenAIError } from "./utils/openai-error-handler"
 import { applyRouterToolPreferences } from "./utils/router-tool-preferences"
 import { extractReasoningFromDelta } from "./utils/extract-reasoning"
@@ -192,7 +192,7 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
 		const { id: model, maxTokens: max_tokens, temperature } = await this.fetchModel()
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [{ role: "system", content: prompt }]
@@ -203,10 +203,18 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 			messages: openAiMessages,
 			temperature: temperature,
 		}
+		// Build request options with abortSignal and/or timeout
+		const createOptions: OpenAI.RequestOptions = {}
+		if (options?.abortSignal) {
+			createOptions.signal = options.abortSignal
+		}
+		if (options?.timeoutMs !== undefined) {
+			createOptions.timeout = options.timeoutMs
+		}
 
 		let response: OpenAI.Chat.ChatCompletion
 		try {
-			response = await this.client.chat.completions.create(completionParams)
+			response = await this.client.chat.completions.create(completionParams, createOptions || undefined)
 		} catch (error) {
 			throw handleOpenAIError(error, this.providerName)
 		}

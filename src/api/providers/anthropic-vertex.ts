@@ -25,7 +25,7 @@ import {
 
 import { BaseProvider } from "./base-provider"
 import { parseVertexJsonCredentials } from "./utils/vertex-credentials"
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 
 // https://docs.anthropic.com/en/api/claude-on-vertex-ai
 export class AnthropicVertexHandler extends BaseProvider implements SingleCompletionHandler {
@@ -270,7 +270,7 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 		}
 	}
 
-	async completePrompt(prompt: string) {
+	async completePrompt(prompt: string, options?: CompletePromptOptions) {
 		try {
 			const {
 				id,
@@ -296,7 +296,18 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 				stream: false,
 			} as Anthropic.Messages.MessageCreateParamsNonStreaming
 
-			const response = await this.client.messages.create(params)
+			const requestOptions: Anthropic.RequestOptions = {}
+			if (options?.abortSignal) {
+				requestOptions.signal = options.abortSignal
+			}
+			if (options?.timeoutMs !== undefined) {
+				requestOptions.timeout = options.timeoutMs
+			}
+
+			const response = await this.client.messages.create(
+				params,
+				Object.keys(requestOptions).length > 0 ? requestOptions : undefined,
+			)
 			const content = response.content[0]
 
 			if (content.type === "text") {
