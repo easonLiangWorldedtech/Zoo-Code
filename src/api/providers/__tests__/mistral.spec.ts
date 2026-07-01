@@ -543,7 +543,7 @@ describe("MistralHandler", () => {
 			})
 		})
 
-		it("should not set timeout when timeoutMs=0 (truthy check)", async () => {
+		it("should still forward timeoutMs=0 (uses !== undefined check, not truthy check)", async () => {
 			mockComplete.mockResolvedValueOnce({
 				choices: [{ message: { content: "response" } }],
 			})

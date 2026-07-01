@@ -1172,17 +1172,21 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				}
 			}
 
-			// Merge with incoming abortSignal if provided using AbortSignal.any
+			// Propagate abort from the caller-supplied signal into the local controller.
 			if (options.abortSignal) {
-				const mergedSignal = AbortSignal.any([localAbortController.signal, options.abortSignal])
-				mergedSignal.addEventListener(
-					"abort",
-					() => {
-						localAbortController?.abort()
-						clearTimeout(timeoutId)
-					},
-					{ once: true },
-				)
+				if (options.abortSignal.aborted) {
+					localAbortController.abort()
+					clearTimeout(timeoutId)
+				} else {
+					options.abortSignal.addEventListener(
+						"abort",
+						() => {
+							localAbortController?.abort()
+							clearTimeout(timeoutId)
+						},
+						{ once: true },
+					)
+				}
 			}
 		}
 

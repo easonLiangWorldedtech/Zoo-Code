@@ -220,7 +220,7 @@ export class RequestyHandler extends BaseProvider implements SingleCompletionHan
 		if (options?.abortSignal) {
 			createOptions.signal = options.abortSignal
 		}
-		if (typeof options?.timeoutMs === "number" && options.timeoutMs > 0) {
+		if (options?.timeoutMs !== undefined) {
 			createOptions.timeout = options.timeoutMs
 		}
 

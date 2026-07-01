@@ -613,29 +613,21 @@ describe("FireworksHandler", () => {
 		const controller = new AbortController()
 		mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
 		await handler.completePrompt("test prompt", { abortSignal: controller.signal })
-		expect(mockCreate).toHaveBeenCalledWith(
-			expect.objectContaining({ model: expect.any(String) }),
-			expect.objectContaining({ signal: controller.signal }),
-		)
+		expect(mockCreate.mock.calls[0][1].signal).toBe(controller.signal)
 	})
 
 	it("completePrompt should pass timeout through to client", async () => {
 		mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
 		await handler.completePrompt("test prompt", { timeoutMs: 5000 })
-		expect(mockCreate).toHaveBeenCalledWith(
-			expect.objectContaining({ model: expect.any(String) }),
-			expect.objectContaining({ timeout: 5000 }),
-		)
+		expect(mockCreate.mock.calls[0][1].timeout).toBe(5000)
 	})
 
 	it("completePrompt should merge signal and timeoutMs together", async () => {
 		const controller = new AbortController()
 		mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
 		await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 10000 })
-		expect(mockCreate).toHaveBeenCalledWith(
-			expect.objectContaining({ model: expect.any(String) }),
-			expect.objectContaining({ signal: controller.signal, timeout: 10000 }),
-		)
+		expect(mockCreate.mock.calls[0][1].signal).toBe(controller.signal)
+		expect(mockCreate.mock.calls[0][1].timeout).toBe(10000)
 	})
 
 	it("completePrompt should work without options (backward compatible)", async () => {

@@ -235,7 +235,7 @@ export abstract class OpenAICompatibleHandler extends BaseProvider implements Si
 		} else if (options?.timeoutMs !== undefined) {
 			if (options.timeoutMs > 0) {
 				generateOptions.abortSignal = AbortSignal.timeout(options.timeoutMs)
-			} else if (options.timeoutMs === 0) {
+			} else {
 				const controller = new AbortController()
 				controller.abort()
 				generateOptions.abortSignal = controller.signal
