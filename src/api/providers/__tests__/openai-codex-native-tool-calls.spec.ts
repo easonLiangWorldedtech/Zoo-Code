@@ -546,23 +546,12 @@ describe("OpenAiCodexHandler native tool calls", () => {
 		global.fetch = mockFetch as any
 
 		const controller = new AbortController()
-		await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+		const promise = handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+		controller.abort()
+		await promise
 
 		const fetchCallArgs = mockFetch.mock.calls[0]
-		// The implementation merges signals using AbortSignal.any(),
-		// which creates a new merged signal when both primary and secondary are provided.
-		// The merged signal should abort when the user's signal aborts.
-		let signalAborted = false
-		fetchCallArgs[1]?.signal.addEventListener(
-			"abort",
-			() => {
-				signalAborted = true
-			},
-			{ once: true },
-		)
-		controller.abort()
-		await new Promise((resolve) => setTimeout(resolve, 10))
-		expect(signalAborted).toBe(true)
+		expect(fetchCallArgs[1]?.signal.aborted).toBe(true)
 	})
 
 	it("completePrompt should work without options (backward compatible)", async () => {
