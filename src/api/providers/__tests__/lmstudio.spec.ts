@@ -133,12 +133,15 @@ describe("LmStudioHandler", () => {
 		it("should complete prompt successfully", async () => {
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("Test response")
-			expect(mockCreate).toHaveBeenCalledWith({
-				model: mockOptions.lmStudioModelId,
-				messages: [{ role: "user", content: "Test prompt" }],
-				temperature: 0,
-				stream: false,
-			})
+			expect(mockCreate).toHaveBeenCalledWith(
+				{
+					model: mockOptions.lmStudioModelId,
+					messages: [{ role: "user", content: "Test prompt" }],
+					temperature: 0,
+					stream: false,
+				},
+				{},
+			)
 		})
 
 		it("should handle API errors", async () => {
@@ -155,6 +158,60 @@ describe("LmStudioHandler", () => {
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("")
 		})
+
+		it("should pass abort signal through to client", async () => {
+			const controller = new AbortController()
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.objectContaining({ signal: controller.signal }),
+			)
+		})
+
+		it("should pass timeout through to client", async () => {
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+			await handler.completePrompt("test prompt", { timeoutMs: 5000 })
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.objectContaining({ timeout: 5000 }),
+			)
+		})
+
+		it("should pass timeoutMs=0 through to client", async () => {
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+			await handler.completePrompt("test prompt", { timeoutMs: 0 })
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.objectContaining({ timeout: 0 }),
+			)
+		})
+
+		it("should merge signal and timeoutMs together", async () => {
+			const controller = new AbortController()
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 10000 })
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.objectContaining({ signal: controller.signal, timeout: 10000 }),
+			)
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+			const result = await handler.completePrompt("test prompt")
+			expect(result).toBe("response")
+		})
 	})
 
 	describe("getModel", () => {
@@ -164,6 +221,68 @@ describe("LmStudioHandler", () => {
 			expect(modelInfo.info).toBeDefined()
 			expect(modelInfo.info.maxTokens).toBe(-1)
 			expect(modelInfo.info.contextWindow).toBe(128_000)
+		})
+	})
+
+	describe("speculative decoding", () => {
+		it("should include draft_model in completePrompt when speculative decoding is enabled", async () => {
+			const handlerWithSpeculative = new LmStudioHandler({
+				apiModelId: "local-model",
+				lmStudioModelId: "local-model",
+				lmStudioBaseUrl: "http://localhost:1234",
+				lmStudioSpeculativeDecodingEnabled: true,
+				lmStudioDraftModelId: "draft-model",
+			})
+
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+
+			await handlerWithSpeculative.completePrompt("test prompt")
+
+			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ draft_model: "draft-model" }), {})
+		})
+
+		it("should not include draft_model when speculative decoding is disabled", async () => {
+			const handlerWithoutSpeculative = new LmStudioHandler({
+				apiModelId: "local-model",
+				lmStudioModelId: "local-model",
+				lmStudioBaseUrl: "http://localhost:1234",
+				lmStudioSpeculativeDecodingEnabled: false,
+				lmStudioDraftModelId: "draft-model",
+			})
+
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+
+			await handlerWithoutSpeculative.completePrompt("test prompt")
+
+			// Verify draft_model is NOT in the params when speculative decoding is disabled
+			const calledParams = mockCreate.mock.calls[0][0] as Record<string, unknown>
+			expect(calledParams.model).toBe("local-model")
+			expect(calledParams).not.toHaveProperty("draft_model")
+		})
+
+		it("should not include draft_model when draft model id is empty", async () => {
+			const handlerEmptyDraft = new LmStudioHandler({
+				apiModelId: "local-model",
+				lmStudioModelId: "local-model",
+				lmStudioBaseUrl: "http://localhost:1234",
+				lmStudioSpeculativeDecodingEnabled: true,
+				lmStudioDraftModelId: "",
+			})
+
+			mockCreate.mockResolvedValueOnce({
+				choices: [{ message: { content: "response" } }],
+			})
+
+			await handlerEmptyDraft.completePrompt("test prompt")
+
+			// Verify draft_model is NOT in the params when draft model id is empty
+			const calledParamsEmpty = mockCreate.mock.calls[0][0] as Record<string, unknown>
+			expect(calledParamsEmpty.model).toBe("local-model")
+			expect(calledParamsEmpty).not.toHaveProperty("draft_model")
 		})
 	})
 })

@@ -527,4 +527,86 @@ describe("OpenAiCodexHandler native tool calls", () => {
 			}),
 		)
 	})
+
+	it("completePrompt should pass abort signal through to fetch", async () => {
+		vi.spyOn(openAiCodexOAuthManager, "getAccessToken").mockResolvedValue("test-token")
+		vi.spyOn(openAiCodexOAuthManager, "getAccountId").mockResolvedValue("acct_test")
+
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: vi.fn().mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "done" }],
+					},
+				],
+			}),
+		})
+		global.fetch = mockFetch as any
+
+		const controller = new AbortController()
+		await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+
+		const fetchCallArgs = mockFetch.mock.calls[0]
+		// The implementation merges signals using AbortSignal.any(),
+		// which creates a new merged signal when both primary and secondary are provided.
+		// The merged signal should abort when the user's signal aborts.
+		let signalAborted = false
+		fetchCallArgs[1]?.signal.addEventListener(
+			"abort",
+			() => {
+				signalAborted = true
+			},
+			{ once: true },
+		)
+		controller.abort()
+		await new Promise((resolve) => setTimeout(resolve, 10))
+		expect(signalAborted).toBe(true)
+	})
+
+	it("completePrompt should work without options (backward compatible)", async () => {
+		vi.spyOn(openAiCodexOAuthManager, "getAccessToken").mockResolvedValue("test-token")
+		vi.spyOn(openAiCodexOAuthManager, "getAccountId").mockResolvedValue("acct_test")
+
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: vi.fn().mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "done" }],
+					},
+				],
+			}),
+		})
+		global.fetch = mockFetch as any
+
+		await handler.completePrompt("Test prompt")
+
+		const fetchCallArgs = mockFetch.mock.calls[0]
+		expect(fetchCallArgs[1]).toBeDefined()
+		expect(fetchCallArgs[1]?.method).toBe("POST")
+	})
+
+	it("completePrompt should work without options (backward compatible)", async () => {
+		vi.spyOn(openAiCodexOAuthManager, "getAccessToken").mockResolvedValue("test-token")
+		vi.spyOn(openAiCodexOAuthManager, "getAccountId").mockResolvedValue("acct_test")
+
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: vi.fn().mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "done" }],
+					},
+				],
+			}),
+		})
+		global.fetch = mockFetch as any
+
+		const result = await handler.completePrompt("Test prompt")
+		expect(result).toBe("done")
+	})
 })
