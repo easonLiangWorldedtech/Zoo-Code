@@ -347,12 +347,41 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 		}
 	}
 
-	async completePrompt(prompt: string, _options?: CompletePromptOptions): Promise<string> {
-		// Ollama native client doesn't support abort signals at all — accept param but ignore
+	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
+		// Ollama native client doesn't support external AbortSignal directly.
+		// For per-request cancellation, create a dedicated client instance when abortSignal is provided.
+		const hasAbortSignal = options?.abortSignal !== undefined
+		let localClient: Ollama | undefined
+		let timeoutId: ReturnType<typeof setTimeout> | undefined
+
 		try {
-			const client = this.ensureClient()
+			// Use local client if abortSignal is provided (per-request isolation)
+			const client = hasAbortSignal
+				? (localClient ??= new Ollama({ host: this.options.ollamaBaseUrl }))
+				: this.ensureClient()
 			const { id: modelId } = await this.fetchModel()
 			const useR1Format = modelId.toLowerCase().includes("deepseek-r1")
+
+			// Handle timeoutMs if provided
+			if (options?.timeoutMs !== undefined && options.timeoutMs > 0) {
+				timeoutId = setTimeout(() => client.abort(), options.timeoutMs)
+			}
+
+			// Propagate abortSignal into the local controller via client.abort()
+			if (options?.abortSignal) {
+				if (options.abortSignal.aborted) {
+					client.abort()
+				} else {
+					options.abortSignal.addEventListener(
+						"abort",
+						() => {
+							client.abort()
+							clearTimeout(timeoutId)
+						},
+						{ once: true },
+					)
+				}
+			}
 
 			// Build options object conditionally
 			const chatOptions: OllamaChatOptions = {
@@ -377,6 +406,10 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 				throw new Error(`Ollama completion error: ${error.message}`)
 			}
 			throw error
+		} finally {
+			if (timeoutId) {
+				clearTimeout(timeoutId)
+			}
 		}
 	}
 }

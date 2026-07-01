@@ -8,11 +8,14 @@ import { getOllamaModels } from "../fetchers/ollama"
 
 // Mock the ollama package
 const mockChat = vitest.fn()
+const mockAbort = vitest.fn()
 vitest.mock("ollama", () => {
 	return {
-		Ollama: vitest.fn().mockImplementation(function () {
+		Ollama: vitest.fn().mockImplementation(function (options?: any) {
 			return {
 				chat: mockChat,
+				abort: mockAbort,
+				_host: options?.host ?? "http://localhost:11434",
 			}
 		}),
 		Message: vitest.fn(),
@@ -365,6 +368,78 @@ describe("NativeOllamaHandler", () => {
 
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("Response")
+		})
+
+		it("should call client.abort() when timeoutMs is reached", async () => {
+			const testTimeout = 5000
+			let capturedFn: (() => void) | undefined
+
+			vitest.spyOn(global, "setTimeout").mockImplementation((fn: any, ms?: number) => {
+				if (ms === testTimeout) {
+					capturedFn = fn as () => void
+					return 0 as any
+				}
+				return 0 as any
+			})
+
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			await handler.completePrompt("Test prompt", { timeoutMs: testTimeout })
+
+			expect(capturedFn).toBeDefined()
+			if (capturedFn) capturedFn()
+			expect(mockAbort).toHaveBeenCalledTimes(1)
+		})
+
+		it("should call client.abort() when abortSignal is aborted", async () => {
+			const controller = new AbortController()
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			const promise = handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+			controller.abort()
+			await promise
+
+			expect(mockAbort).toHaveBeenCalledTimes(1)
+		})
+
+		it("should call client.abort() immediately when abortSignal is already aborted", async () => {
+			const controller = new AbortController()
+			controller.abort()
+
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+
+			expect(mockAbort).toHaveBeenCalledTimes(1)
+		})
+
+		it("should clear timeoutId in finally block on success", async () => {
+			let capturedDelay: number | undefined
+
+			vitest.spyOn(global, "setTimeout").mockImplementation((fn: any, ms?: number) => {
+				if (ms === 5000) {
+					capturedDelay = ms
+					return 1 as any // Return truthy value so timeoutId is set
+				}
+				return 0 as any
+			})
+
+			vitest.spyOn(global, "clearTimeout").mockImplementation(() => {})
+
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			await handler.completePrompt("Test prompt", { timeoutMs: 5000 })
+
+			// setTimeout should have been called with the correct delay
+			expect(capturedDelay).toBe(5000)
 		})
 	})
 
