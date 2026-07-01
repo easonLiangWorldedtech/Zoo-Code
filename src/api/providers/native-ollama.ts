@@ -353,6 +353,7 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 		const hasAbortSignal = options?.abortSignal !== undefined
 		let localClient: Ollama | undefined
 		let timeoutId: ReturnType<typeof setTimeout> | undefined
+		let onAbort: (() => void) | undefined
 
 		try {
 			// Use local client if abortSignal is provided (per-request isolation)
@@ -371,15 +372,17 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 			if (options?.abortSignal) {
 				if (options.abortSignal.aborted) {
 					client.abort()
+					const abortError = new Error("This operation was aborted")
+					abortError.name = "AbortError"
+					throw abortError
 				} else {
-					options.abortSignal.addEventListener(
-						"abort",
-						() => {
-							client.abort()
+					onAbort = () => {
+						client.abort()
+						if (timeoutId !== undefined) {
 							clearTimeout(timeoutId)
-						},
-						{ once: true },
-					)
+						}
+					}
+					options.abortSignal.addEventListener("abort", onAbort, { once: true })
 				}
 			}
 
@@ -409,6 +412,9 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 		} finally {
 			if (timeoutId) {
 				clearTimeout(timeoutId)
+			}
+			if (onAbort && options?.abortSignal) {
+				options.abortSignal.removeEventListener("abort", onAbort)
 			}
 		}
 	}
