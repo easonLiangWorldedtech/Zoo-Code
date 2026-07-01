@@ -256,11 +256,14 @@ describe("OpenAiCodexHandler.completePrompt", () => {
 		global.fetch = mockFetch
 
 		const controller = new AbortController()
-		await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+		const promise = handler.completePrompt("test prompt", { abortSignal: controller.signal })
+		controller.abort()
+		await promise
 
 		expect(mockFetch).toHaveBeenCalled()
 		const fetchOptions = (mockFetch as any).mock.calls[0][1]
 		expect(fetchOptions.signal).toBeDefined()
+		expect(fetchOptions.signal.aborted).toBe(true)
 	})
 
 	it("should merge abortSignal and timeoutMs together", async () => {
@@ -289,11 +292,14 @@ describe("OpenAiCodexHandler.completePrompt", () => {
 		global.fetch = mockFetch
 
 		const controller = new AbortController()
-		await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
+		const promise = handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
+		controller.abort()
+		await promise
 
 		expect(mockFetch).toHaveBeenCalled()
 		const fetchOptions = (mockFetch as any).mock.calls[0][1]
 		expect(fetchOptions.signal).toBeDefined()
+		expect(fetchOptions.signal.aborted).toBe(true)
 	})
 
 	it("should return empty string when no output text found", async () => {

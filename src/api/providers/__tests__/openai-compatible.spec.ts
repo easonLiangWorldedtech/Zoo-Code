@@ -59,10 +59,7 @@ describe("BaseOpenAiCompatibleProvider completePrompt", () => {
 		const controller = new AbortController()
 		await handler.completePrompt("test prompt", { abortSignal: controller.signal })
 
-		expect(mockCreate).toHaveBeenCalledWith(
-			expect.objectContaining({ model: "test-model" }),
-			expect.objectContaining({ signal: controller.signal }),
-		)
+		expect(mockCreate.mock.calls[0][1].signal).toBe(controller.signal)
 	})
 
 	it("should pass timeoutMs through to client as timeout", async () => {
@@ -76,10 +73,7 @@ describe("BaseOpenAiCompatibleProvider completePrompt", () => {
 
 		await handler.completePrompt("test prompt", { timeoutMs: 5000 })
 
-		expect(mockCreate).toHaveBeenCalledWith(
-			expect.objectContaining({ model: "test-model" }),
-			expect.objectContaining({ timeout: 5000 }),
-		)
+		expect(mockCreate.mock.calls[0][1].timeout).toBe(5000)
 	})
 
 	it("should pass both signal and timeout when both are provided", async () => {
@@ -94,10 +88,8 @@ describe("BaseOpenAiCompatibleProvider completePrompt", () => {
 		const controller = new AbortController()
 		await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
 
-		expect(mockCreate).toHaveBeenCalledWith(
-			expect.objectContaining({ model: "test-model" }),
-			expect.objectContaining({ signal: controller.signal, timeout: 5000 }),
-		)
+		expect(mockCreate.mock.calls[0][1].signal).toBe(controller.signal)
+		expect(mockCreate.mock.calls[0][1].timeout).toBe(5000)
 	})
 
 	it("should work without options (backward compatible)", async () => {
