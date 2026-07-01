@@ -384,7 +384,18 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 		]
 
 		// Initialize cancellation token for the request
-		this.currentRequestCancellation = new vscode.CancellationTokenSource()
+		const tokenSource = new vscode.CancellationTokenSource()
+		this.currentRequestCancellation = tokenSource
+
+		// Bridge external AbortSignal to VSCode CancellationToken.
+		// metadata.abortSignal is set by the task layer when the user clicks "Stop".
+		if (metadata?.abortSignal) {
+			if (metadata.abortSignal.aborted) {
+				tokenSource.cancel()
+			} else {
+				metadata.abortSignal.addEventListener("abort", () => tokenSource.cancel(), { once: true })
+			}
+		}
 
 		// Calculate input tokens before starting the stream
 		const totalInputTokens: number = await this.calculateTotalInputTokens(vsCodeLmMessages)
@@ -402,7 +413,7 @@ export class VsCodeLmHandler extends BaseProvider implements SingleCompletionHan
 			const response: vscode.LanguageModelChatResponse = await client.sendRequest(
 				vsCodeLmMessages,
 				requestOptions,
-				this.currentRequestCancellation.token,
+				tokenSource.token,
 			)
 
 			// Consume the stream and handle both text and tool call chunks
