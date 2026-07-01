@@ -747,4 +747,99 @@ describe("NativeOllamaHandler", () => {
 			expect(firstEndIndex).toBeGreaterThan(lastPartialIndex)
 		})
 	})
+
+	describe("per-request client creation", () => {
+		it("should create a new Ollama client for each completePrompt call (per-request pattern)", async () => {
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			const handler = new NativeOllamaHandler({
+				apiModelId: "llama2",
+				ollamaModelId: "llama2",
+				ollamaBaseUrl: "http://localhost:11434",
+			})
+
+			// First call
+			await handler.completePrompt("Test prompt 1")
+
+			// Second call - should create a new client each time (per-request pattern)
+			await handler.completePrompt("Test prompt 2")
+
+			// Verify Ollama constructor was called twice (per-request pattern, not singleton)
+			const OllamaModule = (await import("ollama")) as any
+			expect(OllamaModule.Ollama.mock.calls.length).toBe(2)
+		})
+
+		it("should pass API key through constructor headers option", async () => {
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			const handler = new NativeOllamaHandler({
+				apiModelId: "llama2",
+				ollamaModelId: "llama2",
+				ollamaBaseUrl: "http://localhost:11434",
+				ollamaApiKey: "test-api-key-123",
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			// Verify Ollama was constructed with headers containing the API key
+			const OllamaModule = (await import("ollama")) as any
+			expect(OllamaModule.Ollama).toHaveBeenCalledWith(
+				expect.objectContaining({
+					headers: {
+						Authorization: "Bearer test-api-key-123",
+					},
+				}),
+			)
+		})
+
+		it("should work without API key (no headers)", async () => {
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			const handler = new NativeOllamaHandler({
+				apiModelId: "llama2",
+				ollamaModelId: "llama2",
+				ollamaBaseUrl: "http://localhost:11434",
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			// Verify Ollama was constructed without headers when no API key is provided
+			const OllamaModule = (await import("ollama")) as any
+			expect(OllamaModule.Ollama).toHaveBeenCalledWith(
+				expect.objectContaining({
+					host: "http://localhost:11434",
+				}),
+			)
+			// headers should not be present when no API key
+			const callArgs = OllamaModule.Ollama.mock.calls[0][0]
+			expect(callArgs.headers).toBeUndefined()
+		})
+
+		it("should use custom baseUrl in client options", async () => {
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			const handler = new NativeOllamaHandler({
+				apiModelId: "llama2",
+				ollamaModelId: "llama2",
+				ollamaBaseUrl: "http://custom-ollama:11434",
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			const OllamaModule = (await import("ollama")) as any
+			expect(OllamaModule.Ollama).toHaveBeenCalledWith(
+				expect.objectContaining({
+					host: "http://custom-ollama:11434",
+				}),
+			)
+		})
+	})
 })

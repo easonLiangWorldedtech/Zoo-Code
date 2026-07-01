@@ -150,35 +150,31 @@ function convertToOllamaMessages(anthropicMessages: Anthropic.Messages.MessagePa
 
 export class NativeOllamaHandler extends BaseProvider implements SingleCompletionHandler {
 	protected options: ApiHandlerOptions
-	private client: Ollama | undefined
 	protected models: Record<string, ModelInfo> = {}
 
 	constructor(options: ApiHandlerOptions) {
 		super()
 		this.options = options
 	}
-
+	/**
+	 * Creates a new Ollama client instance with the configured options.
+	 * Uses constructor `headers` option for API key instead of mutating config.
+	 */
 	private ensureClient(): Ollama {
-		if (!this.client) {
-			try {
-				const clientOptions: OllamaOptions = {
-					host: this.options.ollamaBaseUrl || "http://localhost:11434",
-					// Note: The ollama npm package handles timeouts internally
-				}
+		const clientOptions: OllamaOptions = {
+			host: this.options.ollamaBaseUrl || "http://localhost:11434",
+			// Note: The ollama npm package handles timeouts internally
+		}
 
-				// Add API key if provided (for Ollama cloud or authenticated instances)
-				if (this.options.ollamaApiKey) {
-					clientOptions.headers = {
-						Authorization: `Bearer ${this.options.ollamaApiKey}`,
-					}
-				}
-
-				this.client = new Ollama(clientOptions)
-			} catch (error: any) {
-				throw new Error(`Error creating Ollama client: ${error.message}`)
+		// Add API key if provided (for Ollama cloud or authenticated instances)
+		// Use constructor `headers` option instead of mutating (request as any).config
+		if (this.options.ollamaApiKey) {
+			clientOptions.headers = {
+				Authorization: `Bearer ${this.options.ollamaApiKey}`,
 			}
 		}
-		return this.client
+
+		return new Ollama(clientOptions)
 	}
 
 	/**
