@@ -843,6 +843,7 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 			// Build request options with abortSignal and/or timeoutMs
 			let mergeTimeoutId: ReturnType<typeof setTimeout> | undefined
+			let upstreamAbortListener: (() => void) | undefined
 			const sendOptions: { abortSignal?: AbortSignal } | undefined = (() => {
 				let signal: AbortSignal | undefined = options?.abortSignal
 				if (options?.timeoutMs !== undefined && options.timeoutMs > 0) {
@@ -850,14 +851,11 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 						// When both are provided, create a merged signal that aborts when either fires
 						const controller = new AbortController()
 						mergeTimeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
-						signal.addEventListener(
-							"abort",
-							() => {
-								clearTimeout(mergeTimeoutId)
-								controller.abort()
-							},
-							{ once: true },
-						)
+						upstreamAbortListener = () => {
+							clearTimeout(mergeTimeoutId)
+							controller.abort()
+						}
+						signal.addEventListener("abort", upstreamAbortListener, { once: true })
 						signal = controller.signal
 					} else if (!signal) {
 						signal = AbortSignal.timeout(options.timeoutMs)
@@ -872,6 +870,9 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 				response = await this.client.send(command, sendOptions)
 			} finally {
 				if (mergeTimeoutId) clearTimeout(mergeTimeoutId)
+				if (upstreamAbortListener && options?.abortSignal) {
+					options.abortSignal.removeEventListener("abort", upstreamAbortListener)
+				}
 			}
 			if (
 				response?.output?.message?.content &&
