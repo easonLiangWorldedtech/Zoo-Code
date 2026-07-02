@@ -585,12 +585,15 @@ describe("RequestyHandler", () => {
 
 			await handler.completePrompt("test prompt")
 
-			expect(mockCreate).toHaveBeenCalledWith({
-				model: "anthropic/claude-sonnet-5",
-				max_tokens: 8192,
-				messages: [{ role: "system", content: "test prompt" }],
-				temperature: undefined,
-			})
+			expect(mockCreate).toHaveBeenCalledWith(
+				{
+					model: "anthropic/claude-sonnet-5",
+					max_tokens: 8192,
+					messages: [{ role: "system", content: "test prompt" }],
+					temperature: undefined,
+				},
+				{},
+			)
 		})
 
 		it("handles API errors", async () => {
