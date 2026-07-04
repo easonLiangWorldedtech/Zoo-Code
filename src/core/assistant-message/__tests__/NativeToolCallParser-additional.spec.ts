@@ -17,8 +17,10 @@ describe("NativeToolCallParser - Additional Coverage", () => {
 			NativeToolCallParser.startStreamingToolCall("toolu_123", "read_file")
 			expect(NativeToolCallParser.hasActiveStreamingToolCalls()).toBe(true)
 
-			// Finalize to clear state
-			NativeToolCallParser.finalizeStreamingToolCall("toolu_123")
+			// Finalize to clear state (needs compound key)
+			NativeToolCallParser.finalizeStreamingToolCall(
+				NativeToolCallParser.makeStreamingKey("toolu_123", "read_file"),
+			)
 			expect(NativeToolCallParser.hasActiveStreamingToolCalls()).toBe(false)
 		})
 	})
@@ -32,12 +34,15 @@ describe("NativeToolCallParser - Additional Coverage", () => {
 		it("should return the name of an active streaming tool call", () => {
 			NativeToolCallParser.clearAllStreamingToolCalls()
 			const testId = "toolu_stream_name_123"
-			NativeToolCallParser.startStreamingToolCall(testId, "write_to_file")
+			const testName = "write_to_file"
+			NativeToolCallParser.startStreamingToolCall(testId, testName)
 
-			expect(NativeToolCallParser.getStreamingToolName(testId)).toBe("write_to_file")
+			expect(
+				NativeToolCallParser.getStreamingToolName(NativeToolCallParser.makeStreamingKey(testId, testName)),
+			).toBe("write_to_file")
 
 			// Cleanup
-			NativeToolCallParser.finalizeStreamingToolCall(testId)
+			NativeToolCallParser.finalizeStreamingToolCall(NativeToolCallParser.makeStreamingKey(testId, testName))
 		})
 
 		it("should return undefined after the tool call is finalized", () => {
@@ -55,10 +60,12 @@ describe("NativeToolCallParser - Additional Coverage", () => {
 			const mcpToolName = "mcp--my-server--my-tool"
 			NativeToolCallParser.startStreamingToolCall(testId, mcpToolName)
 
-			expect(NativeToolCallParser.getStreamingToolName(testId)).toBe(mcpToolName)
+			expect(
+				NativeToolCallParser.getStreamingToolName(NativeToolCallParser.makeStreamingKey(testId, mcpToolName)),
+			).toBe(mcpToolName)
 
 			// Cleanup
-			NativeToolCallParser.finalizeStreamingToolCall(testId)
+			NativeToolCallParser.finalizeStreamingToolCall(NativeToolCallParser.makeStreamingKey(testId, mcpToolName))
 		})
 	})
 
@@ -74,12 +81,18 @@ describe("NativeToolCallParser - Additional Coverage", () => {
 
 		it("should return final McpToolUse for MCP tools on finalize", () => {
 			const id = "toolu_mcp_finalize_123"
-			NativeToolCallParser.startStreamingToolCall(id, "mcp--my-server--get_config")
+			const name = "mcp--my-server--get_config"
+			NativeToolCallParser.startStreamingToolCall(id, name)
 
 			// Add arguments via processStreamingChunk (doesn't return partial for MCP)
-			NativeToolCallParser.processStreamingChunk(id, '{"key":"value"}')
+			NativeToolCallParser.processStreamingChunk(
+				NativeToolCallParser.makeStreamingKey(id, name),
+				'{"key":"value"}',
+			)
 
-			const result = NativeToolCallParser.finalizeStreamingToolCall(id)
+			const result = NativeToolCallParser.finalizeStreamingToolCall(
+				NativeToolCallParser.makeStreamingKey(id, name),
+			)
 			expect(result).not.toBeNull()
 			// MCP tools return "mcp_tool_use" type, not "tool_use"
 			expect(result?.type).toMatch(/^(tool_use|mcp_tool_use)$/)
@@ -93,22 +106,16 @@ describe("NativeToolCallParser - Additional Coverage", () => {
 			expect(events).toHaveLength(0)
 		})
 
-		it("should not emit events for tools that haven't started", () => {
+		it("should emit an end event for a tool call that already started (name provided upfront)", () => {
 			NativeToolCallParser.clearRawChunkState()
-
-			// process a raw chunk without hasStarted (just tracking metadata)
-			// This simulates the case where only arguments are received without start
-			const result = NativeToolCallParser.processRawChunk({
+			NativeToolCallParser.processRawChunk({
 				index: 1,
 				id: "toolu_partial",
 				name: "read_file",
-				arguments: undefined, // No arguments means no delta event, but still tracks
+				arguments: undefined,
 			})
-
-			// finalize should not emit for tools that haven't hasStarted
 			const events = NativeToolCallParser.finalizeRawChunks()
-			// The behavior depends on implementation - just verify it doesn't crash
-			expect(Array.isArray(events)).toBe(true)
+			expect(events).toEqual([{ type: "tool_call_end", id: "toolu_partial", name: "read_file" }])
 		})
 	})
 

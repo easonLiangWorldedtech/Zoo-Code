@@ -60,7 +60,7 @@ import { CloudService } from "@roo-code/cloud"
 
 // api
 import { ApiHandler, ApiHandlerCreateMessageMetadata, buildApiHandler } from "../../api"
-import { ApiStream, GroundingSource } from "../../api/transform/stream"
+import { ApiStream, ApiStreamToolCallEndChunk, GroundingSource } from "../../api/transform/stream"
 import { maybeRemoveImageBlocks } from "../../api/transform/image-cleaning"
 
 // shared
@@ -2869,15 +2869,26 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 										/* v8 ignore next -- streaming presenter; .catch lives in presentAssistantMessageSafe (covered) */
 										this.presentAssistantMessageSafe()
 									} else if (event.type === "tool_call_delta") {
-										// Process chunk using streaming JSON parser
+										// Look up the streaming entry by id to get its compound key
+										// (delta events don't carry name, but we stored it during startStreamingToolCall)
+										const existingEntry = NativeToolCallParser.getStreamingToolCallById(event.id)
+										const streamingKey = existingEntry
+											? NativeToolCallParser.makeStreamingKey(
+													existingEntry.id,
+													existingEntry.name,
+												)
+											: undefined
+
 										const partialToolUse = NativeToolCallParser.processStreamingChunk(
-											event.id,
+											streamingKey ?? event.id,
 											event.delta,
 										)
 
 										if (partialToolUse) {
 											// Retrieve name from NativeToolCallParser's streaming state
-											const name = NativeToolCallParser.getStreamingToolName(event.id)
+											const name = NativeToolCallParser.getStreamingToolName(
+												streamingKey ?? event.id,
+											)
 											const dedupKey = `${event.id}::${name}`
 											const toolUseIndex = this.streamingToolCallIndices.get(dedupKey)
 											if (toolUseIndex !== undefined) {
@@ -2894,10 +2905,17 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 										}
 									} else if (event.type === "tool_call_end") {
 										// Finalize the streaming tool call
-										const finalToolUse = NativeToolCallParser.finalizeStreamingToolCall(event.id)
+										// Build compound key from event to match the key used in startStreamingToolCall
+										// Use event.name or fallback to id for events that don't carry name
+										const eventName = (event as ApiStreamToolCallEndChunk).name ?? event.id
+										const streamingKey = NativeToolCallParser.makeStreamingKey(event.id, eventName)
+
+										// Finalize the streaming tool call
+										const finalToolUse =
+											NativeToolCallParser.finalizeStreamingToolCall(streamingKey)
 
 										// Retrieve name from NativeToolCallParser's streaming state
-										const name = NativeToolCallParser.getStreamingToolName(event.id)
+										const name = NativeToolCallParser.getStreamingToolName(streamingKey)
 										const dedupKey = `${event.id}::${name}`
 										const toolUseIndex = this.streamingToolCallIndices.get(dedupKey)
 

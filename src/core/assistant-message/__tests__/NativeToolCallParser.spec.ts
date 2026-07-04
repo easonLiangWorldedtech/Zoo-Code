@@ -302,8 +302,9 @@ describe("NativeToolCallParser", () => {
 				// Simulate streaming chunks
 				const fullArgs = JSON.stringify({ path: "src/test.ts" })
 
-				// Process the complete args as a single chunk for simplicity
-				const result = NativeToolCallParser.processStreamingChunk(id, fullArgs)
+				// Process the complete args as a single chunk for simplicity using compound key
+				const key = NativeToolCallParser.makeStreamingKey(id, "read_file")
+				const result = NativeToolCallParser.processStreamingChunk(key, fullArgs)
 
 				expect(result).not.toBeNull()
 				expect(result?.nativeArgs).toBeDefined()
@@ -319,9 +320,10 @@ describe("NativeToolCallParser", () => {
 				const id = "toolu_finalize_123"
 				NativeToolCallParser.startStreamingToolCall(id, "read_file")
 
-				// Add the complete arguments
+				// Add the complete arguments using compound key
+				const key = NativeToolCallParser.makeStreamingKey(id, "read_file")
 				NativeToolCallParser.processStreamingChunk(
-					id,
+					key,
 					JSON.stringify({
 						path: "finalized.ts",
 						mode: "slice",
@@ -330,7 +332,7 @@ describe("NativeToolCallParser", () => {
 					}),
 				)
 
-				const result = NativeToolCallParser.finalizeStreamingToolCall(id)
+				const result = NativeToolCallParser.finalizeStreamingToolCall(key)
 
 				expect(result).not.toBeNull()
 				expect(result?.type).toBe("tool_use")
@@ -341,6 +343,46 @@ describe("NativeToolCallParser", () => {
 					expect(nativeArgs.limit).toBe(10)
 				}
 			})
+		})
+	})
+
+	describe("streamingToolCalls collision", () => {
+		it("should keep separate accumulated arguments for tools with same id but different names", () => {
+			NativeToolCallParser.clearAllStreamingToolCalls()
+			NativeToolCallParser.clearRawChunkState()
+
+			const id = "toolu_collision_123"
+
+			// Start two tool calls with the same id but different names
+			NativeToolCallParser.startStreamingToolCall(id, "read_file")
+			NativeToolCallParser.startStreamingToolCall(id, "write_to_file")
+
+			// Accumulate arguments for each using compound keys
+			const key1 = NativeToolCallParser.makeStreamingKey(id, "read_file")
+			const key2 = NativeToolCallParser.makeStreamingKey(id, "write_to_file")
+
+			NativeToolCallParser.processStreamingChunk(key1, JSON.stringify({ path: "file_a.ts" }))
+			NativeToolCallParser.processStreamingChunk(key2, JSON.stringify({ path: "file_b.ts", content: "hello" }))
+
+			// Finalize both and verify they have distinct arguments
+			const result1 = NativeToolCallParser.finalizeStreamingToolCall(key1)
+			const result2 = NativeToolCallParser.finalizeStreamingToolCall(key2)
+
+			expect(result1).not.toBeNull()
+			expect(result2).not.toBeNull()
+			expect(result1?.type).toBe("tool_use")
+			expect(result2?.type).toBe("tool_use")
+
+			if (result1?.type === "tool_use" && result2?.type === "tool_use") {
+				const nativeArgs1 = result1.nativeArgs as { path: string }
+				const nativeArgs2 = result2.nativeArgs as { path: string; content: string }
+				expect(nativeArgs1.path).toBe("file_a.ts")
+				expect(nativeArgs2.path).toBe("file_b.ts")
+				expect(nativeArgs2.content).toBe("hello")
+			}
+
+			// Verify streaming state is cleaned up for both
+			expect(NativeToolCallParser.hasActiveStreamingToolCalls()).toBe(false)
 		})
 	})
 

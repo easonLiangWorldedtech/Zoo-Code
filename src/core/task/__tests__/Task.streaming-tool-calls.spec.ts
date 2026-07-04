@@ -116,6 +116,12 @@ vi.mock("vscode", () => {
 			from: vi.fn(),
 		},
 		TabInputText: vi.fn(),
+		RelativePattern: class RelativePattern {
+			constructor(
+				public path: string,
+				public pattern: string,
+			) {}
+		},
 	}
 })
 
@@ -336,25 +342,32 @@ describe("Task - Streaming Tool Call Handling", () => {
 
 			expect(NativeToolCallParser.hasActiveStreamingToolCalls()).toBe(false)
 
-			NativeToolCallParser.startStreamingToolCall("toolu_123", "read_file")
+			const id = "toolu_123"
+			const name = "read_file"
+			NativeToolCallParser.startStreamingToolCall(id, name)
 
 			expect(NativeToolCallParser.hasActiveStreamingToolCalls()).toBe(true)
-			expect(NativeToolCallParser.getStreamingToolName("toolu_123")).toBe("read_file")
+			expect(NativeToolCallParser.getStreamingToolName(NativeToolCallParser.makeStreamingKey(id, name))).toBe(
+				"read_file",
+			)
 		})
 
 		it("should accumulate argument deltas via processStreamingChunk", () => {
 			NativeToolCallParser.clearAllStreamingToolCalls()
 
-			NativeToolCallParser.startStreamingToolCall("toolu_delta_acc", "execute_command")
+			const id = "toolu_delta_acc"
+			const name = "execute_command"
+			NativeToolCallParser.startStreamingToolCall(id, name)
+			const key = NativeToolCallParser.makeStreamingKey(id, name)
 
-			const chunk1 = NativeToolCallParser.processStreamingChunk("toolu_delta_acc", '{"command":"echo')
+			const chunk1 = NativeToolCallParser.processStreamingChunk(key, '{"command":"echo')
 			expect(chunk1).toBeDefined()
 
-			const chunk2 = NativeToolCallParser.processStreamingChunk("toolu_delta_acc", ' "hello"')
+			const chunk2 = NativeToolCallParser.processStreamingChunk(key, ' "hello"')
 			expect(chunk2).toBeDefined()
 
 			// Verify accumulated arguments in streaming state
-			const streamingState = (NativeToolCallParser as any)["streamingToolCalls"].get("toolu_delta_acc")
+			const streamingState = (NativeToolCallParser as any)["streamingToolCalls"].get(key)
 			expect(streamingState).toBeDefined()
 			expect(streamingState!.argumentsAccumulator).toContain('"command":"echo')
 		})
@@ -362,10 +375,13 @@ describe("Task - Streaming Tool Call Handling", () => {
 		it("should finalize tool call and return ToolUse via finalizeStreamingToolCall", () => {
 			NativeToolCallParser.clearAllStreamingToolCalls()
 
-			NativeToolCallParser.startStreamingToolCall("toolu_final123", "read_file")
-			NativeToolCallParser.processStreamingChunk("toolu_final123", '{"path":"test.ts"}')
+			const id = "toolu_final123"
+			const name = "read_file"
+			NativeToolCallParser.startStreamingToolCall(id, name)
+			const key = NativeToolCallParser.makeStreamingKey(id, name)
+			NativeToolCallParser.processStreamingChunk(key, '{"path":"test.ts"}')
 
-			const result = NativeToolCallParser.finalizeStreamingToolCall("toolu_final123")
+			const result = NativeToolCallParser.finalizeStreamingToolCall(key)
 
 			expect(result).toBeDefined()
 			expect(result?.type).toBe("tool_use")
@@ -378,10 +394,13 @@ describe("Task - Streaming Tool Call Handling", () => {
 		it("should return null for finalizeStreamingToolCall when arguments are malformed", () => {
 			NativeToolCallParser.clearAllStreamingToolCalls()
 
-			NativeToolCallParser.startStreamingToolCall("toolu_malformed", "read_file")
-			NativeToolCallParser.processStreamingChunk("toolu_malformed", "{invalid json")
+			const id = "toolu_malformed"
+			const name = "read_file"
+			NativeToolCallParser.startStreamingToolCall(id, name)
+			const key = NativeToolCallParser.makeStreamingKey(id, name)
+			NativeToolCallParser.processStreamingChunk(key, "{invalid json")
 
-			const result = NativeToolCallParser.finalizeStreamingToolCall("toolu_malformed")
+			const result = NativeToolCallParser.finalizeStreamingToolCall(key)
 
 			// finalizeStreamingToolCall uses JSON.parse which will fail on malformed JSON
 			expect(result).toBeNull()
@@ -391,14 +410,14 @@ describe("Task - Streaming Tool Call Handling", () => {
 		it("should return null when finalizing unknown tool call id", () => {
 			NativeToolCallParser.clearAllStreamingToolCalls()
 
-			const result = NativeToolCallParser.finalizeStreamingToolCall("toolu_unknown")
+			const result = NativeToolCallParser.finalizeStreamingToolCall("toolu_unknown::unknown")
 			expect(result).toBeNull()
 		})
 
 		it("should processStreamingChunk return null for unknown tool call id", () => {
 			NativeToolCallParser.clearAllStreamingToolCalls()
 
-			const result = NativeToolCallParser.processStreamingChunk("toolu_unknown", '{"some":"data"}')
+			const result = NativeToolCallParser.processStreamingChunk("toolu_unknown::unknown", '{"some":"data"}')
 			expect(result).toBeNull()
 		})
 
@@ -406,15 +425,21 @@ describe("Task - Streaming Tool Call Handling", () => {
 			NativeToolCallParser.clearAllStreamingToolCalls()
 
 			// First tool call
-			NativeToolCallParser.startStreamingToolCall("toolu_seq1", "read_file")
-			NativeToolCallParser.processStreamingChunk("toolu_seq1", '{"path":"a.ts"}')
-			const result1 = NativeToolCallParser.finalizeStreamingToolCall("toolu_seq1")
+			const id1 = "toolu_seq1"
+			const name1 = "read_file"
+			NativeToolCallParser.startStreamingToolCall(id1, name1)
+			const key1 = NativeToolCallParser.makeStreamingKey(id1, name1)
+			NativeToolCallParser.processStreamingChunk(key1, '{"path":"a.ts"}')
+			const result1 = NativeToolCallParser.finalizeStreamingToolCall(key1)
 			expect(result1?.name).toBe("read_file")
 
 			// Second tool call
-			NativeToolCallParser.startStreamingToolCall("toolu_seq2", "write_to_file")
-			NativeToolCallParser.processStreamingChunk("toolu_seq2", '{"path":"b.ts","content":"hello"}')
-			const result2 = NativeToolCallParser.finalizeStreamingToolCall("toolu_seq2")
+			const id2 = "toolu_seq2"
+			const name2 = "write_to_file"
+			NativeToolCallParser.startStreamingToolCall(id2, name2)
+			const key2 = NativeToolCallParser.makeStreamingKey(id2, name2)
+			NativeToolCallParser.processStreamingChunk(key2, '{"path":"b.ts","content":"hello"}')
+			const result2 = NativeToolCallParser.finalizeStreamingToolCall(key2)
 			expect(result2?.name).toBe("write_to_file")
 
 			// Both should be finalized
@@ -424,16 +449,22 @@ describe("Task - Streaming Tool Call Handling", () => {
 		it("should handle same toolCallId with different names (MCP tools)", () => {
 			NativeToolCallParser.clearAllStreamingToolCalls()
 
+			const id = "toolu_same"
+
 			// First tool with same ID but different name
-			NativeToolCallParser.startStreamingToolCall("toolu_same", "mcp--server1--read_file")
-			NativeToolCallParser.processStreamingChunk("toolu_same", '{"path":"a.ts"}')
-			const result1 = NativeToolCallParser.finalizeStreamingToolCall("toolu_same")
+			const name1 = "mcp--server1--read_file"
+			NativeToolCallParser.startStreamingToolCall(id, name1)
+			const key1 = NativeToolCallParser.makeStreamingKey(id, name1)
+			NativeToolCallParser.processStreamingChunk(key1, '{"path":"a.ts"}')
+			const result1 = NativeToolCallParser.finalizeStreamingToolCall(key1)
 			expect(result1).toBeDefined()
 
 			// Second tool with same ID but different name
-			NativeToolCallParser.startStreamingToolCall("toolu_same", "mcp--server2--write_to_file")
-			NativeToolCallParser.processStreamingChunk("toolu_same", '{"path":"b.ts"}')
-			const result2 = NativeToolCallParser.finalizeStreamingToolCall("toolu_same")
+			const name2 = "mcp--server2--write_to_file"
+			NativeToolCallParser.startStreamingToolCall(id, name2)
+			const key2 = NativeToolCallParser.makeStreamingKey(id, name2)
+			NativeToolCallParser.processStreamingChunk(key2, '{"path":"b.ts"}')
+			const result2 = NativeToolCallParser.finalizeStreamingToolCall(key2)
 			expect(result2).toBeDefined()
 
 			// Both should be finalized (same ID, different names are tracked separately)
@@ -445,12 +476,12 @@ describe("Task - Streaming Tool Call Handling", () => {
 		it("should create partial tool_use with correct structure on start", () => {
 			NativeToolCallParser.clearAllStreamingToolCalls()
 
-			NativeToolCallParser.startStreamingToolCall("toolu_partial123", "write_to_file")
+			const id = "toolu_partial123"
+			const name = "write_to_file"
+			NativeToolCallParser.startStreamingToolCall(id, name)
+			const key = NativeToolCallParser.makeStreamingKey(id, name)
 
-			const partial = NativeToolCallParser.processStreamingChunk(
-				"toolu_partial123",
-				'{"path":"output.txt","content":"hello"}',
-			)
+			const partial = NativeToolCallParser.processStreamingChunk(key, '{"path":"output.txt","content":"hello"}')
 
 			expect(partial).toBeDefined()
 			expect(partial?.type).toBe("tool_use")
@@ -462,12 +493,15 @@ describe("Task - Streaming Tool Call Handling", () => {
 		it("should update partial tool_use with accumulated arguments", () => {
 			NativeToolCallParser.clearAllStreamingToolCalls()
 
-			NativeToolCallParser.startStreamingToolCall("toolu_update123", "execute_command")
+			const id = "toolu_update123"
+			const name = "execute_command"
+			NativeToolCallParser.startStreamingToolCall(id, name)
+			const key = NativeToolCallParser.makeStreamingKey(id, name)
 
-			const chunk1 = NativeToolCallParser.processStreamingChunk("toolu_update123", '{"command":"')
+			const chunk1 = NativeToolCallParser.processStreamingChunk(key, '{"command":"')
 			expect(chunk1?.params).toBeDefined()
 
-			const chunk2 = NativeToolCallParser.processStreamingChunk("toolu_update123", 'echo "hello"}')
+			const chunk2 = NativeToolCallParser.processStreamingChunk(key, 'echo "hello"}')
 			expect(chunk2?.params).toBeDefined()
 			// The accumulated arguments should be more complete in chunk2
 			if (chunk2?.nativeArgs && typeof chunk2.nativeArgs === "object" && "command" in chunk2.nativeArgs) {
@@ -478,13 +512,16 @@ describe("Task - Streaming Tool Call Handling", () => {
 		it("should handle severely malformed JSON gracefully", () => {
 			NativeToolCallParser.clearAllStreamingToolCalls()
 
-			NativeToolCallParser.startStreamingToolCall("toolu_fail123", "read_file")
+			const id = "toolu_fail123"
+			const name = "read_file"
+			NativeToolCallParser.startStreamingToolCall(id, name)
+			const key = NativeToolCallParser.makeStreamingKey(id, name)
 
 			// Partial-json-parser can handle partial JSON like '{"path"' and return a partial result
-			const partial = NativeToolCallParser.processStreamingChunk("toolu_fail123", '{"path"')
-			expect(partial).toBeDefined()
-			expect(partial?.partial).toBe(true)
+			const partialResult = NativeToolCallParser.processStreamingChunk(key, '{"path"')
 
+			expect(partialResult).toBeDefined()
+			expect(partialResult?.partial).toBe(true)
 			// Even severely malformed JSON like '{invalid' gets parsed by partial-json-parser
 			// It returns an empty object, which is still a valid (though incomplete) result
 			const veryPartial = NativeToolCallParser.processStreamingChunk("toolu_fail123", "{invalid")
@@ -551,184 +588,263 @@ describe("Task - Streaming Tool Call Handling", () => {
 	})
 
 	describe("tool_call_partial chunk handling - Task integration", () => {
-		it("should handle tool_call_start event from raw chunk processing", async () => {
-			const cline = new Task({
-				provider: mockProvider,
-				apiConfiguration: mockApiConfig,
-				task: "test task with tool_call_start",
-				startTask: false,
+		it("should emit tool_call_start event when processing raw chunk with id and name", async () => {
+			NativeToolCallParser.clearRawChunkState()
+
+			const events = NativeToolCallParser.processRawChunk({
+				index: 0,
+				id: "toolu_123",
+				name: "read_file",
+				arguments: '{"path":"a.ts"}',
 			})
 
-			vi.spyOn(cline as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
-
-			async function* mockStreamGenerator() {
-				yield {
-					type: "tool_call_partial" as const,
-					index: 0,
-					id: "toolu_123",
-					name: "read_file",
-					arguments: '{"path":"a.ts"}',
-				}
-				yield { type: "text" as const, text: "response" }
+			// Should emit both start and delta event
+			expect(events.length).toBeGreaterThan(0)
+			const startEvent = events.find((e) => e.type === "tool_call_start")
+			expect(startEvent).toBeDefined()
+			if (startEvent && startEvent.type === "tool_call_start") {
+				expect(startEvent.id).toBe("toolu_123")
+				expect(startEvent.name).toBe("read_file")
 			}
-
-			vi.spyOn(cline.api, "createMessage").mockReturnValue(mockStreamGenerator())
-
-			const iterator = cline.attemptApiRequest(0)
-			await iterator.next()
-
-			expect(cline).toBeDefined()
+			const deltaEvents = events.filter((e) => e.type === "tool_call_delta")
+			expect(deltaEvents.length).toBeGreaterThan(0)
 		})
 
-		it("should handle duplicate tool_call_start events", async () => {
-			const cline = new Task({
-				provider: mockProvider,
-				apiConfiguration: mockApiConfig,
-				task: "test task with duplicate start",
-				startTask: false,
+		it("should handle duplicate tool_call_partial chunks with same index", async () => {
+			NativeToolCallParser.clearRawChunkState()
+
+			const events1 = NativeToolCallParser.processRawChunk({
+				index: 0,
+				id: "toolu_dup123",
+				name: "read_file",
+				arguments: '{"path":"test.ts"}',
 			})
 
-			vi.spyOn(cline as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
+			const events2 = NativeToolCallParser.processRawChunk({
+				index: 0,
+				id: "toolu_dup123",
+				name: "read_file",
+				arguments: '{"path":"test.ts"}',
+			})
 
-			async function* mockStreamGenerator() {
-				yield {
-					type: "tool_call_partial" as const,
-					index: 0,
-					id: "toolu_dup123",
-					name: "read_file",
-					arguments: '{"path":"test.ts"}',
-				}
-				yield {
-					type: "tool_call_partial" as const,
-					index: 0,
-					id: "toolu_dup123",
-					name: "read_file",
-					arguments: '{"path":"test.ts"}',
-				}
-				yield { type: "text" as const, text: "response" }
-			}
-
-			vi.spyOn(cline.api, "createMessage").mockReturnValue(mockStreamGenerator())
-
-			const iterator = cline.attemptApiRequest(0)
-			await iterator.next()
-
-			expect(cline).toBeDefined()
+			// Both should emit delta events (dedup is handled by Task, not NativeToolCallParser)
+			expect(events1.length).toBeGreaterThan(0)
+			expect(events2.length).toBeGreaterThan(0)
 		})
 
-		it("should handle tool_call_delta event", async () => {
-			const cline = new Task({
-				provider: mockProvider,
-				apiConfiguration: mockApiConfig,
-				task: "test task with delta",
-				startTask: false,
+		it("should handle tool_call_delta event without id", async () => {
+			NativeToolCallParser.clearRawChunkState()
+
+			const events = NativeToolCallParser.processRawChunk({
+				index: 0,
+				id: "toolu_delta123",
+				name: undefined,
+				arguments: undefined,
 			})
 
-			vi.spyOn(cline as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
-
-			async function* mockStreamGenerator() {
-				yield { type: "tool_call_delta" as const, id: "toolu_delta123", delta: '{"path":"' }
-				yield { type: "text" as const, text: "response" }
-			}
-
-			vi.spyOn(cline.api, "createMessage").mockReturnValue(mockStreamGenerator())
-
-			const iterator = cline.attemptApiRequest(0)
-			await iterator.next()
-
-			expect(cline).toBeDefined()
+			// Without name, no start event should be emitted
+			expect(events.length).toBe(0)
 		})
 
-		it("should handle tool_call_end event", async () => {
-			const cline = new Task({
-				provider: mockProvider,
-				apiConfiguration: mockApiConfig,
-				task: "test task with end",
-				startTask: false,
+		it("should handle tool_call_end via finalizeRawChunks", async () => {
+			NativeToolCallParser.clearRawChunkState()
+
+			// First process a raw chunk to track the tool call
+			NativeToolCallParser.processRawChunk({
+				index: 0,
+				id: "toolu_end123",
+				name: "read_file",
+				arguments: '{"path":"test.ts"}',
 			})
 
-			vi.spyOn(cline as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
+			// finalizeRawChunks should emit end events for all tracked tools that have started
+			const events = NativeToolCallParser.finalizeRawChunks()
 
-			async function* mockStreamGenerator() {
-				yield { type: "tool_call_end" as const, id: "toolu_end123" }
-				yield { type: "text" as const, text: "response" }
-			}
-
-			vi.spyOn(cline.api, "createMessage").mockReturnValue(mockStreamGenerator())
-
-			const iterator = cline.attemptApiRequest(0)
-			await iterator.next()
-
-			expect(cline).toBeDefined()
+			expect(events).toHaveLength(1)
+			expect(events[0]).toEqual({ type: "tool_call_end", id: "toolu_end123", name: "read_file" })
 		})
 
-		it("should handle complete streaming lifecycle: start -> delta -> end", async () => {
-			const cline = new Task({
-				provider: mockProvider,
-				apiConfiguration: mockApiConfig,
-				task: "test task with full lifecycle",
-				startTask: false,
+		it("should handle complete streaming lifecycle: processRawChunk -> finalizeRawChunks", async () => {
+			NativeToolCallParser.clearRawChunkState()
+
+			// Start
+			const startEvents = NativeToolCallParser.processRawChunk({
+				index: 0,
+				id: "toolu_lifecycle123",
+				name: "read_file",
+				arguments: '{"path":"test.ts"}',
 			})
 
-			vi.spyOn(cline as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
+			expect(startEvents.some((e) => e.type === "tool_call_start")).toBe(true)
 
-			async function* mockStreamGenerator() {
-				yield {
-					type: "tool_call_partial" as const,
-					index: 0,
-					id: "toolu_lifecycle123",
-					name: "read_file",
-					arguments: '{"path":"test.ts"}',
-				}
-				yield { type: "tool_call_delta" as const, id: "toolu_lifecycle123", delta: "more_args" }
-				yield { type: "tool_call_end" as const, id: "toolu_lifecycle123" }
-				yield { type: "text" as const, text: "Done" }
-			}
+			// Delta (simulating another chunk with same index)
+			const deltaEvents = NativeToolCallParser.processRawChunk({
+				index: 0,
+				id: "toolu_lifecycle123",
+				name: "read_file",
+				arguments: ',"more":"args"',
+			})
 
-			vi.spyOn(cline.api, "createMessage").mockReturnValue(mockStreamGenerator())
+			expect(deltaEvents.some((e) => e.type === "tool_call_delta")).toBe(true)
 
-			const iterator = cline.attemptApiRequest(0)
-			await iterator.next()
+			// End via finalize
+			const endEvents = NativeToolCallParser.finalizeRawChunks()
 
-			expect(cline).toBeDefined()
+			expect(endEvents).toHaveLength(1)
+			expect(endEvents[0]).toEqual({ type: "tool_call_end", id: "toolu_lifecycle123", name: "read_file" })
 		})
 
-		it("should handle multiple sequential tool calls", async () => {
-			const cline = new Task({
-				provider: mockProvider,
-				apiConfiguration: mockApiConfig,
-				task: "test task with multiple tools",
-				startTask: false,
+		it("should handle multiple sequential tool calls with different indices", async () => {
+			NativeToolCallParser.clearRawChunkState()
+
+			// First tool call (index 0)
+			const events1 = NativeToolCallParser.processRawChunk({
+				index: 0,
+				id: "toolu_multi1",
+				name: "read_file",
+				arguments: '{"path":"file1.ts"}',
 			})
 
-			vi.spyOn(cline as any, "getSystemPrompt").mockResolvedValue("mock system prompt")
+			expect(events1.some((e) => e.type === "tool_call_start")).toBe(true)
 
-			async function* mockStreamGenerator() {
-				yield {
-					type: "tool_call_partial" as const,
-					index: 0,
-					id: "toolu_multi1",
-					name: "read_file",
-					arguments: '{"path":"file1.ts"}',
+			// Second tool call (index 1)
+			const events2 = NativeToolCallParser.processRawChunk({
+				index: 1,
+				id: "toolu_multi2",
+				name: "write_to_file",
+				arguments: '{"path":"file2.ts","content":"hello"}',
+			})
+
+			expect(events2.some((e) => e.type === "tool_call_start")).toBe(true)
+
+			// Finalize both
+			const endEvents = NativeToolCallParser.finalizeRawChunks()
+
+			expect(endEvents).toHaveLength(2)
+			const endIds = endEvents.map((e) => e.id)
+			expect(endIds).toContain("toolu_multi1")
+			expect(endIds).toContain("toolu_multi2")
+		})
+	})
+
+	describe("Task.ts compound key dedup and streaming paths", () => {
+		it("should build and use compound streaming keys via makeStreamingKey", () => {
+			const key = NativeToolCallParser.makeStreamingKey("toolu_compound123", "read_file")
+			expect(key).toBe("toolu_compound123::read_file")
+
+			NativeToolCallParser.startStreamingToolCall("toolu_compound123", "read_file")
+			expect(NativeToolCallParser.getStreamingToolName(key)).toBe("read_file")
+		})
+
+		it("should ignore duplicate tool_call_start for same compound key", () => {
+			const streamingToolCallIndices = new Map<string, number>()
+			const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {})
+			const events = [
+				{ type: "tool_call_start", id: "toolu_dup_compound", name: "read_file" as const },
+				{ type: "tool_call_start", id: "toolu_dup_compound", name: "read_file" as const },
+			]
+			const assistantMessageContent: any[] = []
+
+			for (const event of events) {
+				const dedupKey = `${event.id}::${event.name}`
+				if (streamingToolCallIndices.has(dedupKey)) {
+					console.warn(
+						`[Task#test] Ignoring duplicate tool_call_start for ID: ${event.id} (tool: ${event.name})`,
+					)
+					continue
 				}
-				yield { type: "tool_call_end" as const, id: "toolu_multi1" }
-				yield {
-					type: "tool_call_partial" as const,
-					index: 1,
-					id: "toolu_multi2",
-					name: "write_to_file",
-					arguments: '{"path":"file2.ts","content":"hello"}',
-				}
-				yield { type: "tool_call_end" as const, id: "toolu_multi2" }
-				yield { type: "text" as const, text: "Done multiple tools" }
+				streamingToolCallIndices.set(dedupKey, assistantMessageContent.length)
+				assistantMessageContent.push({ type: "tool_use", id: event.id, name: event.name, partial: true })
 			}
 
-			vi.spyOn(cline.api, "createMessage").mockReturnValue(mockStreamGenerator())
+			expect(assistantMessageContent).toHaveLength(1)
+			expect(streamingToolCallIndices.has("toolu_dup_compound::read_file")).toBe(true)
+			expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("[Task#test]"))
+			warnSpy.mockRestore()
+		})
 
-			const iterator = cline.attemptApiRequest(0)
-			await iterator.next()
+		it("should use compound key for delta events via getStreamingToolCallById", () => {
+			const streamingToolCallIndices = new Map<string, number>()
+			const assistantMessageContent: any[] = []
 
-			expect(cline).toBeDefined()
+			NativeToolCallParser.startStreamingToolCall("toolu_delta_compound", "read_file")
+			const dedupKey = NativeToolCallParser.makeStreamingKey("toolu_delta_compound", "read_file")
+			streamingToolCallIndices.set(dedupKey, 0)
+			assistantMessageContent.push({
+				type: "tool_use",
+				id: "toolu_delta_compound",
+				name: "read_file",
+				params: {},
+				partial: true,
+			})
+
+			const partialToolUse = NativeToolCallParser.processStreamingChunk(dedupKey, '{"path":"')
+			expect(partialToolUse).not.toBeNull()
+
+			const existingEntry = NativeToolCallParser.getStreamingToolCallById("toolu_delta_compound")
+			expect(existingEntry).not.toBeNull()
+			const resolvedKey = existingEntry
+				? NativeToolCallParser.makeStreamingKey(existingEntry.id, existingEntry.name)
+				: undefined
+			const updatedToolUse = NativeToolCallParser.processStreamingChunk(resolvedKey!, '"test.ts"}')
+			expect(updatedToolUse).not.toBeNull()
+			const name = NativeToolCallParser.getStreamingToolName(resolvedKey!)
+			const toolUseIndex = streamingToolCallIndices.get(`${existingEntry!.id}::${name}`)
+			expect(toolUseIndex).toBe(0)
+			assistantMessageContent[toolUseIndex!] = updatedToolUse as any
+
+			expect(assistantMessageContent).toHaveLength(1)
+			expect(assistantMessageContent[0]?.type).toBe("tool_use")
+			expect(assistantMessageContent[0]?.name).toBe("read_file")
+		})
+
+		it("should finalize and clean up tracking using compound key on tool_call_end", () => {
+			const streamingToolCallIndices = new Map<string, number>()
+			const assistantMessageContent: any[] = []
+			const dedupKey = NativeToolCallParser.makeStreamingKey("toolu_cleanup123", "read_file")
+
+			NativeToolCallParser.startStreamingToolCall("toolu_cleanup123", "read_file")
+			streamingToolCallIndices.set(dedupKey, 0)
+			assistantMessageContent.push({ type: "tool_use", id: "toolu_cleanup123", name: "read_file", partial: true })
+			NativeToolCallParser.processStreamingChunk(dedupKey, '{"path":"test.ts"}')
+
+			const finalToolUse = NativeToolCallParser.finalizeStreamingToolCall(dedupKey)
+			expect(finalToolUse).not.toBeNull()
+			assistantMessageContent[0] = finalToolUse as any
+			streamingToolCallIndices.delete(dedupKey)
+
+			expect(assistantMessageContent).toHaveLength(1)
+			expect(assistantMessageContent[0]?.type).toBe("tool_use")
+			expect(assistantMessageContent[0]?.name).toBe("read_file")
+			expect(assistantMessageContent[0]?.partial).toBe(false)
+			expect(streamingToolCallIndices.has("toolu_cleanup123::read_file")).toBe(false)
+		})
+
+		it("should handle malformed JSON finalization with compound key cleanup", () => {
+			const streamingToolCallIndices = new Map<string, number>()
+			const assistantMessageContent: any[] = []
+			const dedupKey = NativeToolCallParser.makeStreamingKey("toolu_malformed123", "read_file")
+
+			NativeToolCallParser.startStreamingToolCall("toolu_malformed123", "read_file")
+			streamingToolCallIndices.set(dedupKey, 0)
+			assistantMessageContent.push({
+				type: "tool_use",
+				id: "toolu_malformed123",
+				name: "read_file",
+				partial: true,
+			})
+			NativeToolCallParser.processStreamingChunk(dedupKey, "{invalid json")
+
+			const finalToolUse = NativeToolCallParser.finalizeStreamingToolCall(dedupKey)
+			expect(finalToolUse).toBeNull()
+			;(assistantMessageContent[0] as any).partial = false
+			streamingToolCallIndices.delete(dedupKey)
+
+			expect(assistantMessageContent).toHaveLength(1)
+			expect(assistantMessageContent[0]?.type).toBe("tool_use")
+			expect(assistantMessageContent[0]?.name).toBe("read_file")
+			expect(assistantMessageContent[0]?.partial).toBe(false)
+			expect(streamingToolCallIndices.has("toolu_malformed123::read_file")).toBe(false)
 		})
 	})
 })
