@@ -343,4 +343,70 @@ describe("NativeToolCallParser", () => {
 			})
 		})
 	})
+
+	describe("finalizeRawChunks", () => {
+		it("should include name field in events for compound-key deduplication", () => {
+			NativeToolCallParser.clearAllStreamingToolCalls()
+			NativeToolCallParser.clearRawChunkState()
+
+			// Simulate two different tools with the same toolCallId via raw chunk tracking.
+			// processRawChunk returns [start, delta] when arguments are provided alongside name.
+			const result1 = NativeToolCallParser.processRawChunk({
+				index: 1,
+				id: "toolu_sameid",
+				name: "read_file",
+				arguments: '{"path":"a.ts"}',
+			})
+			// First call for index 1 returns start + delta events
+			expect(result1.some((e) => e.type === "tool_call_start")).toBe(true)
+
+			const result2 = NativeToolCallParser.processRawChunk({
+				index: 2,
+				id: "toolu_sameid",
+				name: "write_to_file",
+				arguments: '{"path":"b.ts","content":"hello"}',
+			})
+			// Second call for index 2 also returns start + delta events
+			expect(result2.some((e) => e.type === "tool_call_start")).toBe(true)
+
+			// Finalize raw chunks — both should be included with their names
+			const finalizeEvents = NativeToolCallParser.finalizeRawChunks()
+
+			expect(finalizeEvents).toHaveLength(2)
+			expect(finalizeEvents.every((e) => e.type === "tool_call_end")).toBe(true)
+
+			// Each event must carry its name for compound-key deduplication
+			const names = finalizeEvents.map((e) => (e as any).name)
+			expect(names).toContain("read_file")
+			expect(names).toContain("write_to_file")
+		})
+
+		it("should emit separate end events when two tools share the same toolCallId", () => {
+			NativeToolCallParser.clearAllStreamingToolCalls()
+			NativeToolCallParser.clearRawChunkState()
+
+			// Both tools use the exact same call ID but different names
+			NativeToolCallParser.processRawChunk({
+				index: 10,
+				id: "toolu_dup",
+				name: "codebase_search",
+				arguments: '{"query":"foo"}',
+			})
+			NativeToolCallParser.processRawChunk({
+				index: 11,
+				id: "toolu_dup",
+				name: "search_files",
+				arguments: '{"path":".","regex":"bar"}',
+			})
+
+			const events = NativeToolCallParser.finalizeRawChunks()
+
+			// Should produce two distinct end events
+			expect(events).toHaveLength(2)
+
+			// Verify compound keys would be unique
+			const dedupKeys = new Set(events.map((e) => `${e.id}::${(e as any).name}`))
+			expect(dedupKeys.size).toBe(2)
+		})
+	})
 })

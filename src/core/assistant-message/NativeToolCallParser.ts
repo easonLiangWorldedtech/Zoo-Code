@@ -195,6 +195,7 @@ export class NativeToolCallParser {
 					events.push({
 						type: "tool_call_end",
 						id: tracked.id,
+						name: tracked.name,
 					})
 				}
 			}
@@ -240,6 +241,14 @@ export class NativeToolCallParser {
 	 */
 	public static hasActiveStreamingToolCalls(): boolean {
 		return this.streamingToolCalls.size > 0
+	}
+
+	/**
+	 * Get the name of a streaming tool call by its id.
+	 * Returns undefined if the tool call is not found.
+	 */
+	public static getStreamingToolName(id: string): string | undefined {
+		return this.streamingToolCalls.get(id)?.name
 	}
 
 	/**
