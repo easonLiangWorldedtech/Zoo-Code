@@ -114,6 +114,92 @@ describe("OpenAICompatibleHandler", () => {
 			expect(textChunks).toHaveLength(1)
 			expect(textChunks[0].text).toBe("Test response")
 		})
+
+		it("should handle multiple stream parts and yield usage metrics", async () => {
+			async function* mockFullStream() {
+				yield { type: "text-delta", text: "First part" }
+				yield { type: "text-delta", text: "Second part" }
+				yield { type: "tool-call", toolCallId: "123", name: "test_tool", args: "{}" }
+			}
+
+			const mockUsage = Promise.resolve({
+				inputTokens: 20,
+				outputTokens: 10,
+				details: {},
+				raw: {},
+			})
+
+			mockStreamText.mockReturnValue({
+				fullStream: mockFullStream(),
+				usage: mockUsage,
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			expect(chunks.length).toBeGreaterThan(2)
+			const textChunks = chunks.filter((chunk) => chunk.type === "text")
+			expect(textChunks).toHaveLength(2)
+			expect(textChunks[0].text).toBe("First part")
+			expect(textChunks[1].text).toBe("Second part")
+
+			const usageChunks = chunks.filter((chunk) => chunk.type === "usage")
+			expect(usageChunks).toHaveLength(1)
+		})
+
+		it("should handle stream without usage metrics", async () => {
+			async function* mockFullStream() {
+				yield { type: "text-delta", text: "Test response" }
+			}
+
+			mockStreamText.mockReturnValue({
+				fullStream: mockFullStream(),
+				usage: Promise.resolve(undefined),
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			expect(chunks.length).toBeGreaterThan(0)
+			const usageChunks = chunks.filter((chunk) => chunk.type === "usage")
+			expect(usageChunks).toHaveLength(0)
+		})
+
+		it("should handle tool-call events in stream", async () => {
+			async function* mockFullStream() {
+				yield { type: "text-delta", text: "Calling tool" }
+				yield { type: "tool-call-start", toolCallId: "tc_1", name: "read_file" }
+				yield { type: "tool-call-delta", toolCallId: "tc_1", delta: '{"path":"test.ts"}' }
+				yield { type: "tool-call-end", toolCallId: "tc_1" }
+			}
+
+			const mockUsage = Promise.resolve({
+				inputTokens: 15,
+				outputTokens: 8,
+				details: {},
+				raw: {},
+			})
+
+			mockStreamText.mockReturnValue({
+				fullStream: mockFullStream(),
+				usage: mockUsage,
+			})
+
+			const stream = handler.createMessage(systemPrompt, messages)
+			const chunks: any[] = []
+			for await (const chunk of stream) {
+				chunks.push(chunk)
+			}
+
+			expect(chunks.length).toBeGreaterThan(0)
+		})
+
 		// Test 1: createMessage() with mock 429 response → verify thrown error has .status === 429 and provider name in message
 		it("should throw error with .status 429 when API returns 429", async () => {
 			const rateLimitError = new Error("Rate limited") as Error & { status: number }
