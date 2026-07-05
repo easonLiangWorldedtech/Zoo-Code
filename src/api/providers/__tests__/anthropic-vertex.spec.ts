@@ -944,10 +944,13 @@ describe("VertexHandler", () => {
 			;(handler["client"].messages as any).create = mockCreate
 
 			await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
+
+			const [, requestOptions] = mockCreate.mock.calls[0]
 			expect(mockCreate).toHaveBeenCalledWith(
 				expect.objectContaining({ model: expect.any(String) }),
-				expect.objectContaining({ signal: controller.signal, timeout: 5000 }),
+				expect.objectContaining({ timeout: 5000 }),
 			)
+			expect(requestOptions.signal).toBe(controller.signal)
 		})
 
 		it("completePrompt should pass timeoutMs when provided", async () => {
