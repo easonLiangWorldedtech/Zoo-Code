@@ -308,13 +308,9 @@ export class AnthropicVertexHandler extends BaseProvider implements SingleComple
 				params,
 				Object.keys(requestOptions).length > 0 ? requestOptions : undefined,
 			)
-			const content = response.content[0]
+			const content = response.content.find(({ type }) => type === "text")
 
-			if (content.type === "text") {
-				return content.text
-			}
-
-			return ""
+			return content?.type === "text" ? content.text : ""
 		} catch (error) {
 			if (error instanceof Error) {
 				throw new Error(`Vertex completion error: ${error.message}`)
