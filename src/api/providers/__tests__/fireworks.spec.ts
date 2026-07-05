@@ -609,6 +609,33 @@ describe("FireworksHandler", () => {
 		expect(result).toBe("")
 	})
 
+	it("completePrompt should pass abort signal through to client", async () => {
+		const controller = new AbortController()
+		mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
+		await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+		expect(mockCreate.mock.calls[0][1].signal).toBe(controller.signal)
+	})
+
+	it("completePrompt should pass timeout through to client", async () => {
+		mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
+		await handler.completePrompt("test prompt", { timeoutMs: 5000 })
+		expect(mockCreate.mock.calls[0][1].timeout).toBe(5000)
+	})
+
+	it("completePrompt should merge signal and timeoutMs together", async () => {
+		const controller = new AbortController()
+		mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
+		await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 10000 })
+		expect(mockCreate.mock.calls[0][1].signal).toBe(controller.signal)
+		expect(mockCreate.mock.calls[0][1].timeout).toBe(10000)
+	})
+
+	it("completePrompt should work without options (backward compatible)", async () => {
+		mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
+		const result = await handler.completePrompt("test prompt")
+		expect(result).toBe("response")
+	})
+
 	it("createMessage should handle stream with multiple chunks", async () => {
 		mockCreate.mockImplementationOnce(async () => ({
 			[Symbol.asyncIterator]: async function* () {

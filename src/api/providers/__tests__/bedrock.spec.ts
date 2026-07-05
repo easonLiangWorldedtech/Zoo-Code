@@ -1639,6 +1639,203 @@ describe("AwsBedrockHandler", () => {
 				expect(isAdaptiveThinkingModel("anthropic.claude-3-5-sonnet-20241022-v2:0")).toBe(false)
 				expect(isAdaptiveThinkingModel("amazon.nova-lite-v1:0")).toBe(false)
 			})
+
+			it("should pass abort signal through to client.send", async () => {
+				const mockSend = vi.fn()
+
+				const handler = new AwsBedrockHandler({
+					apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsRegion: "us-east-1",
+				})
+
+				// Set up the mock on the handler's client instance directly
+				const clientInstance = (handler as any).client
+				expect(clientInstance).toBeDefined()
+				clientInstance.send = mockSend
+
+				const controller = new AbortController()
+				mockSend.mockResolvedValueOnce({
+					output: { message: { content: [{ type: "text", text: "response" }] }, stopReason: null },
+				})
+
+				await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+
+				expect(mockSend).toHaveBeenCalledWith(expect.any(Object), { abortSignal: controller.signal })
+			})
+
+			it("should work without options (backward compatible)", async () => {
+				const mockSend = vi.fn()
+
+				const handler = new AwsBedrockHandler({
+					apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsRegion: "us-east-1",
+				})
+
+				const clientInstance = (handler as any).client
+				expect(clientInstance).toBeDefined()
+				clientInstance.send = mockSend
+
+				mockSend.mockResolvedValueOnce({
+					output: { message: { content: [{ type: "text", text: "response" }] }, stopReason: null },
+				})
+
+				const result = await handler.completePrompt("test prompt")
+
+				expect(result).toBe("response")
+				expect(mockSend).toHaveBeenCalledWith(expect.any(Object), undefined)
+			})
+
+			it("completePrompt should pass timeoutMs through to client", async () => {
+				const mockSend = vi.fn()
+
+				const handler = new AwsBedrockHandler({
+					apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsRegion: "us-east-1",
+				})
+
+				const clientInstance = (handler as any).client
+				expect(clientInstance).toBeDefined()
+				clientInstance.send = mockSend
+
+				mockSend.mockResolvedValueOnce({
+					output: { message: { content: [{ type: "text", text: "response" }] }, stopReason: null },
+				})
+
+				await handler.completePrompt("test prompt", { timeoutMs: 5000 })
+
+				expect(mockSend).toHaveBeenCalled()
+				// Verify the second argument (sendOptions) contains an abortSignal derived from timeoutMs
+				const sendOptions = mockSend.mock.calls[0][1]
+				expect(sendOptions).toBeDefined()
+				expect(sendOptions?.abortSignal).toBeDefined()
+			})
+
+			it("completePrompt should merge abortSignal and timeoutMs", async () => {
+				const mockSend = vi.fn()
+
+				const handler = new AwsBedrockHandler({
+					apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsRegion: "us-east-1",
+				})
+
+				const clientInstance = (handler as any).client
+				clientInstance.send = mockSend
+
+				mockSend.mockResolvedValueOnce({
+					output: { message: { content: [{ type: "text", text: "response" }] }, stopReason: null },
+				})
+
+				const controller = new AbortController()
+				await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
+
+				expect(mockSend).toHaveBeenCalled()
+				const sendOptions = mockSend.mock.calls[0][1]
+				expect(sendOptions?.abortSignal).toBeDefined()
+			})
+
+			it("should abort immediately when signal is already aborted and timeoutMs > 0", async () => {
+				const mockSend = vi.fn()
+
+				const handler = new AwsBedrockHandler({
+					apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsRegion: "us-east-1",
+				})
+
+				const clientInstance = (handler as any).client
+				clientInstance.send = mockSend
+
+				mockSend.mockResolvedValueOnce({
+					output: { message: { content: [{ type: "text", text: "response" }] }, stopReason: null },
+				})
+
+				const controller = new AbortController()
+				controller.abort() // Pre-abort the signal
+
+				await handler.completePrompt("test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
+
+				expect(mockSend).toHaveBeenCalled()
+				const sendOptions = mockSend.mock.calls[0][1]
+				expect(sendOptions?.abortSignal).toBeDefined()
+				expect(sendOptions?.abortSignal.aborted).toBe(true)
+			})
+			it("should return undefined sendOptions when timeoutMs is 0 and no signal", async () => {
+				const mockSend = vi.fn()
+
+				const handler = new AwsBedrockHandler({
+					apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsRegion: "us-east-1",
+				})
+
+				const clientInstance = (handler as any).client
+				clientInstance.send = mockSend
+
+				mockSend.mockResolvedValueOnce({
+					output: { message: { content: [{ type: "text", text: "response" }] }, stopReason: null },
+				})
+
+				await handler.completePrompt("test prompt", { timeoutMs: 0 })
+
+				expect(mockSend).toHaveBeenCalled()
+				const sendOptions = mockSend.mock.calls[0][1]
+				// When timeoutMs is 0 and no abortSignal, bedrock.ts returns undefined (no signal created)
+				expect(sendOptions).toBeUndefined()
+			})
+
+			it("should return empty string when response content is empty", async () => {
+				const mockSend = vi.fn()
+
+				const handler = new AwsBedrockHandler({
+					apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsRegion: "us-east-1",
+				})
+
+				const clientInstance = (handler as any).client
+				clientInstance.send = mockSend
+
+				mockSend.mockResolvedValueOnce({
+					output: { message: { content: [{ type: "text", text: "" }] }, stopReason: null },
+				})
+
+				const result = await handler.completePrompt("test prompt")
+
+				expect(result).toBe("")
+			})
+
+			it("should return empty string when response content array is empty", async () => {
+				const mockSend = vi.fn()
+
+				const handler = new AwsBedrockHandler({
+					apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsRegion: "us-east-1",
+				})
+
+				const clientInstance = (handler as any).client
+				clientInstance.send = mockSend
+
+				mockSend.mockResolvedValueOnce({
+					output: { message: { content: [] }, stopReason: null },
+				})
+
+				const result = await handler.completePrompt("test prompt")
+
+				expect(result).toBe("")
+			})
 		})
 	})
 })

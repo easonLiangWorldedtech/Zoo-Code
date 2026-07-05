@@ -21,7 +21,7 @@ import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
 
 import { BaseProvider } from "./base-provider"
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { isMcpTool } from "../../utils/mcp-name"
 import { sanitizeOpenAiCallId } from "../../utils/tool-id"
 import { openAiCodexOAuthManager } from "../../integrations/openai-codex/oauth"
@@ -1154,8 +1154,43 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		return this.lastResponseId
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
-		this.abortController = new AbortController()
+	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
+		// Build a request-local abort controller with timeout support (don't mutate this.abortController)
+		let localAbortController: AbortController | undefined
+		let timeoutId: ReturnType<typeof setTimeout> | undefined
+		let upstreamAbortSignal: AbortSignal | undefined
+		let upstreamAbortListener: (() => void) | undefined
+
+		if (options?.timeoutMs !== undefined || options?.abortSignal) {
+			localAbortController = new AbortController()
+
+			// Handle timeout first
+			if (options.timeoutMs !== undefined) {
+				if (options.timeoutMs > 0) {
+					timeoutId = setTimeout(() => localAbortController?.abort(), options.timeoutMs)
+				} else {
+					// timeoutMs is 0 or negative, abort immediately
+					localAbortController.abort()
+				}
+			}
+
+			// Propagate abort from the caller-supplied signal into the local controller.
+			if (options.abortSignal) {
+				upstreamAbortSignal = options.abortSignal
+				if (options.abortSignal.aborted) {
+					localAbortController.abort()
+					clearTimeout(timeoutId)
+				} else {
+					upstreamAbortListener = () => {
+						localAbortController?.abort()
+						clearTimeout(timeoutId)
+					}
+					options.abortSignal.addEventListener("abort", upstreamAbortListener, { once: true })
+				}
+			}
+		}
+
+		const requestSignal = localAbortController?.signal ?? new AbortController().signal
 
 		try {
 			const model = this.getModel()
@@ -1216,7 +1251,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 				method: "POST",
 				headers,
 				body: JSON.stringify(requestBody),
-				signal: this.abortController.signal,
+				signal: requestSignal,
 			})
 
 			if (!response.ok) {
@@ -1257,6 +1292,10 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			}
 			throw error
 		} finally {
+			clearTimeout(timeoutId)
+			if (upstreamAbortSignal && upstreamAbortListener) {
+				upstreamAbortSignal.removeEventListener("abort", upstreamAbortListener)
+			}
 			this.abortController = undefined
 		}
 	}

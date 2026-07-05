@@ -137,6 +137,35 @@ describe("VertexHandler", () => {
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("")
 		})
+
+		it("should pass abort signal through to client via config.abortSignal", async () => {
+			const controller = new AbortController()
+			;(handler["client"].models.generateContent as any).mockResolvedValue({
+				text: "response",
+			})
+
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+			expect(handler["client"].models.generateContent).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: expect.any(String),
+					contents: [{ role: "user", parts: [{ text: "test prompt" }] }],
+					config: expect.objectContaining({
+						abortSignal: controller.signal,
+						httpOptions: undefined,
+						temperature: 1,
+					}),
+				}),
+			)
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			;(handler["client"].models.generateContent as any).mockResolvedValue({
+				text: "response",
+			})
+
+			const result = await handler.completePrompt("test prompt")
+			expect(result).toBe("response")
+		})
 	})
 
 	describe("getModel", () => {

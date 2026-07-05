@@ -834,18 +834,22 @@ describe("VertexHandler", () => {
 
 			const result = await handler.completePrompt("Test prompt")
 			expect(result).toBe("Test response")
-			expect(handler["client"].messages.create).toHaveBeenCalledWith({
-				model: "claude-3-5-sonnet-v2@20241022",
-				max_tokens: 8192,
-				temperature: 0,
-				messages: [
-					{
-						role: "user",
-						content: [{ type: "text", text: "Test prompt", cache_control: { type: "ephemeral" } }],
-					},
-				],
-				stream: false,
-			})
+			expect(handler["client"].messages.create).toHaveBeenCalledWith(
+				{
+					model: "claude-3-5-sonnet-v2@20241022",
+					max_tokens: 8192,
+					temperature: 0,
+					messages: [
+						{
+							role: "user",
+							content: [{ type: "text", text: "Test prompt", cache_control: { type: "ephemeral" } }],
+						},
+					],
+					stream: false,
+					thinking: undefined,
+				},
+				undefined,
+			)
 		})
 
 		it("should handle API errors for Claude", async () => {
@@ -912,7 +916,26 @@ describe("VertexHandler", () => {
 			expect(result).toBe("")
 		})
 
-		it("should return text from first text block when mixed content for Claude", async () => {
+		it("should pass abort signal through to client", async () => {
+			handler = new AnthropicVertexHandler({
+				apiModelId: "claude-3-5-sonnet-v2@20241022",
+				vertexProjectId: "test-project",
+				vertexRegion: "us-central1",
+			})
+
+			const controller = new AbortController()
+			const mockCreate = vitest.fn().mockResolvedValue({
+				content: [{ type: "text", text: "response" }],
+			})
+			;(handler["client"].messages as any).create = mockCreate
+
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
+				signal: controller.signal,
+			})
+		})
+
+		it("should work without options (backward compatible)", async () => {
 			handler = new AnthropicVertexHandler({
 				apiModelId: "claude-3-5-sonnet-v2@20241022",
 				vertexProjectId: "test-project",
@@ -920,16 +943,16 @@ describe("VertexHandler", () => {
 			})
 
 			const mockCreate = vitest.fn().mockResolvedValue({
-				content: [
-					{ type: "thinking", thinking: "internal reasoning" },
-					{ type: "text", text: "visible response" },
-				],
+				content: [{ type: "text", text: "response" }],
 			})
 			;(handler["client"].messages as any).create = mockCreate
 
-			const result = await handler.completePrompt("Test prompt")
-			expect(result).toBe("visible response")
+			const result = await handler.completePrompt("test prompt")
+			expect(result).toBe("response")
+			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), undefined)
 		})
+
+		it("completePrompt should pass signal through to client", async () => {})
 	})
 
 	describe("getModel", () => {

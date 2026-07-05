@@ -8,16 +8,30 @@ import { getOllamaModels } from "../fetchers/ollama"
 
 // Mock the ollama package
 const mockChat = vitest.fn()
+
+// Use vi.hoisted to define mocks that can be referenced both inside and outside the hoisted vi.mock
+const mockedOllama = vi.hoisted(() => ({
+	OllamaMock: vitest.fn(),
+}))
+
 vitest.mock("ollama", () => {
+	const { OllamaMock } = mockedOllama
 	return {
-		Ollama: vitest.fn().mockImplementation(function () {
+		Ollama: OllamaMock.mockImplementation(function (this: any, options?: any) {
+			const instanceAbort = vitest.fn()
 			return {
 				chat: mockChat,
+				abort: instanceAbort,
+				_host: options?.host ?? "http://localhost:11434",
+				_instanceAbort: instanceAbort,
 			}
 		}),
 		Message: vitest.fn(),
 	}
 })
+
+// Export OllamaMock for test access
+const OllamaMock = mockedOllama.OllamaMock
 
 // Mock the getOllamaModels function
 vitest.mock("../fetchers/ollama", () => ({
@@ -316,6 +330,161 @@ describe("NativeOllamaHandler", () => {
 					}),
 				}),
 			)
+		})
+
+		it("should accept options param but ignore it (no signal support)", async () => {
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			const controller = new AbortController()
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+
+			// Verify that the call does NOT include any signal-related options
+			// Ollama implementation only passes the payload, not a second options argument
+			expect(mockChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: "llama2",
+					messages: [{ role: "user", content: "Test prompt" }],
+					stream: false,
+					options: { temperature: 0 },
+				}),
+			)
+			// Verify no second argument was passed (no signal/options forwarded)
+			expect(mockChat).toHaveBeenCalledTimes(1)
+			expect(mockChat.mock.calls[0]).toHaveLength(1)
+		})
+
+		it("should not include signal-related options when not provided", async () => {
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			await handler.completePrompt("Test prompt")
+
+			expect(mockChat).toHaveBeenCalledWith(
+				expect.objectContaining({
+					model: "llama2",
+					messages: [{ role: "user", content: "Test prompt" }],
+					stream: false,
+					options: { temperature: 0 },
+				}),
+			)
+		})
+
+		it("should work without options (backward compatible)", async () => {
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			const result = await handler.completePrompt("Test prompt")
+			expect(result).toBe("Response")
+		})
+
+		it("should call client.abort() when timeoutMs is reached", async () => {
+			const testTimeout = 5000
+			let capturedFn: (() => void) | undefined
+
+			vitest.spyOn(global, "setTimeout").mockImplementation((fn: any, ms?: number) => {
+				if (ms === testTimeout) {
+					capturedFn = fn as () => void
+					return 0 as any
+				}
+				return 0 as any
+			})
+
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			await handler.completePrompt("Test prompt", { timeoutMs: testTimeout })
+
+			expect(capturedFn).toBeDefined()
+			if (capturedFn) capturedFn()
+			// The timeout callback should have invoked client.abort() on the request-local instance
+			expect(OllamaMock).toHaveBeenCalled()
+		})
+
+		it("should call instance.abort() when abortSignal is aborted", async () => {
+			const controller = new AbortController()
+			let capturedInstanceAbort: any
+
+			// Override the constructor to capture the instance abort spy
+			OllamaMock.mockImplementation(function (this: any, options?: any) {
+				const instanceAbort = vitest.fn()
+				capturedInstanceAbort = instanceAbort
+				return {
+					chat: mockChat,
+					abort: instanceAbort,
+					_host: options?.host ?? "http://localhost:11434",
+					_instanceAbort: instanceAbort,
+				}
+			})
+
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			const promise = handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+			controller.abort()
+			await expect(promise).rejects.toThrow("This operation was aborted")
+
+			expect(capturedInstanceAbort).toBeDefined()
+			expect(capturedInstanceAbort!).toHaveBeenCalledTimes(1)
+		})
+
+		it("should call instance.abort() immediately when abortSignal is already aborted", async () => {
+			const controller = new AbortController()
+			controller.abort()
+			let capturedInstanceAbort: any
+
+			// Override the constructor to capture the instance abort spy
+			OllamaMock.mockImplementation(function (this: any, options?: any) {
+				const instanceAbort = vitest.fn()
+				capturedInstanceAbort = instanceAbort
+				return {
+					chat: mockChat,
+					abort: instanceAbort,
+					_host: options?.host ?? "http://localhost:11434",
+					_instanceAbort: instanceAbort,
+				}
+			})
+
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			await expect(handler.completePrompt("Test prompt", { abortSignal: controller.signal })).rejects.toThrow(
+				"This operation was aborted",
+			)
+
+			expect(capturedInstanceAbort).toBeDefined()
+			expect(capturedInstanceAbort!).toHaveBeenCalledTimes(1)
+		})
+
+		it("should clear timeoutId in finally block on success", async () => {
+			let capturedDelay: number | undefined
+			const timeoutHandle = 1 as any
+
+			vitest.spyOn(global, "setTimeout").mockImplementation((fn: any, ms?: number) => {
+				if (ms === 5000) {
+					capturedDelay = ms
+					return timeoutHandle
+				}
+				return 0 as any
+			})
+
+			const clearTimeoutSpy = vitest.spyOn(global, "clearTimeout").mockImplementation(() => {})
+
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			await handler.completePrompt("Test prompt", { timeoutMs: 5000 })
+
+			// setTimeout should have been called with the correct delay
+			expect(capturedDelay).toBe(5000)
+			expect(clearTimeoutSpy).toHaveBeenCalledWith(timeoutHandle)
 		})
 	})
 

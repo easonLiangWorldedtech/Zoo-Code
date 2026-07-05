@@ -7,7 +7,7 @@ import { BaseProvider } from "./base-provider"
 import type { ApiHandlerOptions } from "../../shared/api"
 import { getOllamaModels } from "./fetchers/ollama"
 import { TagMatcher } from "../../utils/tag-matcher"
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 
 interface OllamaChatOptions {
 	temperature: number
@@ -347,11 +347,44 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
+		// Ollama native client doesn't support external AbortSignal directly.
+		// For per-request cancellation, create a dedicated client instance when abortSignal is provided.
+		const hasAbortSignal = options?.abortSignal !== undefined
+		let localClient: Ollama | undefined
+		let timeoutId: ReturnType<typeof setTimeout> | undefined
+		let onAbort: (() => void) | undefined
+
 		try {
-			const client = this.ensureClient()
+			// Use local client if abortSignal is provided (per-request isolation)
+			const client = hasAbortSignal
+				? (localClient ??= new Ollama({ host: this.options.ollamaBaseUrl }))
+				: this.ensureClient()
 			const { id: modelId } = await this.fetchModel()
 			const useR1Format = modelId.toLowerCase().includes("deepseek-r1")
+
+			// Handle timeoutMs if provided
+			if (options?.timeoutMs !== undefined && options.timeoutMs > 0) {
+				timeoutId = setTimeout(() => client.abort(), options.timeoutMs)
+			}
+
+			// Propagate abortSignal into the local controller via client.abort()
+			if (options?.abortSignal) {
+				if (options.abortSignal.aborted) {
+					client.abort()
+					const abortError = new Error("This operation was aborted")
+					abortError.name = "AbortError"
+					throw abortError
+				} else {
+					onAbort = () => {
+						client.abort()
+						if (timeoutId !== undefined) {
+							clearTimeout(timeoutId)
+						}
+					}
+					options.abortSignal.addEventListener("abort", onAbort, { once: true })
+				}
+			}
 
 			// Build options object conditionally
 			const chatOptions: OllamaChatOptions = {
@@ -376,6 +409,13 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 				throw new Error(`Ollama completion error: ${error.message}`)
 			}
 			throw error
+		} finally {
+			if (timeoutId) {
+				clearTimeout(timeoutId)
+			}
+			if (onAbort && options?.abortSignal) {
+				options.abortSignal.removeEventListener("abort", onAbort)
+			}
 		}
 	}
 }

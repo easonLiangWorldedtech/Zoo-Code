@@ -527,4 +527,75 @@ describe("OpenAiCodexHandler native tool calls", () => {
 			}),
 		)
 	})
+
+	it("completePrompt should pass abort signal through to fetch", async () => {
+		vi.spyOn(openAiCodexOAuthManager, "getAccessToken").mockResolvedValue("test-token")
+		vi.spyOn(openAiCodexOAuthManager, "getAccountId").mockResolvedValue("acct_test")
+
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: vi.fn().mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "done" }],
+					},
+				],
+			}),
+		})
+		global.fetch = mockFetch as any
+
+		const controller = new AbortController()
+		const promise = handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+		controller.abort()
+		await promise
+
+		const fetchCallArgs = mockFetch.mock.calls[0]
+		expect(fetchCallArgs[1]?.signal.aborted).toBe(true)
+	})
+
+	it("completePrompt should work without options (backward compatible)", async () => {
+		vi.spyOn(openAiCodexOAuthManager, "getAccessToken").mockResolvedValue("test-token")
+		vi.spyOn(openAiCodexOAuthManager, "getAccountId").mockResolvedValue("acct_test")
+
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: vi.fn().mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "done" }],
+					},
+				],
+			}),
+		})
+		global.fetch = mockFetch as any
+
+		await handler.completePrompt("Test prompt")
+
+		const fetchCallArgs = mockFetch.mock.calls[0]
+		expect(fetchCallArgs[1]).toBeDefined()
+		expect(fetchCallArgs[1]?.method).toBe("POST")
+	})
+
+	it("completePrompt should work without options (backward compatible)", async () => {
+		vi.spyOn(openAiCodexOAuthManager, "getAccessToken").mockResolvedValue("test-token")
+		vi.spyOn(openAiCodexOAuthManager, "getAccountId").mockResolvedValue("acct_test")
+
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			json: vi.fn().mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "done" }],
+					},
+				],
+			}),
+		})
+		global.fetch = mockFetch as any
+
+		const result = await handler.completePrompt("Test prompt")
+		expect(result).toBe("done")
+	})
 })

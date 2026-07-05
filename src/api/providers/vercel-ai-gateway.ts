@@ -14,7 +14,7 @@ import { ApiStream } from "../transform/stream"
 import { convertToOpenAiMessages } from "../transform/openai-format"
 import { addCacheBreakpoints } from "../transform/caching/vercel-ai-gateway"
 
-import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
+import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { RouterProvider } from "./router-provider"
 
 // Extend OpenAI's CompletionUsage to include Vercel AI Gateway specific fields
@@ -117,7 +117,7 @@ export class VercelAiGatewayHandler extends RouterProvider implements SingleComp
 		}
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
 		const { id: modelId, info } = await this.fetchModel()
 
 		try {
@@ -132,8 +132,19 @@ export class VercelAiGatewayHandler extends RouterProvider implements SingleComp
 			}
 
 			requestOptions.max_completion_tokens = info.maxTokens
+			// Build request options with abortSignal and/or timeout
+			const createOptions: OpenAI.RequestOptions = {}
+			if (options?.abortSignal) {
+				createOptions.signal = options.abortSignal
+			}
+			if (options?.timeoutMs !== undefined) {
+				createOptions.timeout = options.timeoutMs
+			}
 
-			const response = await this.client.chat.completions.create(requestOptions)
+			const response = await this.client.chat.completions.create(
+				requestOptions,
+				Object.keys(createOptions).length > 0 ? createOptions : undefined,
+			)
 			return response.choices[0]?.message.content || ""
 		} catch (error) {
 			if (error instanceof Error) {

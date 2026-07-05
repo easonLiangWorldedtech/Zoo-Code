@@ -427,6 +427,25 @@ describe("ZAiHandler", () => {
 			)
 		})
 
+		it("completePrompt should pass abort signal through to client", async () => {
+			const controller = new AbortController()
+			mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+			expect(mockCreate.mock.calls[0][1].signal).toBe(controller.signal)
+		})
+
+		it("completePrompt should pass timeout through to client", async () => {
+			mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
+			await handler.completePrompt("test prompt", { timeoutMs: 5000 })
+			expect(mockCreate.mock.calls[0][1].timeout).toBe(5000)
+		})
+
+		it("completePrompt should work without options (backward compatible)", async () => {
+			mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
+			const result = await handler.completePrompt("test prompt")
+			expect(result).toBe("response")
+		})
+
 		it("createMessage should yield text content from stream", async () => {
 			const testContent = "This is test content from Z AI stream"
 
