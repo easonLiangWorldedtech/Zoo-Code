@@ -209,6 +209,7 @@ export abstract class OpenAICompatibleHandler extends BaseProvider implements Si
 
 		// Merge abortSignal and timeoutMs into a single abortSignal
 		let timeoutId: ReturnType<typeof setTimeout> | undefined
+		let onAbort: (() => void) | undefined
 		if (options?.abortSignal && options?.timeoutMs !== undefined) {
 			// When both are provided, create a merged signal that aborts when either fires
 			const controller = new AbortController()
@@ -216,14 +217,11 @@ export abstract class OpenAICompatibleHandler extends BaseProvider implements Si
 				controller.abort()
 			} else if (options.timeoutMs > 0) {
 				timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
-				options.abortSignal.addEventListener(
-					"abort",
-					() => {
-						clearTimeout(timeoutId)
-						controller.abort()
-					},
-					{ once: true },
-				)
+				onAbort = () => {
+					clearTimeout(timeoutId)
+					controller.abort()
+				}
+				options.abortSignal.addEventListener("abort", onAbort, { once: true })
 			} else {
 				// timeoutMs is 0 or negative, abort immediately
 				controller.abort()
@@ -231,6 +229,18 @@ export abstract class OpenAICompatibleHandler extends BaseProvider implements Si
 
 			generateOptions.abortSignal = controller.signal
 		} else if (options?.abortSignal) {
+			// Only abortSignal provided - check for already aborted and set up listener
+			if (options.abortSignal.aborted) {
+				const abortError = new Error("This operation was aborted")
+				abortError.name = "AbortError"
+				throw abortError
+			} else {
+				onAbort = () => {
+					// Cleanup is handled by the signal itself
+				}
+				options.abortSignal.addEventListener("abort", onAbort, { once: true })
+			}
+
 			generateOptions.abortSignal = options.abortSignal
 		} else if (options?.timeoutMs !== undefined) {
 			if (options.timeoutMs > 0) {
@@ -248,6 +258,9 @@ export abstract class OpenAICompatibleHandler extends BaseProvider implements Si
 		} finally {
 			if (timeoutId !== undefined) {
 				clearTimeout(timeoutId)
+			}
+			if (onAbort && options?.abortSignal) {
+				options.abortSignal.removeEventListener("abort", onAbort)
 			}
 		}
 	}

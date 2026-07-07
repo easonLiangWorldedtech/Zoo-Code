@@ -195,4 +195,34 @@ describe("BaseOpenAiCompatibleProvider completePrompt", () => {
 
 		await expect(handler.completePrompt("test prompt")).rejects.toThrow("Network error")
 	})
+
+	it("should throw AbortError when abortSignal is already aborted before request", async () => {
+		const handler = new TestOpenAiCompatibleProvider("test-api-key")
+
+		const controller = new AbortController()
+		controller.abort() // Abort before making the request
+
+		try {
+			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+		} catch (error) {
+			expect((error as Error).name).toBe("AbortError")
+			expect((error as Error).message).toBe("This operation was aborted")
+		}
+	})
+
+	it("should pass signal through when abortSignal is not yet aborted", async () => {
+		const handler = new TestOpenAiCompatibleProvider("test-api-key")
+
+		const mockCreate = vi.fn().mockResolvedValue({
+			choices: [{ message: { content: "response" } }],
+		})
+
+		handler["client"].chat.completions.create = mockCreate
+
+		const controller = new AbortController()
+		// Don't abort - signal is still active
+		await handler.completePrompt("test prompt", { abortSignal: controller.signal })
+
+		expect(mockCreate.mock.calls[0][1].signal).toBe(controller.signal)
+	})
 })

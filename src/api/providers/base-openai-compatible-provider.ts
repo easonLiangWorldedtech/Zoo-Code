@@ -225,16 +225,24 @@ export abstract class BaseOpenAiCompatibleProvider<ModelName extends string>
 			;(params as any).thinking = { type: "enabled" }
 		}
 
-		try {
-			// Build request options with abortSignal and/or timeout
-			const requestOptions: OpenAI.RequestOptions = {}
-			if (options?.abortSignal) {
-				requestOptions.signal = options.abortSignal
-			}
-			if (options?.timeoutMs !== undefined) {
-				requestOptions.timeout = options.timeoutMs
-			}
+		// Build request options with abortSignal and/or timeout
+		const requestOptions: OpenAI.RequestOptions = {}
 
+		if (options?.abortSignal) {
+			// Check for already aborted signal before making the request
+			if (options.abortSignal.aborted) {
+				const abortError = new Error("This operation was aborted")
+				abortError.name = "AbortError"
+				throw abortError
+			}
+			requestOptions.signal = options.abortSignal
+		}
+
+		if (options?.timeoutMs !== undefined) {
+			requestOptions.timeout = options.timeoutMs
+		}
+
+		try {
 			const response = await this.client.chat.completions.create(params, requestOptions || undefined)
 
 			// Check for provider-specific error responses (e.g., MiniMax base_resp)
