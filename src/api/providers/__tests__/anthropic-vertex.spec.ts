@@ -914,9 +914,13 @@ describe("VertexHandler", () => {
 			;(handler["client"].messages as any).create = mockCreate
 
 			await handler.completePrompt("test prompt", { abortSignal: controller.signal })
-			expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({ model: expect.any(String) }), {
-				signal: controller.signal,
-			})
+
+			const [, requestOptions] = mockCreate.mock.calls[0]
+			expect(mockCreate).toHaveBeenCalledWith(
+				expect.objectContaining({ model: expect.any(String) }),
+				expect.any(Object),
+			)
+			expect(requestOptions.signal).toBe(controller.signal)
 		})
 
 		it("should work without options (backward compatible)", async () => {
