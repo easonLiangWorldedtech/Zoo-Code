@@ -344,6 +344,71 @@ describe("OpenAiNativeHandler", () => {
 			// Implementation uses AbortSignal.any() to merge signals.
 			expect(mockResponsesCreate.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
 		})
+		it("completePrompt should include supported service tier, reasoning, verbosity, and prompt cache retention", async () => {
+			const configuredHandler = new OpenAiNativeHandler({
+				...mockOptions,
+				apiModelId: "gpt-5.1",
+				openAiNativeServiceTier: "flex",
+				enableResponsesReasoningSummary: true,
+			})
+			mockResponsesCreate.mockResolvedValue({
+				output: [
+					{
+						type: "message",
+						content: [{ type: "output_text", text: "response" }],
+					},
+				],
+			})
+
+			await configuredHandler.completePrompt("Test prompt")
+
+			const requestBody = mockResponsesCreate.mock.calls[0][0]
+			expect(requestBody.service_tier).toBe("flex")
+			expect(requestBody.include).toEqual(["reasoning.encrypted_content"])
+			expect(requestBody.reasoning).toEqual({ effort: "medium", summary: "auto" })
+			expect(requestBody.text).toEqual({ verbosity: "medium" })
+			expect(requestBody.prompt_cache_retention).toBe("24h")
+		})
+
+		it("completePrompt should return direct response text fallback", async () => {
+			mockResponsesCreate.mockResolvedValue({ text: "fallback response" })
+
+			const result = await handler.completePrompt("Test prompt")
+
+			expect(result).toBe("fallback response")
+		})
+
+		it("completePrompt should rethrow non-Error failures after telemetry", async () => {
+			mockResponsesCreate.mockRejectedValue("string failure")
+
+			await expect(handler.completePrompt("Test prompt")).rejects.toBe("string failure")
+			expect(mockCaptureException).toHaveBeenCalledWith(
+				expect.objectContaining({
+					message: "string failure",
+					provider: "OpenAI Native",
+					modelId: "gpt-4.1",
+					operation: "completePrompt",
+				}),
+			)
+		})
+		it("should expose response id and encrypted reasoning content", () => {
+			handler["lastResponseId"] = "resp_123"
+			handler["lastResponseOutput"] = [
+				{ type: "message" },
+				{ type: "reasoning", encrypted_content: "encrypted", id: "reasoning_1" },
+			] as any
+
+			expect(handler.getResponseId()).toBe("resp_123")
+			expect(handler.getEncryptedContent()).toEqual({ encrypted_content: "encrypted", id: "reasoning_1" })
+		})
+
+		it("should return undefined when encrypted reasoning content is absent", () => {
+			expect(handler.getEncryptedContent()).toBeUndefined()
+
+			handler["lastResponseOutput"] = [{ type: "reasoning" }] as any
+
+			expect(handler.getEncryptedContent()).toBeUndefined()
+		})
 	})
 
 	describe("getModel", () => {

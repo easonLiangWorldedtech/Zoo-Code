@@ -1815,6 +1815,40 @@ describe("AwsBedrockHandler", () => {
 				expect(result).toBe("")
 			})
 
+			it("should return empty string when response text extraction throws after validation", async () => {
+				const mockSend = vi.fn()
+
+				const handler = new AwsBedrockHandler({
+					apiModelId: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+					awsAccessKey: "test-access-key",
+					awsSecretKey: "test-secret-key",
+					awsRegion: "us-east-1",
+				})
+
+				const clientInstance = (handler as any).client
+				clientInstance.send = mockSend
+
+				let textAccessCount = 0
+				const contentBlock = {
+					type: "text",
+					get text() {
+						textAccessCount++
+						if (textAccessCount >= 3) {
+							throw new Error("text getter failed")
+						}
+						return "response"
+					},
+				}
+
+				mockSend.mockResolvedValueOnce({
+					output: { message: { content: [contentBlock] }, stopReason: null },
+				})
+
+				const result = await handler.completePrompt("test prompt")
+
+				expect(result).toBe("")
+			})
+
 			it("should return empty string when response content array is empty", async () => {
 				const mockSend = vi.fn()
 
