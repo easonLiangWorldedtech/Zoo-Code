@@ -3,6 +3,16 @@ export interface MergedAbortSignal {
 	cleanup: () => void
 }
 
+export function throwIfAborted(signal?: AbortSignal): void {
+	if (!signal?.aborted) {
+		return
+	}
+
+	const abortError = new Error("This operation was aborted")
+	abortError.name = "AbortError"
+	throw abortError
+}
+
 /**
  * Merges a caller-provided AbortSignal with an optional request timeout.
  *
@@ -44,7 +54,15 @@ export function mergeAbortSignalAndTimeout(abortSignal?: AbortSignal, timeoutMs?
 	}
 
 	if (timeoutMs !== undefined && timeoutMs > 0) {
-		return { signal: AbortSignal.timeout(timeoutMs), cleanup: () => {} }
+		const controller = new AbortController()
+		timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+		return {
+			signal: controller.signal,
+			cleanup: () => {
+				clearTimeout(timeoutId)
+			},
+		}
 	}
 
 	return { cleanup: () => {} }

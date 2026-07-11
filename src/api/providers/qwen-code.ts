@@ -15,6 +15,7 @@ import { ApiStream } from "../transform/stream"
 
 import { BaseProvider } from "./base-provider"
 import { extractReasoningFromDelta } from "./utils/extract-reasoning"
+import { throwIfAborted } from "./utils/abort-signal"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 
 const QWEN_OAUTH_BASE_URL = "https://chat.qwen.ai"
@@ -328,6 +329,8 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 	}
 
 	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
+		throwIfAborted(options?.abortSignal)
+
 		await this.ensureAuthenticated()
 		const client = this.ensureClient()
 		const model = this.getModel()

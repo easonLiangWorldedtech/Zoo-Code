@@ -279,7 +279,42 @@ describe("OpenAiNativeHandler", () => {
 			expect(result).toBe("response")
 		})
 
-		it("completePrompt should pass timeoutMs through to client", async () => {
+		it("completePrompt should abort its request signal when timeoutMs is reached", async () => {
+			vi.useFakeTimers()
+			let resolveResponse!: () => void
+			let requestSignal: AbortSignal | undefined
+			mockResponsesCreate.mockImplementationOnce(async (_body, options) => {
+				requestSignal = options.signal
+				await new Promise<void>((resolve) => {
+					resolveResponse = resolve
+				})
+				return {
+					output: [
+						{
+							type: "message",
+							content: [{ type: "output_text", text: "response" }],
+						},
+					],
+				}
+			})
+
+			try {
+				const promise = handler.completePrompt("Test prompt", { timeoutMs: 5000 })
+				await vi.advanceTimersByTimeAsync(5000)
+
+				expect(requestSignal).toBeInstanceOf(AbortSignal)
+				expect(requestSignal?.aborted).toBe(true)
+
+				resolveResponse()
+				await promise
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it("completePrompt should not replace an active streaming abort controller", async () => {
+			const activeStreamingController = new AbortController()
+			handler["abortController"] = activeStreamingController
 			mockResponsesCreate.mockResolvedValue({
 				output: [
 					{
@@ -289,9 +324,9 @@ describe("OpenAiNativeHandler", () => {
 				],
 			})
 
-			await handler.completePrompt("Test prompt", { timeoutMs: 5000 })
-			// Implementation passes a signal to the client (uses baseSignal when no abortSignal provided).
-			expect(mockResponsesCreate.mock.calls[0][1].signal).toBeInstanceOf(AbortSignal)
+			await handler.completePrompt("Test prompt")
+
+			expect(handler["abortController"]).toBe(activeStreamingController)
 		})
 
 		it("completePrompt should merge signal and timeoutMs together", async () => {

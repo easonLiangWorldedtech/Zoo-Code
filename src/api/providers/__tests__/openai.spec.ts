@@ -923,6 +923,19 @@ describe("OpenAiHandler", () => {
 			)
 		})
 
+		it("should throw AbortError before request when abort signal is already aborted", async () => {
+			const controller = new AbortController()
+			controller.abort()
+
+			await expect(
+				handler.completePrompt("test prompt", { abortSignal: controller.signal }),
+			).rejects.toMatchObject({
+				name: "AbortError",
+				message: "This operation was aborted",
+			})
+			expect(mockCreate).not.toHaveBeenCalled()
+		})
+
 		it("should pass timeout through to client", async () => {
 			mockCreate.mockResolvedValueOnce({ choices: [{ message: { content: "response" } }] })
 			await handler.completePrompt("test prompt", { timeoutMs: 5000 })

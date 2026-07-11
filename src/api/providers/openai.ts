@@ -24,6 +24,7 @@ import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata } from "../index"
 import { handleOpenAIError } from "./utils/error-handler"
 import { extractReasoningFromDelta } from "./utils/extract-reasoning"
+import { throwIfAborted } from "./utils/abort-signal"
 
 // TODO: Rename this to OpenAICompatibleHandler. Also, I think the
 // `OpenAINativeHandler` can subclass from this, since it's obviously
@@ -297,6 +298,8 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 	}
 
 	async completePrompt(prompt: string, options?: import("../../api").CompletePromptOptions): Promise<string> {
+		throwIfAborted(options?.abortSignal)
+
 		try {
 			const isAzureAiInference = this._isAzureAiInference(this.options.openAiBaseUrl)
 			const model = this.getModel()

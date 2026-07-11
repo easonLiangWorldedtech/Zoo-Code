@@ -29,6 +29,7 @@ import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { isMcpTool } from "../../utils/mcp-name"
 import { sanitizeOpenAiCallId } from "../../utils/tool-id"
+import { mergeAbortSignalAndTimeout } from "./utils/abort-signal"
 
 export type OpenAiNativeModel = ReturnType<OpenAiNativeHandler["getModel"]>
 
@@ -1484,24 +1485,13 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 	getResponseId(): string | undefined {
 		return this.lastResponseId
 	}
-
 	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
-		// Merge incoming abortSignal with existing class-level controller using AbortSignal.any
-		const baseSignal = this.abortController?.signal ?? new AbortController().signal
-		const mergedSignal = options?.abortSignal ? AbortSignal.any([baseSignal, options.abortSignal]) : baseSignal
-
-		// Create AbortController for cancellation (keep for cleanup tracking)
-		this.abortController = new AbortController()
-		// Link the merged signal to our abort controller
-		if (mergedSignal.aborted) {
-			this.abortController.abort()
-		} else {
-			mergedSignal.addEventListener("abort", () => this.abortController?.abort(), { once: true })
-		}
+		const requestAbortSignal = mergeAbortSignalAndTimeout(options?.abortSignal, options?.timeoutMs)
+		const requestSignal = requestAbortSignal.signal ?? new AbortController().signal
 
 		try {
 			const model = this.getModel()
-			const { verbosity, reasoning } = model
+			const { verbosity } = model
 
 			// Resolve reasoning effort for models that support it
 			const reasoningEffort = this.getReasoningEffort(model)
@@ -1559,7 +1549,7 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 
 			// Make the non-streaming request
 			const response = await (this.client as any).responses.create(requestBody, {
-				signal: mergedSignal,
+				signal: requestSignal,
 			})
 
 			// Extract text from the response
@@ -1592,7 +1582,7 @@ export class OpenAiNativeHandler extends BaseProvider implements SingleCompletio
 			}
 			throw error
 		} finally {
-			this.abortController = undefined
+			requestAbortSignal.cleanup()
 		}
 	}
 }

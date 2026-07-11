@@ -475,6 +475,20 @@ describe("QwenCodeHandler Native Tools", () => {
 			)
 		})
 
+		it("completePrompt should throw AbortError before authentication when signal is already aborted", async () => {
+			const controller = new AbortController()
+			controller.abort()
+
+			await expect(
+				handler.completePrompt("test prompt", { abortSignal: controller.signal }),
+			).rejects.toMatchObject({
+				name: "AbortError",
+				message: "This operation was aborted",
+			})
+			expect(fs.readFile).not.toHaveBeenCalled()
+			expect(mockCreate).not.toHaveBeenCalled()
+		})
+
 		it("completePrompt should pass timeout through to client", async () => {
 			mockCreate.mockResolvedValueOnce({
 				choices: [{ message: { content: "response" } }],
