@@ -19,6 +19,11 @@ export function throwIfAborted(signal?: AbortSignal): void {
  * A positive timeout creates a request-local signal that aborts when either
  * the upstream signal or timeout fires. A zero or negative timeout means
  * "no timeout" and does not abort immediately.
+ *
+ * This intentionally avoids AbortSignal.any([signal, AbortSignal.timeout(ms)])
+ * because AbortSignal.timeout() cannot be cancelled after a successful request.
+ * Returning cleanup() lets providers deterministically clear timers and remove
+ * upstream listeners in finally blocks.
  */
 export function mergeAbortSignalAndTimeout(abortSignal?: AbortSignal, timeoutMs?: number): MergedAbortSignal {
 	let timeoutId: ReturnType<typeof setTimeout> | undefined

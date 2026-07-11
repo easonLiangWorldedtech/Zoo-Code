@@ -26,6 +26,7 @@ import { isMcpTool } from "../../utils/mcp-name"
 import { sanitizeOpenAiCallId } from "../../utils/tool-id"
 import { openAiCodexOAuthManager } from "../../integrations/openai-codex/oauth"
 import { t } from "../../i18n"
+import { mergeAbortSignalAndTimeout } from "./utils/abort-signal"
 
 export type OpenAiCodexModel = ReturnType<OpenAiCodexHandler["getModel"]>
 
@@ -1155,35 +1156,8 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 	}
 
 	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
-		// Build a request-local abort controller with timeout support (don't mutate this.abortController)
-		let localAbortController: AbortController | undefined
-		let timeoutId: ReturnType<typeof setTimeout> | undefined
-		let upstreamAbortListener: (() => void) | undefined
-
-		if (options?.timeoutMs !== undefined || options?.abortSignal) {
-			localAbortController = new AbortController()
-
-			// Handle timeout first - only positive values create a timeout; 0/negative means "no timeout"
-			if (options.timeoutMs !== undefined && options.timeoutMs > 0) {
-				timeoutId = setTimeout(() => localAbortController?.abort(), options.timeoutMs)
-			}
-
-			// Propagate abort from the caller-supplied signal into the local controller.
-			if (options.abortSignal) {
-				if (options.abortSignal.aborted) {
-					localAbortController.abort()
-					clearTimeout(timeoutId)
-				} else {
-					upstreamAbortListener = () => {
-						localAbortController?.abort()
-						clearTimeout(timeoutId)
-					}
-					options.abortSignal.addEventListener("abort", upstreamAbortListener, { once: true })
-				}
-			}
-		}
-
-		const requestSignal = localAbortController?.signal ?? new AbortController().signal
+		const requestAbortSignal = mergeAbortSignalAndTimeout(options?.abortSignal, options?.timeoutMs)
+		const requestSignal = requestAbortSignal.signal ?? new AbortController().signal
 
 		try {
 			const model = this.getModel()
@@ -1285,11 +1259,7 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			}
 			throw error
 		} finally {
-			clearTimeout(timeoutId)
-			if (options?.abortSignal && upstreamAbortListener) {
-				options.abortSignal.removeEventListener("abort", upstreamAbortListener)
-			}
-			this.abortController = undefined
+			requestAbortSignal.cleanup()
 		}
 	}
 }
