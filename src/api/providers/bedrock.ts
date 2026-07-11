@@ -45,6 +45,7 @@ import { getModelParams } from "../transform/model-params"
 import { shouldUseReasoningBudget } from "../../shared/api"
 import { normalizeToolSchema } from "../../utils/json-schema"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
+import { mergeAbortSignalAndTimeout } from "./utils/abort-signal"
 
 /************************************************************************************
  *
@@ -841,38 +842,18 @@ export class AwsBedrockHandler extends BaseProvider implements SingleCompletionH
 
 			const command = new ConverseCommand(payload)
 
-			// Build request options with abortSignal and/or timeoutMs
-			let mergeTimeoutId: ReturnType<typeof setTimeout> | undefined
-			let upstreamAbortListener: (() => void) | undefined
-			const sendOptions: { abortSignal?: AbortSignal } | undefined = (() => {
-				let signal: AbortSignal | undefined = options?.abortSignal
-				if (options?.timeoutMs !== undefined && options.timeoutMs > 0) {
-					if (signal && !signal.aborted) {
-						// When both are provided, create a merged signal that aborts when either fires
-						const controller = new AbortController()
-						mergeTimeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
-						upstreamAbortListener = () => {
-							clearTimeout(mergeTimeoutId)
-							controller.abort()
-						}
-						signal.addEventListener("abort", upstreamAbortListener, { once: true })
-						signal = controller.signal
-					} else if (!signal) {
-						signal = AbortSignal.timeout(options.timeoutMs)
-					}
-					// signal.aborted === true: keep original signal as-is, nothing to merge.
-				}
-				return signal ? { abortSignal: signal } : undefined
-			})()
+			// Build request options with abortSignal and/or timeoutMs.
+			// The shared helper keeps Bedrock aligned with other providers:
+			// positive timeout values create request-local cancellation, while
+			// zero/negative timeout values mean "no timeout".
+			const mergedAbortSignal = mergeAbortSignalAndTimeout(options?.abortSignal, options?.timeoutMs)
+			const sendOptions = mergedAbortSignal.signal ? { abortSignal: mergedAbortSignal.signal } : undefined
 
 			let response
 			try {
 				response = await this.client.send(command, sendOptions)
 			} finally {
-				if (mergeTimeoutId) clearTimeout(mergeTimeoutId)
-				if (upstreamAbortListener && options?.abortSignal) {
-					options.abortSignal.removeEventListener("abort", upstreamAbortListener)
-				}
+				mergedAbortSignal.cleanup()
 			}
 			if (
 				response?.output?.message?.content &&
