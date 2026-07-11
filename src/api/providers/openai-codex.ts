@@ -1158,25 +1158,18 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 		// Build a request-local abort controller with timeout support (don't mutate this.abortController)
 		let localAbortController: AbortController | undefined
 		let timeoutId: ReturnType<typeof setTimeout> | undefined
-		let upstreamAbortSignal: AbortSignal | undefined
 		let upstreamAbortListener: (() => void) | undefined
 
 		if (options?.timeoutMs !== undefined || options?.abortSignal) {
 			localAbortController = new AbortController()
 
-			// Handle timeout first
-			if (options.timeoutMs !== undefined) {
-				if (options.timeoutMs > 0) {
-					timeoutId = setTimeout(() => localAbortController?.abort(), options.timeoutMs)
-				} else {
-					// timeoutMs is 0 or negative, abort immediately
-					localAbortController.abort()
-				}
+			// Handle timeout first - only positive values create a timeout; 0/negative means "no timeout"
+			if (options.timeoutMs !== undefined && options.timeoutMs > 0) {
+				timeoutId = setTimeout(() => localAbortController?.abort(), options.timeoutMs)
 			}
 
 			// Propagate abort from the caller-supplied signal into the local controller.
 			if (options.abortSignal) {
-				upstreamAbortSignal = options.abortSignal
 				if (options.abortSignal.aborted) {
 					localAbortController.abort()
 					clearTimeout(timeoutId)
@@ -1293,8 +1286,8 @@ export class OpenAiCodexHandler extends BaseProvider implements SingleCompletion
 			throw error
 		} finally {
 			clearTimeout(timeoutId)
-			if (upstreamAbortSignal && upstreamAbortListener) {
-				upstreamAbortSignal.removeEventListener("abort", upstreamAbortListener)
+			if (options?.abortSignal && upstreamAbortListener) {
+				options.abortSignal.removeEventListener("abort", upstreamAbortListener)
 			}
 			this.abortController = undefined
 		}

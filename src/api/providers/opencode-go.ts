@@ -555,7 +555,7 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 				createOptions.timeout = options.timeoutMs
 			}
 
-			const response = await this.client.chat.completions.create(requestOptions, createOptions || undefined)
+			const response = await this.client.chat.completions.create(requestOptions, createOptions)
 			return response.choices[0]?.message.content || ""
 		} catch (error) {
 			if (error instanceof Error) {

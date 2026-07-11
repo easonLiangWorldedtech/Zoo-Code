@@ -18,6 +18,7 @@ import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { DEFAULT_HEADERS } from "./constants"
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
+import { mergeAbortSignalAndTimeout } from "./utils/abort-signal"
 
 /**
  * Configuration options for creating an OpenAI-compatible provider.
@@ -207,61 +208,16 @@ export abstract class OpenAICompatibleHandler extends BaseProvider implements Si
 			temperature: this.config.temperature ?? 0,
 		}
 
-		// Merge abortSignal and timeoutMs into a single abortSignal
-		let timeoutId: ReturnType<typeof setTimeout> | undefined
-		let onAbort: (() => void) | undefined
-		if (options?.abortSignal && options?.timeoutMs !== undefined) {
-			// When both are provided, create a merged signal that aborts when either fires
-			const controller = new AbortController()
-			if (options.abortSignal.aborted) {
-				controller.abort()
-			} else if (options.timeoutMs > 0) {
-				timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
-				onAbort = () => {
-					clearTimeout(timeoutId)
-					controller.abort()
-				}
-				options.abortSignal.addEventListener("abort", onAbort, { once: true })
-			} else {
-				// timeoutMs is 0 or negative, abort immediately
-				controller.abort()
-			}
-
-			generateOptions.abortSignal = controller.signal
-		} else if (options?.abortSignal) {
-			// Only abortSignal provided - check for already aborted and set up listener
-			if (options.abortSignal.aborted) {
-				const abortError = new Error("This operation was aborted")
-				abortError.name = "AbortError"
-				throw abortError
-			} else {
-				onAbort = () => {
-					// Cleanup is handled by the signal itself
-				}
-				options.abortSignal.addEventListener("abort", onAbort, { once: true })
-			}
-
-			generateOptions.abortSignal = options.abortSignal
-		} else if (options?.timeoutMs !== undefined) {
-			if (options.timeoutMs > 0) {
-				generateOptions.abortSignal = AbortSignal.timeout(options.timeoutMs)
-			} else {
-				const controller = new AbortController()
-				controller.abort()
-				generateOptions.abortSignal = controller.signal
-			}
+		const mergedAbortSignal = mergeAbortSignalAndTimeout(options?.abortSignal, options?.timeoutMs)
+		if (mergedAbortSignal.signal) {
+			generateOptions.abortSignal = mergedAbortSignal.signal
 		}
 
 		try {
 			const { text } = await generateText(generateOptions)
 			return text
 		} finally {
-			if (timeoutId !== undefined) {
-				clearTimeout(timeoutId)
-			}
-			if (onAbort && options?.abortSignal) {
-				options.abortSignal.removeEventListener("abort", onAbort)
-			}
+			mergedAbortSignal.cleanup()
 		}
 	}
 }

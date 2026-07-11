@@ -551,16 +551,18 @@ export class NativeOllamaHandler extends BaseProvider implements SingleCompletio
 	}
 
 	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
-		// Ollama native client doesn't support external AbortSignal directly.
-		// For per-request cancellation, create a dedicated client instance when abortSignal is provided.
-		const hasAbortSignal = options?.abortSignal !== undefined
+		// Ollama native client cancellation calls client.abort(), so any request with
+		// cancellation behavior must use a dedicated client instance to avoid aborting
+		// unrelated requests sharing the provider-level client.
+		const needsRequestLocalClient =
+			options?.abortSignal !== undefined || (options?.timeoutMs !== undefined && options.timeoutMs > 0)
 		let localClient: Ollama | undefined
 		let timeoutId: ReturnType<typeof setTimeout> | undefined
 		let onAbort: (() => void) | undefined
 
 		try {
-			// Use local client if abortSignal is provided (per-request isolation)
-			const client = hasAbortSignal
+			// Use local client if cancellation is possible (per-request isolation)
+			const client = needsRequestLocalClient
 				? (localClient ??= new Ollama({ host: this.options.ollamaBaseUrl }))
 				: this.ensureClient()
 			const { id: modelId } = await this.fetchModel()

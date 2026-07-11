@@ -20,6 +20,7 @@ import { ApiStream } from "../transform/stream"
 import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { getModelsFromCache } from "./fetchers/modelCache"
+import { mergeAbortSignalAndTimeout } from "./utils/abort-signal"
 
 const DEFAULT_THINKING_BUDGET = 8192
 
@@ -140,27 +141,15 @@ export class PoeHandler extends BaseProvider implements SingleCompletionHandler 
 
 	async completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
 		const { id } = this.getModel()
-		let timeoutId: ReturnType<typeof setTimeout> | undefined
+		const mergedAbortSignal = mergeAbortSignalAndTimeout(options?.abortSignal, options?.timeoutMs)
 		try {
 			const generateOptions: Parameters<typeof generateText>[0] & { abortSignal?: AbortSignal } = {
 				model: this.poe(id),
 				prompt,
 			}
 
-			// Merge abortSignal and timeoutMs into a single abortSignal
-			if (options?.abortSignal && options?.timeoutMs && options.timeoutMs > 0) {
-				const controller = new AbortController()
-				if (options.abortSignal.aborted) {
-					controller.abort()
-				} else {
-					timeoutId = setTimeout(() => controller.abort(), options.timeoutMs)
-					options.abortSignal.addEventListener("abort", () => controller.abort(), { once: true })
-				}
-				generateOptions.abortSignal = controller.signal
-			} else if (options?.abortSignal) {
-				generateOptions.abortSignal = options.abortSignal
-			} else if (options?.timeoutMs && options.timeoutMs > 0) {
-				generateOptions.abortSignal = AbortSignal.timeout(options.timeoutMs)
+			if (mergedAbortSignal.signal) {
+				generateOptions.abortSignal = mergedAbortSignal.signal
 			}
 
 			const { text } = await generateText(generateOptions)
@@ -170,9 +159,7 @@ export class PoeHandler extends BaseProvider implements SingleCompletionHandler 
 			TelemetryService.instance.captureException(new ApiProviderError(errorMessage, "poe", id, "completePrompt"))
 			throw new Error(`Poe completion error: ${errorMessage}`)
 		} finally {
-			if (timeoutId) {
-				clearTimeout(timeoutId)
-			}
+			mergedAbortSignal.cleanup()
 		}
 	}
 }

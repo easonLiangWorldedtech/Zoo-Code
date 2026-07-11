@@ -81,6 +81,6 @@ export class FakeAIHandler implements ApiHandler, SingleCompletionHandler {
 	}
 
 	completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string> {
-		return (this.ai as any).completePrompt(prompt, options)
+		return this.ai.completePrompt(prompt, options)
 	}
 }

@@ -700,23 +700,37 @@ describe("VsCodeLmHandler", () => {
 			const mockModel = { ...mockLanguageModelChat }
 			;(vscode.lm.selectChatModels as Mock).mockResolvedValueOnce([mockModel])
 
-			const responseText = "Completed text"
+			let releaseStream!: () => void
+			const streamGate = new Promise<void>((resolve) => {
+				releaseStream = resolve
+			})
 			mockLanguageModelChat.sendRequest.mockResolvedValueOnce({
 				stream: (async function* () {
-					yield new vscode.LanguageModelTextPart(responseText)
-					return
+					await streamGate
+					yield new vscode.LanguageModelTextPart("Completed text")
 				})(),
 				text: (async function* () {
-					yield responseText
-					return
+					await streamGate
+					yield "Completed text"
 				})(),
 			})
 
 			handler["client"] = mockLanguageModelChat
 
-			await handler.completePrompt("Test prompt", { timeoutMs: 5000 })
+			vi.useFakeTimers()
+			try {
+				const promise = handler.completePrompt("Test prompt", { timeoutMs: 5000 })
+				await vi.advanceTimersByTimeAsync(5000)
 
-			expect(mockLanguageModelChat.sendRequest).toHaveBeenCalled()
+				const TokenSourceInstance = (vscode.CancellationTokenSource as any).mock.results[0].value
+				expect(TokenSourceInstance.cancel).toHaveBeenCalled()
+				expect(mockLanguageModelChat.sendRequest).toHaveBeenCalled()
+
+				releaseStream()
+				await promise
+			} finally {
+				vi.useRealTimers()
+			}
 		})
 
 		it("should handle both signal and timeoutMs together", async () => {

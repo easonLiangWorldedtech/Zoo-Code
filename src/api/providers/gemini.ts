@@ -584,7 +584,7 @@ export class GeminiHandler extends BaseProvider implements SingleCompletionHandl
 			const temperatureConfig: number | undefined = supportsTemperature
 				? (this.options.modelTemperature ?? info.defaultTemperature ?? 1)
 				: info.defaultTemperature
-			const httpOpts: Record<string, any> = {}
+			const httpOpts: { timeout?: number; baseUrl?: string } = {}
 			if (options?.timeoutMs !== undefined) {
 				httpOpts.timeout = options.timeoutMs
 			}

@@ -197,7 +197,7 @@ describe("OpenAiCodexHandler.completePrompt", () => {
 		)
 	})
 
-	it("should abort immediately when timeoutMs is 0", async () => {
+	it("should treat timeoutMs=0 as no timeout", async () => {
 		const handler = new OpenAiCodexHandler({ apiModelId: "gpt-5.1-codex" })
 
 		vi.spyOn(openAiCodexOAuthManager, "getAccessToken").mockResolvedValue("test-token")
@@ -227,7 +227,7 @@ describe("OpenAiCodexHandler.completePrompt", () => {
 		expect(mockFetch).toHaveBeenCalled()
 		const fetchOptions = (mockFetch as any).mock.calls[0][1]
 		expect(fetchOptions.signal).toBeDefined()
-		expect(fetchOptions.signal.aborted).toBe(true)
+		expect(fetchOptions.signal.aborted).toBe(false)
 	})
 
 	it("should merge abortSignal with local controller", async () => {

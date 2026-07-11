@@ -338,7 +338,7 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 			max_completion_tokens: model.info.maxTokens,
 		}
 
-		const fetchOptions: Record<string, unknown> = {}
+		const fetchOptions: OpenAI.RequestOptions = {}
 
 		if (options?.abortSignal) {
 			fetchOptions.signal = options.abortSignal
@@ -348,9 +348,7 @@ export class QwenCodeHandler extends BaseProvider implements SingleCompletionHan
 			fetchOptions.timeout = options.timeoutMs
 		}
 
-		const response = await this.callApiWithRetry(() =>
-			client.chat.completions.create(requestOptions, fetchOptions as any),
-		)
+		const response = await this.callApiWithRetry(() => client.chat.completions.create(requestOptions, fetchOptions))
 
 		return response.choices[0]?.message.content || ""
 	}

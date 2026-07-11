@@ -285,7 +285,7 @@ describe("MoonshotHandler", () => {
 			)
 		})
 
-		it("should set an immediately-aborted abortSignal when timeoutMs is 0", async () => {
+		it("should treat timeoutMs=0 as no timeout", async () => {
 			mockGenerateText.mockResolvedValueOnce({ text: "response" })
 
 			await handler.completePrompt("test prompt", { timeoutMs: 0 })
@@ -295,9 +295,7 @@ describe("MoonshotHandler", () => {
 				}),
 			)
 			const callArgs = mockGenerateText.mock.calls[0][0]
-			// With !== undefined check, timeoutMs=0 creates an immediately-aborted signal
-			expect(callArgs.abortSignal).toBeDefined()
-			expect(callArgs.abortSignal.aborted).toBe(true)
+			expect(callArgs.abortSignal).toBeUndefined()
 		})
 
 		it("should propagate errors from generateText", async () => {
