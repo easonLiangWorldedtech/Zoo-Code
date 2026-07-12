@@ -555,6 +555,63 @@ describe("GeminiHandler", () => {
 		})
 	})
 
+	describe("completePrompt request options", () => {
+		it("should pass timeout and baseUrl through httpOptions", async () => {
+			const handlerWithBaseUrl = new GeminiHandler({
+				apiKey: "test-key",
+				apiModelId: GEMINI_MODEL_NAME,
+				geminiApiKey: "test-key",
+				googleGeminiBaseUrl: "https://gemini.example.test",
+			})
+			handlerWithBaseUrl["client"] = handler["client"] as any
+			;(handler["client"].models.generateContent as any).mockResolvedValue({ text: "Response" })
+
+			const result = await handlerWithBaseUrl.completePrompt("Test prompt", { timeoutMs: 1234 })
+
+			expect(result).toBe("Response")
+			expect(handler["client"].models.generateContent).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						httpOptions: {
+							timeout: 1234,
+							baseUrl: "https://gemini.example.test",
+						},
+					}),
+				}),
+			)
+		})
+
+		it("should pass abortSignal on config instead of httpOptions", async () => {
+			const controller = new AbortController()
+			;(handler["client"].models.generateContent as any).mockResolvedValue({ text: "Response" })
+
+			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
+
+			expect(handler["client"].models.generateContent).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						abortSignal: controller.signal,
+						httpOptions: undefined,
+					}),
+				}),
+			)
+		})
+
+		it("should omit httpOptions when timeoutMs and baseUrl are not provided", async () => {
+			;(handler["client"].models.generateContent as any).mockResolvedValue({ text: "Response" })
+
+			await handler.completePrompt("Test prompt")
+
+			expect(handler["client"].models.generateContent).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						httpOptions: undefined,
+					}),
+				}),
+			)
+		})
+	})
+
 	describe("error telemetry", () => {
 		const mockMessages: Anthropic.Messages.MessageParam[] = [
 			{

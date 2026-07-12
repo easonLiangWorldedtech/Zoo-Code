@@ -769,7 +769,7 @@ describe("NativeOllamaHandler", () => {
 			)
 		})
 
-		it("should accept options param but ignore it (no signal support)", async () => {
+		it("should use a request-local client when abortSignal is provided", async () => {
 			mockChat.mockResolvedValue({
 				message: { content: "Response" },
 			})
@@ -777,8 +777,9 @@ describe("NativeOllamaHandler", () => {
 			const controller = new AbortController()
 			await handler.completePrompt("Test prompt", { abortSignal: controller.signal })
 
-			// Verify that the call does NOT include any signal-related options
-			// Ollama implementation only passes the payload, not a second options argument
+			expect(OllamaMock).toHaveBeenCalledTimes(1)
+			expect(OllamaMock).toHaveBeenCalledWith({ host: "http://localhost:11434" })
+			// Ollama implementation only passes the payload, not a second options argument.
 			expect(mockChat).toHaveBeenCalledWith(
 				expect.objectContaining({
 					model: "llama2",
@@ -787,7 +788,6 @@ describe("NativeOllamaHandler", () => {
 					options: { temperature: 0 },
 				}),
 			)
-			// Verify no second argument was passed (no signal/options forwarded)
 			expect(mockChat).toHaveBeenCalledTimes(1)
 			expect(mockChat.mock.calls[0]).toHaveLength(1)
 		})
@@ -897,6 +897,47 @@ describe("NativeOllamaHandler", () => {
 
 			expect(capturedInstanceAbort).toBeDefined()
 			expect(capturedInstanceAbort!).toHaveBeenCalledTimes(1)
+		})
+
+		it("should not create a request-local client or timer for non-positive timeoutMs", async () => {
+			const setTimeoutSpy = vitest.spyOn(global, "setTimeout")
+			mockChat.mockResolvedValue({
+				message: { content: "Response" },
+			})
+
+			await handler.completePrompt("Test prompt", { timeoutMs: 0 })
+
+			expect(setTimeoutSpy).not.toHaveBeenCalled()
+			expect(OllamaMock).toHaveBeenCalledTimes(1)
+			expect(OllamaMock).toHaveBeenCalledWith({ host: "http://localhost:11434" })
+		})
+
+		it("should remove abort listener and clear timeout when abortSignal fires", async () => {
+			const controller = new AbortController()
+			const timeoutHandle = 1 as any
+			const clearTimeoutSpy = vitest.spyOn(global, "clearTimeout").mockImplementation(() => {})
+			vitest.spyOn(global, "setTimeout").mockImplementation(() => timeoutHandle)
+			const removeEventListenerSpy = vitest.spyOn(controller.signal, "removeEventListener")
+
+			let resolveChat: (value: { message: { content: string } }) => void = () => {}
+			mockChat.mockImplementation(
+				() =>
+					new Promise((resolve) => {
+						resolveChat = resolve
+					}),
+			)
+
+			const promise = handler.completePrompt("Test prompt", { abortSignal: controller.signal, timeoutMs: 5000 })
+			for (let i = 0; i < 10 && mockChat.mock.calls.length === 0; i++) {
+				await Promise.resolve()
+			}
+
+			controller.abort()
+			resolveChat({ message: { content: "Response" } })
+
+			await expect(promise).resolves.toBe("Response")
+			expect(clearTimeoutSpy).toHaveBeenCalledWith(timeoutHandle)
+			expect(removeEventListenerSpy).toHaveBeenCalledWith("abort", expect.any(Function))
 		})
 
 		it("should clear timeoutId in finally block on success", async () => {
