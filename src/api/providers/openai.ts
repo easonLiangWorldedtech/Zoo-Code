@@ -296,7 +296,7 @@ export class OpenAiHandler extends BaseProvider implements SingleCompletionHandl
 		return { id, info, ...params }
 	}
 
-	async completePrompt(prompt: string): Promise<string> {
+	async completePrompt(prompt: string, options?: import("../../api").CompletePromptOptions): Promise<string> {
 		try {
 			const isAzureAiInference = this._isAzureAiInference(this.options.openAiBaseUrl)
 			const model = this.getModel()
