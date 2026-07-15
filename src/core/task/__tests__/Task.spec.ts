@@ -2232,25 +2232,10 @@ describe("Cline", () => {
 				})
 
 				let callCount = 0
-				const mockStreamFactory = () => {
-					return {
-						async *[Symbol.asyncIterator]() {
-							yield { type: "text", text: `response ${callCount}` }
-						},
-						async next() {
-							callCount++
-							return { done: true, value: { type: "text", text: `response ${callCount - 1}` } }
-						},
-						async return() {
-							return { done: true, value: undefined }
-						},
-						async throw(e: any) {
-							throw e
-						},
-						[Symbol.asyncDispose]: async () => {},
-					} as AsyncGenerator<ApiStreamChunk>
+				const mockStreamFactory = async function* (): AsyncGenerator<ApiStreamChunk> {
+					yield { type: "text", text: `response ${callCount}` }
+					callCount++
 				}
-
 				const createMessageSpy = vi
 					.spyOn(task.api, "createMessage")
 					.mockImplementation(() => mockStreamFactory())
