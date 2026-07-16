@@ -1739,13 +1739,7 @@ describe("ClineProvider", () => {
 				setModeConfig: vi.fn(),
 			} as any
 
-			// Mock the ContextProxy's getValue method to return the current config name
-			const contextProxy = (provider as any).contextProxy
-			const getValueSpy = vi.spyOn(contextProxy, "getValue")
-			getValueSpy.mockImplementation((key: any) => {
-				if (key === "currentApiConfigName") return "current-config"
-				return undefined
-			})
+			provider.setValue("currentApiConfigName", "current-config")
 
 			// Switch to architect mode
 			await provider.handleModeSwitch("architect")

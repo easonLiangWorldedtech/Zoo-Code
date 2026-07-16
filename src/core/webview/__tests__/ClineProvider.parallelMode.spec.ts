@@ -121,6 +121,29 @@ vi.mock("@modelcontextprotocol/sdk/client/stdio.js", () => ({
 	}),
 }))
 
+const { onDidChangeConfigurationMock } = vi.hoisted(() => {
+	const onDidChangeConfigurationMock = vi.fn((handler: (e: any) => any) => {
+		const disposable = {
+			dispose: vi.fn(),
+		}
+		const checkedKeys: string[] = []
+		void handler({
+			affectsConfiguration: (key: string) => {
+				checkedKeys.push(key)
+				return false
+			},
+		})
+
+		if (checkedKeys.includes("workbench.colorTheme")) {
+			onDidChangeConfigurationMock.mock.calls.pop()
+		}
+
+		return disposable
+	})
+
+	return { onDidChangeConfigurationMock }
+})
+
 // Mock vscode
 vi.mock("vscode", () => ({
 	ExtensionContext: vi.fn(),
@@ -163,11 +186,7 @@ vi.mock("vscode", () => ({
 			onDidDelete: vi.fn(),
 			dispose: vi.fn(),
 		}),
-		onDidChangeConfiguration: vi.fn().mockImplementation(() => {
-			return {
-				dispose: vi.fn(),
-			}
-		}),
+		onDidChangeConfiguration: onDidChangeConfigurationMock,
 		onDidSaveTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
 		onDidChangeTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
 		onDidOpenTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
@@ -728,8 +747,9 @@ describe("ClineProvider - Parallel Mode Support", () => {
 			// Verify viewLocalState was updated
 			expect((provider as any).viewLocalState.mode).toBe("architect")
 
-			// Verify contextProxy.setValue was called
-			expect(contextProxySpy).toHaveBeenCalledWith("mode", "architect")
+			// saveViewState now uses view-specific key for mode/currentApiConfigName/apiConfiguration
+			const expectedViewKey = `__view_state_sidebar-${provider.viewId.split("-")[1]}_mode`
+			expect(contextProxySpy).toHaveBeenCalledWith(expectedViewKey, "architect")
 
 			await provider.dispose()
 		})
@@ -891,35 +911,57 @@ describe("ClineProvider - Parallel Mode Support", () => {
 	})
 
 	describe("GlobalState listener", () => {
-		it("should call loadViewState when configuration changes for mode", async () => {
-			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+		it("should invoke loadViewState and postStateToWebview when configuration changes for mode", async () => {
+			const mockPostMessage = vi.fn()
 
-			// Wait for setupGlobalStateListener to register the disposable
-			await new Promise((resolve) => setImmediate(resolve))
-
-			// Get the onDidChangeConfiguration mock from vscode
-			const onDidChangeConfigurationMock = (vscode.workspace.onDidChangeConfiguration as any).mock
-
-			if (onDidChangeConfigurationMock) {
-				// Simulate a configuration change event for mode
-				const configChangeEvent = {
-					affectsConfiguration: vi.fn().mockImplementation((key: string) => {
-						return key === "roo-cline.mode" || key === "roo-cline.currentApiConfigName"
-					}),
-				}
-
-				// Find and trigger the listener
-				const disposables = (provider as any).disposables
-				for (const disposable of disposables) {
-					if (typeof disposable === "object" && typeof disposable.dispose === "function") {
-						// The listener should be registered, but we need to find the event emitter
-						break
-					}
-				}
-
-				// For this test, we verify that the listener is registered by checking disposables
-				expect(disposables.length).toBeGreaterThan(0)
+			const mockWebviewView: any = {
+				webview: {
+					postMessage: mockPostMessage,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn().mockImplementation(() => {
+					return { dispose: vi.fn() }
+				}),
+				onDidDispose: vi.fn().mockImplementation(() => {
+					return { dispose: vi.fn() }
+				}),
 			}
+
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			const loadViewStateSpy = vi.spyOn(provider as any, "loadViewState")
+
+			await (provider as any).resolveWebviewView(mockWebviewView)
+			mockPostMessage.mockClear()
+
+			// Capture the registered config change handler
+			const configChangeHandler = (vscode.workspace.onDidChangeConfiguration as any).mock.calls.at(-1)?.[0]
+
+			// Simulate a configuration change event for mode
+			const configChangeEvent = {
+				affectsConfiguration: vi.fn().mockImplementation((key: string) => {
+					return key === "zoo-code.mode" || key === "zoo-code.currentApiConfigName"
+				}),
+			}
+
+			// Invoke the handler and wait for async operations to complete
+			await configChangeHandler(configChangeEvent)
+
+			// Verify loadViewState was called
+			expect(loadViewStateSpy).toHaveBeenCalled()
+
+			// Wait for postStateToWebview to be called after the configuration change.
+			await vi.waitFor(
+				() => {
+					expect(mockPostMessage).toHaveBeenCalled()
+					return true
+				},
+				{ timeout: 2000 },
+			)
 
 			await provider.dispose()
 		})
@@ -1172,17 +1214,11 @@ describe("ClineProvider - Parallel Mode Support", () => {
 
 			await (provider as any).resolveWebviewView(mockWebviewView)
 
-			// Spy on saveViewState
-			const saveViewStateSpy = vi.spyOn(provider as any, "saveViewState")
-
 			// Call activateProviderProfile
 			await provider.activateProviderProfile({ name: "my-profile" })
 
-			// Verify viewLocalState was updated
+			// Verify viewLocalState was updated (activateProviderProfile now uses _updateViewLocalStateFromMutation)
 			expect((provider as any).viewLocalState.currentApiConfigName).toBe("my-profile")
-
-			// Verify saveViewState was called with the new profile name
-			expect(saveViewStateSpy).toHaveBeenCalledWith("currentApiConfigName", "my-profile")
 
 			await provider.dispose()
 		})
@@ -1300,6 +1336,45 @@ describe("ClineProvider - Parallel Mode Support", () => {
 		})
 
 		it("should handle mode switch in one instance without affecting others", async () => {
+			const mockPostMessage1 = vi.fn()
+			const mockPostMessage2 = vi.fn()
+
+			const mockWebviewView1: any = {
+				webview: {
+					postMessage: mockPostMessage1,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn().mockImplementation(() => {
+					return { dispose: vi.fn() }
+				}),
+				onDidDispose: vi.fn().mockImplementation(() => {
+					return { dispose: vi.fn() }
+				}),
+			}
+
+			const mockWebviewView2: any = {
+				webview: {
+					postMessage: mockPostMessage2,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn().mockImplementation(() => {
+					return { dispose: vi.fn() }
+				}),
+				onDidDispose: vi.fn().mockImplementation(() => {
+					return { dispose: vi.fn() }
+				}),
+			}
+
 			const provider1 = new ClineProvider(
 				mockContext,
 				mockOutputChannel,
@@ -1308,17 +1383,20 @@ describe("ClineProvider - Parallel Mode Support", () => {
 			)
 			const provider2 = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
 
-			// Set initial modes
-			await (provider1 as any).saveViewState("mode", "code")
-			await (provider2 as any).saveViewState("mode", "code")
+			await (provider1 as any).resolveWebviewView(mockWebviewView1)
+			await (provider2 as any).resolveWebviewView(mockWebviewView2)
+
+			// Set initial modes via public handleModeSwitch
+			await provider1.handleModeSwitch("code" as any)
+			await provider2.handleModeSwitch("code" as any)
 
 			let state1 = await provider1.getState()
 			let state2 = await provider2.getState()
 			expect(state1.mode).toBe("code")
 			expect(state2.mode).toBe("code")
 
-			// Switch mode in provider1 only
-			await (provider1 as any).saveViewState("mode", "architect")
+			// Switch mode in provider1 only using public handleModeSwitch
+			await provider1.handleModeSwitch("architect" as any)
 
 			state1 = await provider1.getState()
 			state2 = await provider2.getState()

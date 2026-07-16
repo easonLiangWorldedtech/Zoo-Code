@@ -161,6 +161,7 @@ export class ClineProvider
 	public static readonly sideBarId = `${Package.name}.SidebarProvider`
 	public static readonly tabPanelId = `${Package.name}.TabPanelProvider`
 	private static activeInstances: Set<ClineProvider> = new Set()
+	private static nextViewId = 0
 	private disposables: vscode.Disposable[] = []
 	private webviewDisposables: vscode.Disposable[] = []
 	private view?: vscode.WebviewView | vscode.WebviewPanel
@@ -238,8 +239,9 @@ export class ClineProvider
 		mdmService?: MdmService,
 	) {
 		super()
-		// Initialize viewId based on renderContext and instance counter for uniqueness
-		this.viewId = `${renderContext}-${ClineProvider.activeInstances.size}`
+		// Initialize viewId based on renderContext and monotonically increasing instance identifier for uniqueness.
+		// activeInstances is used for visibility/iteration checks, so we keep tracking instances separately.
+		this.viewId = `${renderContext}-${ClineProvider.nextViewId++}`
 		ClineProvider.activeInstances.add(this)
 		this.currentWorkspacePath = getWorkspacePath()
 		this.pendingEditOperations = new PendingEditOperationStore(
@@ -419,17 +421,32 @@ export class ClineProvider
 	}
 
 	/**
+	 * Derive a view-specific ContextProxy key for persisting view-local state.
+	 * Uses the current viewId so each parallel tab restores its own values on recreation.
+	 */
+	private viewStateKeyFor(key: "mode" | "currentApiConfigName" | "apiConfiguration"): string {
+		return `__view_state_${this.viewId}_${key}`
+	}
+
+	/**
 	 * Loads initial state from global state into the view-local state buffer.
-	 * This allows each provider instance to have its own isolated state for fields like mode,
-	 * apiConfiguration, etc., while still sharing the same ContextProxy singleton.
+	 * For mode, currentApiConfigName, and apiConfiguration, reads from the view-specific key first;
+	 * falls back to the shared key for backward compatibility with existing persisted state.
 	 */
 	private async loadViewState(): Promise<void> {
 		try {
 			const stateValues = this.contextProxy.getValues()
 			const providerSettings = this.contextProxy.getProviderSettings()
+
+			// Try view-specific keys first, then fall back to shared keys for backward compatibility.
+			const getViewSpecificValue = (sharedKey: "mode" | "currentApiConfigName") => {
+				const viewKey = this.viewStateKeyFor(sharedKey)
+				return (this.contextProxy.getValue(viewKey as any) as any) ?? stateValues[sharedKey]
+			}
+
 			this.viewLocalState = {
-				mode: stateValues.mode,
-				currentApiConfigName: stateValues.currentApiConfigName,
+				mode: getViewSpecificValue("mode"),
+				currentApiConfigName: getViewSpecificValue("currentApiConfigName"),
 				apiConfiguration: providerSettings,
 				customModePrompts: stateValues.customModePrompts,
 				modeApiConfigs: stateValues.modeApiConfigs,
@@ -443,7 +460,7 @@ export class ClineProvider
 	}
 
 	/**
-	 * Save a single view-local state value and sync to global state.
+	 * Save a single view-local state value and sync to global state using a view-specific key.
 	 * This allows each Provider instance to have its own mode/apiConfig for parallel mode support.
 	 */
 	private async saveViewState(key: keyof ExtensionState, value: any): Promise<void> {
@@ -454,8 +471,12 @@ export class ClineProvider
 			this.viewLocalState[key] = value
 		}
 
-		// Also write to ContextProxy so other Provider instances can see it when they sync
-		await this.contextProxy.setValue(key as any, value)
+		// Persist to view-specific ContextProxy key for mode/currentApiConfigName/apiConfiguration,
+		// so recreated views restore their own values instead of the last writer's shared state.
+		if (key === "mode" || key === "currentApiConfigName" || key === "apiConfiguration") {
+			const viewKey = this.viewStateKeyFor(key as "mode" | "currentApiConfigName" | "apiConfiguration")
+			await this.contextProxy.setValue(viewKey as any, value)
+		}
 
 		this.log(`[saveViewState] Saved ${String(key)} for viewId ${this.viewId}`)
 	}
@@ -1642,7 +1663,9 @@ export class ClineProvider
 			}
 		} else {
 			// If no saved config for this mode, save current config as default.
-			const currentApiConfigNameAfter = this.getGlobalState("currentApiConfigName")
+			// Use view-local state (via getState()) so another tab's global write doesn't supply
+			// this view's configuration when running in parallel mode.
+			const { currentApiConfigName: currentApiConfigNameAfter } = await this.getState()
 
 			if (currentApiConfigNameAfter) {
 				const config = listApiConfig.find((c) => c.name === currentApiConfigNameAfter)
@@ -1741,6 +1764,10 @@ export class ClineProvider
 					this.contextProxy.setProviderSettings(providerSettings),
 				])
 
+				// Update view-local state for parallel mode support.
+				this._updateViewLocalStateFromMutation({ currentApiConfigName: name } as Partial<RooCodeSettings>)
+				this.viewLocalState.apiConfiguration = providerSettings
+
 				// Change the provider for the current task.
 				// TODO: We should rename `buildApiHandler` for clarity (e.g. `getProviderClient`).
 				this.updateTaskApiHandlerIfNeeded(providerSettings, { forceRebuild: true })
@@ -1782,6 +1809,9 @@ export class ClineProvider
 			currentApiConfigName: profileToActivate,
 			listApiConfigMeta: entries,
 		})
+
+		// Update view-local state for parallel mode support.
+		this._updateViewLocalStateFromMutation({ currentApiConfigName: profileToActivate })
 
 		await this.postStateToWebview()
 	}
@@ -1830,8 +1860,8 @@ export class ClineProvider
 			this.contextProxy.setProviderSettings(providerSettings),
 		])
 
-		// Save to view-local state for parallel mode support.
-		await this.saveViewState("currentApiConfigName", name)
+		// Update view-local state for parallel mode support.
+		this._updateViewLocalStateFromMutation({ currentApiConfigName: name } as Partial<RooCodeSettings>)
 		this.viewLocalState.apiConfiguration = providerSettings
 
 		const { mode } = await this.getState()
@@ -2966,6 +2996,7 @@ export class ClineProvider
 
 	public async setValue<K extends keyof RooCodeSettings>(key: K, value: RooCodeSettings[K]) {
 		await this.contextProxy.setValue(key, value)
+		this._updateViewLocalStateFromMutation({ [key]: value })
 	}
 
 	public getValue<K extends keyof RooCodeSettings>(key: K) {
@@ -2978,6 +3009,48 @@ export class ClineProvider
 
 	public async setValues(values: RooCodeSettings) {
 		await this.contextProxy.setValues(values)
+		this._updateViewLocalStateFromMutation(values)
+	}
+
+	/**
+	 * Update or invalidate viewLocalState when ContextProxy is mutated via setValues, setValue,
+	 * profile upsert/activation/deletion, or resetState. This ensures the local cache stays in
+	 * sync with global state changes that would otherwise be invisible behind mergedStateValues.
+	 */
+	private _updateViewLocalStateFromMutation(values: Partial<RooCodeSettings>): void {
+		if ("mode" in values) {
+			const val = values.mode
+			if (val === undefined || val === null) {
+				delete this.viewLocalState.mode
+			} else {
+				this.viewLocalState.mode = val as any
+			}
+		}
+
+		if ("currentApiConfigName" in values) {
+			const val = values.currentApiConfigName
+			if (val === undefined || val === null) {
+				delete this.viewLocalState.currentApiConfigName
+			} else {
+				this.viewLocalState.currentApiConfigName = val as any
+			}
+		}
+
+		if ("apiConfiguration" in values) {
+			const val = (values as any).apiConfiguration
+			if (val === undefined || val === null) {
+				delete this.viewLocalState.apiConfiguration
+			} else {
+				this.viewLocalState.apiConfiguration = val
+			}
+		}
+	}
+
+	/**
+	 * Clear view-local state cache so that getState() falls back to ContextProxy defaults.
+	 */
+	private _clearViewLocalState(): void {
+		this.viewLocalState = {}
 	}
 
 	// dev
@@ -3006,6 +3079,8 @@ export class ClineProvider
 		}
 
 		await this.contextProxy.resetAllState()
+		this._clearViewLocalState()
+
 		await this.providerSettingsManager.resetAllConfigs()
 		await this.customModesManager.resetCustomModes()
 		await this.removeClineFromStack()
