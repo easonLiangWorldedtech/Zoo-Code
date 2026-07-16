@@ -190,16 +190,6 @@ const App = () => {
 		}
 	}, [telemetrySetting, telemetryKey, machineId, didHydrateState])
 
-	// Tell the extension that we are ready to receive messages.
-	useEffect(
-		() =>
-			vscode.postMessage({
-				type: "webviewDidLaunch",
-				viewStateId: typeof vscode.getViewStateId === "function" ? vscode.getViewStateId() : undefined,
-			}),
-		[],
-	)
-
 	// Initialize source map support for better error reporting
 	useEffect(() => {
 		// Initialize source maps for better error reporting in production

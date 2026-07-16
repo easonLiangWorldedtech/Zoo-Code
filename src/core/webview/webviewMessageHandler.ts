@@ -604,7 +604,8 @@ export const webviewMessageHandler = async (
 						}
 					}
 
-					const currentConfigName = getGlobalState("currentApiConfigName")
+					const currentState = await provider.getState()
+					const currentConfigName = currentState.currentApiConfigName
 
 					if (currentConfigName) {
 						if (!(await provider.providerSettingsManager.hasConfig(currentConfigName))) {
@@ -2197,7 +2198,7 @@ export const webviewMessageHandler = async (
 					// Update state after saving the mode
 					const customModes = await provider.customModesManager.getCustomModes()
 					await updateGlobalState("customModes", customModes)
-					await updateGlobalState("mode", message.modeConfig.slug)
+					await provider.handleModeSwitch(message.modeConfig.slug as Mode)
 					await provider.postStateToWebview()
 
 					// Track telemetry for custom mode creation or update
@@ -2293,7 +2294,7 @@ export const webviewMessageHandler = async (
 				}
 
 				// Switch back to default mode after deletion
-				await updateGlobalState("mode", defaultModeSlug)
+				await provider.handleModeSwitch(defaultModeSlug)
 				await provider.postStateToWebview()
 			}
 			break
