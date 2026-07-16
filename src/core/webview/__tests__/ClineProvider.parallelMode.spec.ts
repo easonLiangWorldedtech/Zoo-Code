@@ -741,15 +741,16 @@ describe("ClineProvider - Parallel Mode Support", () => {
 			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
 
 			const contextProxySpy = vi.spyOn(provider.contextProxy, "setValue")
+			await (provider as any).setViewStateId("stable-sidebar-view")
 
 			await (provider as any).saveViewState("mode", "architect")
 
 			// Verify viewLocalState was updated
 			expect((provider as any).viewLocalState.mode).toBe("architect")
 
-			// saveViewState now uses view-specific key for mode/currentApiConfigName/apiConfiguration
-			const expectedViewKey = `__view_state_sidebar-${provider.viewId.split("-")[1]}_mode`
-			expect(contextProxySpy).toHaveBeenCalledWith(expectedViewKey, "architect")
+			// saveViewState uses the stable per-view id, not the construction-order viewId suffix.
+			expect(contextProxySpy).toHaveBeenCalledWith("__view_state_stable-sidebar-view_mode", "architect")
+			expect(contextProxySpy).not.toHaveBeenCalledWith(`__view_state_${provider.viewId}_mode`, expect.anything())
 
 			await provider.dispose()
 		})
@@ -855,6 +856,37 @@ describe("ClineProvider - Parallel Mode Support", () => {
 			const state = await provider.getState()
 			expect(state.mode).toBe("architect")
 			expect(state.currentApiConfigName).toBe("new-profile")
+
+			await provider.dispose()
+		})
+
+		it("should restore mode, current API config name, and API configuration from stable per-view state", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
+			const stableViewId = "stable-editor-tab-a"
+			const persistedApiConfiguration = {
+				apiProvider: "openrouter" as const,
+				openRouterModelId: "openrouter/anthropic/claude-sonnet-4",
+			}
+
+			await provider.contextProxy.setValue(`__view_state_${stableViewId}_mode` as any, "architect")
+			await provider.contextProxy.setValue(
+				`__view_state_${stableViewId}_currentApiConfigName` as any,
+				"profile-a",
+			)
+			await provider.contextProxy.setValue(
+				`__view_state_${stableViewId}_apiConfiguration` as any,
+				persistedApiConfiguration,
+			)
+			await provider.contextProxy.setValue("mode" as any, "debugger")
+			await provider.contextProxy.setValue("currentApiConfigName" as any, "profile-b")
+			await provider.contextProxy.setValue("apiConfiguration" as any, { apiProvider: "anthropic" })
+
+			await (provider as any).setViewStateId(stableViewId)
+			const state = await provider.getState()
+
+			expect(state.mode).toBe("architect")
+			expect(state.currentApiConfigName).toBe("profile-a")
+			expect(state.apiConfiguration).toMatchObject(persistedApiConfiguration)
 
 			await provider.dispose()
 		})

@@ -558,6 +558,8 @@ export const webviewMessageHandler = async (
 
 	switch (message.type) {
 		case "webviewDidLaunch":
+			await provider.setViewStateId(message.viewStateId)
+
 			// Load custom modes first
 			const customModes = await provider.customModesManager.getCustomModes()
 			await updateGlobalState("customModes", customModes)
