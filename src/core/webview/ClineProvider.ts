@@ -50,6 +50,7 @@ import {
 	DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 	getModelId,
 	isRetiredProvider,
+	PROVIDER_SETTINGS_KEYS,
 } from "@roo-code/types"
 import { RateLimitClock, createRateLimitClock } from "../task/RateLimitClock"
 import { aggregateTaskCostsRecursive, type AggregatedCosts } from "./aggregateTaskCosts"
@@ -3042,6 +3043,19 @@ export class ClineProvider
 				delete this.viewLocalState.apiConfiguration
 			} else {
 				this.viewLocalState.apiConfiguration = val
+			}
+		} else if (PROVIDER_SETTINGS_KEYS.some((key) => key in values)) {
+			const providerSettingsUpdate = PROVIDER_SETTINGS_KEYS.reduce((acc, key) => {
+				if (key in values) {
+					return { ...acc, [key]: values[key as keyof RooCodeSettings] }
+				}
+
+				return acc
+			}, {} as ProviderSettings)
+
+			this.viewLocalState.apiConfiguration = {
+				...(this.viewLocalState.apiConfiguration ?? {}),
+				...providerSettingsUpdate,
 			}
 		}
 	}

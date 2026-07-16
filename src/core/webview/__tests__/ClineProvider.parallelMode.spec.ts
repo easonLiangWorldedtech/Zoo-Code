@@ -1294,6 +1294,33 @@ describe("ClineProvider - Parallel Mode Support", () => {
 
 			await provider.dispose()
 		})
+
+		it("should update viewLocalState apiConfiguration when setValues receives flat provider settings", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+
+			await (provider as any).saveViewState("apiConfiguration", {
+				apiProvider: "openrouter",
+				openRouterModelId: "openrouter/old-model",
+			})
+
+			await provider.setValues({
+				apiProvider: "bedrock",
+				awsUseApiKey: true,
+				awsApiKey: "mock-key",
+				awsRegion: "us-east-1",
+				apiModelId: "anthropic.claude-opus-4-8-20261215-v1:0",
+				awsBedrockEndpoint: "http://127.0.0.1:4567",
+				awsBedrockEndpointEnabled: true,
+			})
+
+			const state = await provider.getState()
+
+			expect(state.apiConfiguration.apiProvider).toBe("bedrock")
+			expect(state.apiConfiguration.awsBedrockEndpoint).toBe("http://127.0.0.1:4567")
+			expect((provider as any).viewLocalState.apiConfiguration.apiProvider).toBe("bedrock")
+
+			await provider.dispose()
+		})
 	})
 
 	describe("multi-instance isolation", () => {
