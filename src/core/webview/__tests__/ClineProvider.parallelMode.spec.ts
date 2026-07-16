@@ -771,6 +771,21 @@ describe("ClineProvider - Parallel Mode Support", () => {
 
 			await provider.dispose()
 		})
+
+		it("should clear local override when saveViewState receives null", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+
+			await (provider as any).saveViewState("currentApiConfigName", "my-profile")
+			expect((provider as any).viewLocalState.currentApiConfigName).toBe("my-profile")
+
+			await (provider as any).saveViewState("currentApiConfigName", null)
+
+			expect(Object.prototype.hasOwnProperty.call((provider as any).viewLocalState, "currentApiConfigName")).toBe(
+				false,
+			)
+
+			await provider.dispose()
+		})
 	})
 
 	describe("loadViewState", () => {
@@ -823,6 +838,56 @@ describe("ClineProvider - Parallel Mode Support", () => {
 
 			await provider.dispose()
 		})
+
+		it("should log and keep existing viewLocalState when loadViewState fails", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			const logSpy = vi.spyOn(provider as any, "log")
+
+			;(provider as any).viewLocalState = { mode: "architect" }
+			vi.spyOn(provider.contextProxy, "getValues").mockImplementation(() => {
+				throw new Error("load failed")
+			})
+
+			await (provider as any).loadViewState()
+
+			expect((provider as any).viewLocalState.mode).toBe("architect")
+			expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Error loading state"))
+
+			await provider.dispose()
+		})
+	})
+
+	describe("syncViewStateToGlobal", () => {
+		it("should sync defined view-local values to ContextProxy", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			const contextProxySpy = vi.spyOn(provider.contextProxy, "setValue")
+
+			;(provider as any).viewLocalState = {
+				mode: "architect",
+				currentApiConfigName: undefined,
+				apiConfiguration: { apiProvider: "openrouter" },
+			}
+
+			await (provider as any).syncViewStateToGlobal()
+
+			expect(contextProxySpy).toHaveBeenCalledWith("mode", "architect")
+			expect(contextProxySpy).toHaveBeenCalledWith("apiConfiguration", { apiProvider: "openrouter" })
+			expect(contextProxySpy).not.toHaveBeenCalledWith("currentApiConfigName", expect.anything())
+
+			await provider.dispose()
+		})
+
+		it("should log sync errors without throwing", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			const logSpy = vi.spyOn(provider as any, "log")
+			vi.spyOn(provider.contextProxy, "setValue").mockRejectedValueOnce(new Error("sync failed"))
+			;(provider as any).viewLocalState = { mode: "architect" }
+
+			await expect((provider as any).syncViewStateToGlobal()).resolves.toBeUndefined()
+			expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Failed to sync state"))
+
+			await provider.dispose()
+		})
 	})
 
 	describe("GlobalState listener", () => {
@@ -855,6 +920,37 @@ describe("ClineProvider - Parallel Mode Support", () => {
 				// For this test, we verify that the listener is registered by checking disposables
 				expect(disposables.length).toBeGreaterThan(0)
 			}
+
+			await provider.dispose()
+		})
+
+		it("should return without registering a listener when configuration events are unavailable", async () => {
+			const originalOnDidChangeConfiguration = vscode.workspace.onDidChangeConfiguration
+			;(vscode.workspace as any).onDidChangeConfiguration = undefined
+
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			const disposableCount = (provider as any).disposables.length
+
+			;(provider as any).setupGlobalStateListener()
+
+			expect((provider as any).disposables).toHaveLength(disposableCount)
+
+			await provider.dispose()
+			;(vscode.workspace as any).onDidChangeConfiguration = originalOnDidChangeConfiguration
+		})
+
+		it("should ignore unrelated configuration changes", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			const loadViewStateSpy = vi.spyOn(provider as any, "loadViewState")
+			const postStateToWebviewSpy = vi.spyOn(provider as any, "postStateToWebview")
+			const configChangeHandler = (vscode.workspace.onDidChangeConfiguration as any).mock.calls.at(-1)?.[0]
+
+			await configChangeHandler({
+				affectsConfiguration: vi.fn().mockReturnValue(false),
+			})
+
+			expect(loadViewStateSpy).not.toHaveBeenCalled()
+			expect(postStateToWebviewSpy).not.toHaveBeenCalled()
 
 			await provider.dispose()
 		})
@@ -944,6 +1040,73 @@ describe("ClineProvider - Parallel Mode Support", () => {
 			await provider.dispose()
 		})
 
+		it("should post state and skip mode config lookup when API config locking is enabled", async () => {
+			const mockPostMessage = vi.fn()
+			const mockWebviewView: any = {
+				webview: {
+					postMessage: mockPostMessage,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn(() => ({ dispose: vi.fn() })),
+				onDidDispose: vi.fn(() => ({ dispose: vi.fn() })),
+			}
+			mockContext.workspaceState.get = vi.fn().mockImplementation((key: string, fallback?: unknown) => {
+				return key === "lockApiConfigAcrossModes" ? true : fallback
+			})
+
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			const getModeConfigIdSpy = vi.spyOn((provider as any).providerSettingsManager, "getModeConfigId")
+
+			await (provider as any).resolveWebviewView(mockWebviewView)
+			mockPostMessage.mockClear()
+
+			await provider.handleModeSwitch("architect" as any)
+
+			expect(getModeConfigIdSpy).not.toHaveBeenCalled()
+			expect(mockPostMessage).toHaveBeenCalled()
+
+			await provider.dispose()
+		})
+
+		it("should activate configured mode profile when switching modes", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			const providerSettingsManager = (provider as any).providerSettingsManager
+			providerSettingsManager.getModeConfigId.mockResolvedValueOnce("profile-id")
+			providerSettingsManager.listConfig.mockResolvedValueOnce([
+				{ id: "profile-id", name: "mode-profile", apiProvider: "openrouter" },
+			])
+			providerSettingsManager.getProfile.mockResolvedValueOnce({ apiProvider: "openrouter" })
+			const activateProviderProfileSpy = vi.spyOn(provider, "activateProviderProfile")
+
+			await provider.handleModeSwitch("architect" as any)
+
+			expect(activateProviderProfileSpy).toHaveBeenCalledWith({ name: "mode-profile" })
+
+			await provider.dispose()
+		})
+
+		it("should leave current configuration unchanged for empty mode profiles", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			const providerSettingsManager = (provider as any).providerSettingsManager
+			providerSettingsManager.getModeConfigId.mockResolvedValueOnce("empty-profile-id")
+			providerSettingsManager.listConfig.mockResolvedValueOnce([
+				{ id: "empty-profile-id", name: "empty-profile" },
+			])
+			providerSettingsManager.getProfile.mockResolvedValueOnce({})
+			const activateProviderProfileSpy = vi.spyOn(provider, "activateProviderProfile")
+
+			await provider.handleModeSwitch("architect" as any)
+
+			expect(activateProviderProfileSpy).not.toHaveBeenCalled()
+
+			await provider.dispose()
+		})
+
 		it("should emit ModeChanged event after handleModeSwitch", async () => {
 			const mockPostMessage = vi.fn()
 
@@ -1020,6 +1183,27 @@ describe("ClineProvider - Parallel Mode Support", () => {
 
 			// Verify saveViewState was called with the new profile name
 			expect(saveViewStateSpy).toHaveBeenCalledWith("currentApiConfigName", "my-profile")
+
+			await provider.dispose()
+		})
+
+		it("should skip mode and task persistence when activation options disable them", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			const providerSettingsManager = (provider as any).providerSettingsManager
+			const setModeConfigSpy = vi.spyOn(providerSettingsManager, "setModeConfig")
+			const persistStickyProviderProfileSpy = vi.spyOn(
+				provider as any,
+				"persistStickyProviderProfileToCurrentTask",
+			)
+
+			await provider.activateProviderProfile(
+				{ name: "my-profile" },
+				{ persistModeConfig: false, persistTaskHistory: false },
+			)
+
+			expect(setModeConfigSpy).not.toHaveBeenCalled()
+			expect(persistStickyProviderProfileSpy).not.toHaveBeenCalled()
+			expect((provider as any).viewLocalState.apiConfiguration).toEqual({ apiProvider: "anthropic" })
 
 			await provider.dispose()
 		})
