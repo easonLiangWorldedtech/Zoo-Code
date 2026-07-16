@@ -219,6 +219,12 @@ export class ClineProvider
 	public readonly viewId: string
 
 	/**
+	 * Stable identifier for persisted per-view state keys.
+	 * Defaults to viewId until the webview reports its VS Code-persisted id.
+	 */
+	private viewStateId: string
+
+	/**
 	 * Local state buffer for this specific view instance.
 	 * Used to isolate mode, apiConfiguration, and other fields from the shared ContextProxy singleton
 	 * when running in parallel (multi-tab) mode.
@@ -242,6 +248,7 @@ export class ClineProvider
 		// Initialize viewId based on renderContext and monotonically increasing instance identifier for uniqueness.
 		// activeInstances is used for visibility/iteration checks, so we keep tracking instances separately.
 		this.viewId = `${renderContext}-${ClineProvider.nextViewId++}`
+		this.viewStateId = this.viewId
 		ClineProvider.activeInstances.add(this)
 		this.currentWorkspacePath = getWorkspacePath()
 		this.pendingEditOperations = new PendingEditOperationStore(
@@ -422,10 +429,22 @@ export class ClineProvider
 
 	/**
 	 * Derive a view-specific ContextProxy key for persisting view-local state.
-	 * Uses the current viewId so each parallel tab restores its own values on recreation.
+	 * Uses a stable per-view id so each restored tab reads and writes its own values
+	 * independent of provider construction order.
 	 */
 	private viewStateKeyFor(key: "mode" | "currentApiConfigName" | "apiConfiguration"): string {
-		return `__view_state_${this.viewId}_${key}`
+		return `__view_state_${this.viewStateId}_${key}`
+	}
+
+	public async setViewStateId(viewStateId: string | undefined): Promise<void> {
+		const normalizedViewStateId = viewStateId?.trim()
+
+		if (!normalizedViewStateId || normalizedViewStateId === this.viewStateId) {
+			return
+		}
+
+		this.viewStateId = normalizedViewStateId.replace(/[^A-Za-z0-9_-]/g, "_")
+		await this.loadViewState()
 	}
 
 	/**
@@ -439,15 +458,18 @@ export class ClineProvider
 			const providerSettings = this.contextProxy.getProviderSettings()
 
 			// Try view-specific keys first, then fall back to shared keys for backward compatibility.
-			const getViewSpecificValue = (sharedKey: "mode" | "currentApiConfigName") => {
+			const getViewSpecificValue = (sharedKey: "mode" | "currentApiConfigName" | "apiConfiguration") => {
 				const viewKey = this.viewStateKeyFor(sharedKey)
-				return (this.contextProxy.getValue(viewKey as any) as any) ?? stateValues[sharedKey]
+				return (
+					(this.contextProxy.getValue(viewKey as any) as any) ??
+					(sharedKey === "apiConfiguration" ? providerSettings : stateValues[sharedKey])
+				)
 			}
 
 			this.viewLocalState = {
 				mode: getViewSpecificValue("mode"),
 				currentApiConfigName: getViewSpecificValue("currentApiConfigName"),
-				apiConfiguration: providerSettings,
+				apiConfiguration: getViewSpecificValue("apiConfiguration") ?? providerSettings,
 				customModePrompts: stateValues.customModePrompts,
 				modeApiConfigs: stateValues.modeApiConfigs,
 			}
