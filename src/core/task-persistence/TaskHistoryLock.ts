@@ -55,16 +55,7 @@ export class TaskHistoryLock {
 		const basePath = await getStorageBasePath(globalStoragePath)
 		const tasksDir = path.join(basePath, "tasks")
 		await fs.mkdir(tasksDir, { recursive: true })
-		const lockFilePath = path.join(tasksDir, GlobalFileNames.historyLock)
-
-		try {
-			await fs.open(lockFilePath, "a").then((handle) => handle.close())
-		} catch (error) {
-			console.error(`[TaskHistoryLock] Failed to create lock file at ${lockFilePath}:`, error)
-			throw error
-		}
-
-		return lockFilePath
+		return path.join(tasksDir, GlobalFileNames.historyLock)
 	}
 
 	private async runWithFileLock<T>(lockFilePath: string, fn: () => Promise<T>): Promise<T> {
