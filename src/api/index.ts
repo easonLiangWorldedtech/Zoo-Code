@@ -52,7 +52,7 @@ export interface CompletePromptOptions extends Pick<ApiHandlerCreateMessageMetad
 }
 
 export interface SingleCompletionHandler {
-	completePrompt(prompt: string, metadata?: CompletePromptOptions): Promise<string>
+	completePrompt(prompt: string, options?: CompletePromptOptions): Promise<string>
 }
 
 export interface ApiHandlerCreateMessageMetadata {
