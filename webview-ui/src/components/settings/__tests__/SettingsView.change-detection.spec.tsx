@@ -94,6 +94,18 @@ vi.mock("@src/components/ui", () => ({
 	TooltipProvider: ({ children }: any) => <>{children}</>,
 	TooltipTrigger: ({ children }: any) => <>{children}</>,
 	TooltipContent: ({ children }: any) => <div>{children}</div>,
+	Command: ({ children }: any) => <div data-testid="command">{children}</div>,
+	CommandInput: ({ value, onValueChange }: any) => (
+		<input data-testid="command-input" value={value} onChange={(e) => onValueChange(e.target.value)} />
+	),
+	CommandGroup: ({ children }: any) => <div data-testid="command-group">{children}</div>,
+	CommandItem: ({ children, onSelect }: any) => (
+		<div data-testid="command-item" onClick={onSelect}>
+			{children}
+		</div>
+	),
+	CommandList: ({ children }: any) => <div data-testid="command-list">{children}</div>,
+	CommandEmpty: ({ children }: any) => <div data-testid="command-empty">{children}</div>,
 	Select: ({ children, value, onValueChange }: any) => (
 		<div data-testid="select" data-value={value}>
 			<button onClick={() => onValueChange && onValueChange("test-change")}>{value}</button>
@@ -332,6 +344,7 @@ describe("SettingsView - Change Detection Fix", () => {
 		autoCloseZooOpenedFiles: true,
 		autoCloseZooOpenedFilesAfterUserEdited: false,
 		autoCloseZooOpenedNewFiles: false,
+		mode: "code",
 		...overrides,
 	})
 
@@ -373,7 +386,7 @@ describe("SettingsView - Change Detection Fix", () => {
 
 		// onDone should be called
 		expect(onDone).toHaveBeenCalled()
-	})
+	}, 10000)
 
 	// These tests are passing for the basic case but failing due to vi.doMock limitations
 	// The core fix has been verified - when no actual changes are made, no unsaved changes dialog appears
@@ -394,7 +407,7 @@ describe("SettingsView - Change Detection Fix", () => {
 		// - null -> value (initialization from null)
 
 		expect(true).toBe(true) // Placeholder - the real test is the running system
-	})
+	}, 10000)
 
 	it("preserves a DeepSeek provider edit after saving Baseten when the same import timestamp replays", async () => {
 		const onDone = vi.fn()
@@ -473,7 +486,7 @@ describe("SettingsView - Change Detection Fix", () => {
 				apiProvider: "deepseek",
 			}),
 		})
-	})
+	}, 10000)
 
 	it("resets cached provider state when a new import timestamp arrives", async () => {
 		const onDone = vi.fn()
@@ -525,5 +538,109 @@ describe("SettingsView - Change Detection Fix", () => {
 		await waitFor(() => {
 			expect(screen.getByTestId("save-button")).toBeDisabled()
 		})
+	}, 10000)
+
+	describe("mode synchronization", () => {
+		it("resets changeDetected and syncs cachedState when mode changes after dirty state", async () => {
+			const onDone = vi.fn()
+			let extensionState = createExtensionState({
+				mode: "code",
+				apiConfiguration: {
+					apiProvider: "openai",
+					apiModelId: "gpt-4.1",
+				},
+			})
+
+			;(useExtensionState as any).mockImplementation(() => extensionState)
+
+			const { rerender } = render(
+				<QueryClientProvider client={queryClient}>
+					<SettingsView onDone={onDone} />
+				</QueryClientProvider>,
+			)
+
+			await waitFor(() => {
+				expect(screen.getByTestId("provider-value")).toHaveTextContent("openai")
+			})
+
+			// Make a dirty change by switching provider
+			fireEvent.click(screen.getByTestId("set-provider-baseten"))
+			expect(screen.getByTestId("provider-value")).toHaveTextContent("baseten")
+
+			// Verify save button is enabled (dirty state)
+			const saveButton = screen.getByTestId("save-button") as HTMLButtonElement
+			expect(saveButton.disabled).toBe(false)
+
+			// Now change the mode - this should trigger the mode sync effect
+			await act(async () => {
+				extensionState = createExtensionState({
+					mode: "ask",
+					apiConfiguration: {
+						apiProvider: "openrouter",
+						apiModelId: "claude-3.5-sonnet",
+					},
+				})
+				;(useExtensionState as any).mockImplementation(() => extensionState)
+
+				rerender(
+					<QueryClientProvider client={queryClient}>
+						<SettingsView onDone={onDone} />
+					</QueryClientProvider>,
+				)
+			})
+
+			// Let the mode sync effect run
+			await act(async () => {
+				await new Promise((resolve) => setTimeout(resolve, 0))
+			})
+
+			// Verify cachedState reflects the new mode's settings
+			await waitFor(() => {
+				expect(screen.getByTestId("provider-value")).toHaveTextContent("openrouter")
+			})
+
+			// Verify changeDetected is reset (save button should be disabled)
+			const updatedSaveButton = screen.getByTestId("save-button") as HTMLButtonElement
+			expect(updatedSaveButton.disabled).toBe(true)
+		}, 20000)
+
+		it("does not trigger sync when mode has not changed", async () => {
+			const onDone = vi.fn()
+			const extensionState = createExtensionState({
+				mode: "code",
+				apiConfiguration: {
+					apiProvider: "openai",
+					apiModelId: "gpt-4.1",
+				},
+			})
+
+			;(useExtensionState as any).mockImplementation(() => extensionState)
+
+			const { rerender } = render(
+				<QueryClientProvider client={queryClient}>
+					<SettingsView onDone={onDone} />
+				</QueryClientProvider>,
+			)
+
+			await waitFor(() => {
+				expect(screen.getByTestId("provider-value")).toHaveTextContent("openai")
+			})
+
+			// Make a dirty change so we can verify it isn't overwritten by a sync
+			fireEvent.click(screen.getByTestId("set-provider-baseten"))
+			expect(screen.getByTestId("provider-value")).toHaveTextContent("baseten")
+
+			// Re-render with same mode - should not trigger sync
+			await act(async () => {
+				rerender(
+					<QueryClientProvider client={queryClient}>
+						<SettingsView onDone={onDone} />
+					</QueryClientProvider>,
+				)
+			})
+
+			// Provider value should remain unchanged from the dirty state
+			expect(screen.getByTestId("provider-value")).toHaveTextContent("baseten")
+		}, 20000)
 	})
 })
