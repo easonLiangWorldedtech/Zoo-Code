@@ -109,6 +109,7 @@ import {
 	TaskHistoryStore,
 	assertValidTransition,
 } from "../task-persistence"
+import { taskHistoryLock } from "../task-persistence/TaskHistoryLock"
 import { readTaskMessages } from "../task-persistence/taskMessages"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
@@ -2092,10 +2093,12 @@ export class ClineProvider
 	}
 
 	async deleteTaskFromState(id: string) {
-		await this.taskHistoryStore.delete(id)
-		this.recentTasksCache = undefined
+		await taskHistoryLock.withLock(async () => {
+			await this.taskHistoryStore.delete(id)
+			this.recentTasksCache = undefined
 
-		await this.postStateToWebview()
+			await this.postStateToWebview()
+		})
 	}
 
 	async refreshWorkspace() {
@@ -2736,17 +2739,20 @@ export class ClineProvider
 	async updateTaskHistory(item: HistoryItem, options: { broadcast?: boolean } = {}): Promise<HistoryItem[]> {
 		const { broadcast = true } = options
 
-		const history = await this.taskHistoryStore.upsert(item)
-		this.recentTasksCache = undefined
+		// Serialize all task history mutations across parallel tabs using the shared lock.
+		return taskHistoryLock.withLock(async () => {
+			const history = await this.taskHistoryStore.upsert(item)
+			this.recentTasksCache = undefined
 
-		// Broadcast the updated history to the webview if requested.
-		// Prefer per-item updates to avoid repeatedly cloning/sending the full history.
-		if (broadcast && this.isViewLaunched) {
-			const updatedItem = this.taskHistoryStore.get(item.id) ?? item
-			await this.postMessageToWebview({ type: "taskHistoryItemUpdated", taskHistoryItem: updatedItem })
-		}
+			// Broadcast the updated history to the webview if requested.
+			// Prefer per-item updates to avoid repeatedly cloning/sending the full history.
+			if (broadcast && this.isViewLaunched) {
+				const updatedItem = this.taskHistoryStore.get(item.id) ?? item
+				await this.postMessageToWebview({ type: "taskHistoryItemUpdated", taskHistoryItem: updatedItem })
+			}
 
-		return history
+			return history
+		})
 	}
 
 	/**

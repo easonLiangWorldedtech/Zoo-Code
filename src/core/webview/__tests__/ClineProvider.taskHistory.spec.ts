@@ -5,6 +5,7 @@ import type { HistoryItem, ExtensionMessage } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 
 import { ContextProxy } from "../../config/ContextProxy"
+import { taskHistoryLock } from "../../task-persistence/TaskHistoryLock"
 import { ClineProvider } from "../ClineProvider"
 
 // Mock setup
@@ -240,6 +241,7 @@ vi.mock("@roo-code/cloud", () => ({
 				getOrganizationMemberships: vi.fn().mockResolvedValue([]),
 				getUserSettings: vi.fn().mockReturnValue(null),
 				isTaskSyncEnabled: vi.fn().mockReturnValue(false),
+				off: vi.fn(),
 			}
 		},
 	},
@@ -260,6 +262,7 @@ describe("ClineProvider Task History Synchronization", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks()
+		taskHistoryLock.reset()
 
 		if (!TelemetryService.hasInstance()) {
 			TelemetryService.createInstance([])
@@ -778,6 +781,148 @@ describe("ClineProvider Task History Synchronization", () => {
 			expect(item).toBeDefined()
 			// The second write (tokensIn: 222) should be the last one since writes are serialized
 			expect(item!.tokensIn).toBe(222)
+		})
+
+		it("serializes concurrent updateTaskHistory from two parallel instances", async () => {
+			const provider2 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			await provider2.taskHistoryStore.initialized
+
+			let inCriticalSection = 0
+			let maxConcurrentMutations = 0
+			const entered: string[] = []
+
+			const makeSerializedUpsert = (instanceName: string) =>
+				vi.fn(async (item: HistoryItem) => {
+					inCriticalSection++
+					maxConcurrentMutations = Math.max(maxConcurrentMutations, inCriticalSection)
+					entered.push(`${instanceName}:${item.id}`)
+					await new Promise((resolve) => setTimeout(resolve, 5))
+					inCriticalSection--
+					return [item]
+				})
+
+			const provider1Upsert = makeSerializedUpsert("provider1")
+			const provider2Upsert = makeSerializedUpsert("provider2")
+			vi.spyOn(provider.taskHistoryStore, "upsert").mockImplementation(provider1Upsert)
+			vi.spyOn(provider2.taskHistoryStore, "upsert").mockImplementation(provider2Upsert)
+
+			try {
+				const provider1Item = createHistoryItem({ id: "parallel-provider-1", task: "Provider 1" })
+				const provider2Item = createHistoryItem({ id: "parallel-provider-2", task: "Provider 2" })
+
+				await Promise.all([
+					provider.updateTaskHistory(provider1Item, { broadcast: false }),
+					provider2.updateTaskHistory(provider2Item, { broadcast: false }),
+				])
+
+				expect(provider1Upsert).toHaveBeenCalledTimes(1)
+				expect(provider2Upsert).toHaveBeenCalledTimes(1)
+				expect(entered).toHaveLength(2)
+				expect(maxConcurrentMutations).toBe(1)
+			} finally {
+				await provider2.dispose()
+			}
+		})
+
+		it("serializes 5+ concurrent updateTaskHistory calls from different tabs", async () => {
+			const providers = [provider]
+
+			for (let i = 1; i < 5; i++) {
+				const nextProvider = new ClineProvider(
+					mockContext,
+					mockOutputChannel,
+					"sidebar",
+					new ContextProxy(mockContext),
+				)
+				await nextProvider.taskHistoryStore.initialized
+				providers.push(nextProvider)
+			}
+
+			let inCriticalSection = 0
+			let maxConcurrentMutations = 0
+			const entered: string[] = []
+
+			try {
+				providers.forEach((currentProvider, providerIndex) => {
+					vi.spyOn(currentProvider.taskHistoryStore, "upsert").mockImplementation(
+						async (item: HistoryItem) => {
+							inCriticalSection++
+							maxConcurrentMutations = Math.max(maxConcurrentMutations, inCriticalSection)
+							entered.push(`provider-${providerIndex}:${item.id}`)
+							await new Promise((resolve) => setTimeout(resolve, 5))
+							inCriticalSection--
+							return [item]
+						},
+					)
+				})
+
+				await Promise.all(
+					providers.map((currentProvider, index) =>
+						currentProvider.updateTaskHistory(
+							createHistoryItem({ id: `parallel-tab-${index}`, task: `Parallel Tab ${index}` }),
+							{ broadcast: false },
+						),
+					),
+				)
+
+				expect(entered).toHaveLength(5)
+				expect(maxConcurrentMutations).toBe(1)
+			} finally {
+				for (const currentProvider of providers.slice(1)) {
+					await currentProvider.dispose()
+				}
+			}
+		})
+
+		it("serializes concurrent updateTaskHistory and deleteTaskFromState across tabs", async () => {
+			const provider2 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			await provider2.taskHistoryStore.initialized
+
+			let inCriticalSection = 0
+			let maxConcurrentMutations = 0
+			const entered: string[] = []
+
+			vi.spyOn(provider.taskHistoryStore, "upsert").mockImplementation(async (item: HistoryItem) => {
+				inCriticalSection++
+				maxConcurrentMutations = Math.max(maxConcurrentMutations, inCriticalSection)
+				entered.push(`update:${item.id}`)
+				await new Promise((resolve) => setTimeout(resolve, 5))
+				inCriticalSection--
+				return [item]
+			})
+			vi.spyOn(provider2.taskHistoryStore, "delete").mockImplementation(async (id: string) => {
+				inCriticalSection++
+				maxConcurrentMutations = Math.max(maxConcurrentMutations, inCriticalSection)
+				entered.push(`delete:${id}`)
+				await new Promise((resolve) => setTimeout(resolve, 5))
+				inCriticalSection--
+			})
+			vi.spyOn(provider2, "postStateToWebview").mockResolvedValue(undefined)
+
+			try {
+				await Promise.all([
+					provider.updateTaskHistory(createHistoryItem({ id: "cross-update", task: "Cross update" }), {
+						broadcast: false,
+					}),
+					provider2.deleteTaskFromState("cross-delete"),
+				])
+
+				expect(entered).toEqual(expect.arrayContaining(["update:cross-update", "delete:cross-delete"]))
+				expect(entered).toHaveLength(2)
+				expect(maxConcurrentMutations).toBe(1)
+			} finally {
+				await provider2.dispose()
+			}
 		})
 	})
 })
