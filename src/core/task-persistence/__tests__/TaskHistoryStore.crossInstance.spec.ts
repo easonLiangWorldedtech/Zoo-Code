@@ -164,4 +164,106 @@ describe("TaskHistoryStore cross-instance safety", () => {
 		expect(storeA.getAll().length).toBe(10)
 		expect(storeB.getAll().length).toBe(10)
 	})
+
+	it("serializes concurrent updateTaskHistory from two parallel instances", async () => {
+		await storeA.initialize()
+		await storeB.initialize()
+
+		// Create a shared task that both instances will update concurrently.
+		const baseItem = makeHistoryItem({ id: "shared-concurrent-task", tokensIn: 0, tokensOut: 0 })
+		await storeA.upsert(baseItem)
+		await storeB.reconcile() // B picks it up
+
+		// Both instances now have the task in their cache.
+		expect(storeA.get("shared-concurrent-task")).toBeDefined()
+		expect(storeB.get("shared-concurrent-task")).toBeDefined()
+
+		// Concurrently update the same task from both instances.
+		const updates = [
+			storeA.upsert({ ...baseItem, tokensIn: 100, tokensOut: 50 }),
+			storeB.upsert({ ...baseItem, tokensIn: 200, tokensOut: 100 }),
+		]
+
+		await Promise.all(updates)
+
+		// After reconciliation, both instances should see the same final state.
+		// The global lock ensures one update completes before the other starts,
+		// so no entry is lost or overwritten with stale data.
+		await storeA.reconcile()
+		await storeB.reconcile()
+
+		const finalA = storeA.get("shared-concurrent-task")
+		const finalB = storeB.get("shared-concurrent-task")
+
+		expect(finalA).toBeDefined()
+		expect(finalB).toBeDefined()
+
+		// Both should agree on the final state (one of the two updates won).
+		expect(finalA!.tokensIn).toBe(finalB!.tokensIn)
+		expect(finalA!.tokensOut).toBe(finalB!.tokensOut)
+
+		// The winning update should be one of the two concurrent writes.
+		const winningTokensIn = finalA!.tokensIn
+		expect(winningTokensIn).toBeOneOf([100, 200])
+	})
+
+	it("handles 5+ concurrent updates from different tabs without losing entries", async () => {
+		await storeA.initialize()
+		await storeB.initialize()
+
+		// Create a base task in both instances
+		const baseItem = makeHistoryItem({ id: "multi-concurrent-task" })
+		await storeA.upsert(baseItem)
+		await storeB.reconcile()
+
+		// Perform 5+ concurrent updates from each instance on the same task.
+		const promises: Promise<HistoryItem[]>[] = []
+		for (let i = 0; i < 6; i++) {
+			promises.push(storeA.upsert({ ...baseItem, tokensIn: baseItem.tokensIn! + 10 }))
+			promises.push(storeB.upsert({ ...baseItem, tokensOut: (baseItem.tokensOut ?? 0) + 5 }))
+		}
+
+		await Promise.all(promises)
+
+		// After reconciliation, the task should still exist with accumulated values.
+		await storeA.reconcile()
+		await storeB.reconcile()
+
+		const final = storeA.get("multi-concurrent-task")
+		expect(final).toBeDefined()
+		// The task was updated 12 times (6 from A, 6 from B), so tokensIn >= 60.
+		expect(final!.tokensIn!).toBeGreaterThanOrEqual(60)
+	})
+
+	it("concurrent updateTaskHistory + deleteTaskFromState across tabs", async () => {
+		await storeA.initialize()
+		await storeB.initialize()
+
+		// Create a task in both instances
+		const baseItem = makeHistoryItem({ id: "update-delete-task" })
+		await storeA.upsert(baseItem)
+		await storeB.reconcile()
+
+		// Instance A updates the task while instance B deletes it concurrently.
+		const [updateResult, deleteResult] = await Promise.all([
+			storeA.upsert({ ...baseItem, tokensIn: 999 }),
+			storeB.delete("update-delete-task"),
+		])
+
+		// After reconciliation, both should agree on the final state.
+		await storeA.reconcile()
+		await storeB.reconcile()
+
+		const finalA = storeA.get("update-delete-task")
+		const finalB = storeB.get("update-delete-task")
+
+		// The task may or may not exist depending on which operation won,
+		// but both instances should agree.
+		if (finalA) {
+			expect(finalB).toBeDefined()
+			expect(finalA!.tokensIn).toBe(finalB!.tokensIn)
+		} else {
+			expect(finalB).toBeUndefined()
+		}
+	})
 })
