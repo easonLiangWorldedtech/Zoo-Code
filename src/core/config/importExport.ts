@@ -36,6 +36,7 @@ type ImportWithProviderOptions = ImportOptions & {
 	provider: {
 		settingsImportedAt?: number
 		postStateToWebview: () => Promise<void>
+		broadcastResetToAllInstances?(): Promise<void>
 	}
 }
 
@@ -385,6 +386,13 @@ export const importSettingsWithFeedback = async (
 	if (result.success) {
 		provider.settingsImportedAt = Date.now()
 		await provider.postStateToWebview()
+
+		// Broadcast invalidation to all other live ClineProvider instances so parallel
+		// tabs don't keep stale view-local state after a settings import.
+		if (provider.broadcastResetToAllInstances) {
+			await provider.broadcastResetToAllInstances()
+		}
+
 		provider.settingsImportedAt = undefined
 		const warnings = "warnings" in result ? result.warnings : undefined
 

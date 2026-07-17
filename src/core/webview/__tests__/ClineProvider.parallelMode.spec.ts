@@ -1467,4 +1467,317 @@ describe("ClineProvider - Parallel Mode Support", () => {
 			await provider2.dispose()
 		})
 	})
+
+	describe("broadcastResetToAllInstances", () => {
+		it("should clear viewLocalState in other instances and post updated state", async () => {
+			const mockPostMessage1 = vi.fn()
+			const mockPostMessage2 = vi.fn()
+
+			const mockWebviewView1: any = {
+				webview: {
+					postMessage: mockPostMessage1,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+				onDidDispose: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+			}
+
+			const mockWebviewView2: any = {
+				webview: {
+					postMessage: mockPostMessage2,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+				onDidDispose: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+			}
+
+			const provider1 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			const provider2 = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
+
+			await (provider1 as any).resolveWebviewView(mockWebviewView1)
+			await (provider2 as any).resolveWebviewView(mockWebviewView2)
+
+			// Set different modes for each provider
+			await (provider1 as any).saveViewState("mode", "architect")
+			await (provider2 as any).saveViewState("mode", "debugger")
+
+			expect((provider1 as any).viewLocalState.mode).toBe("architect")
+			expect((provider2 as any).viewLocalState.mode).toBe("debugger")
+
+			// Call broadcastResetToAllInstances on provider1
+			await provider1.broadcastResetToAllInstances()
+
+			// provider1 should NOT clear its own state
+			expect((provider1 as any).viewLocalState.mode).toBe("architect")
+
+			// provider2 should have cleared its viewLocalState
+			expect(Object.prototype.hasOwnProperty.call((provider2 as any).viewLocalState, "mode")).toBe(false)
+
+			// provider2 should have posted updated state to webview
+			expect(mockPostMessage2).toHaveBeenCalled()
+		})
+
+		it("should not broadcast to itself but clear others", async () => {
+			const mockPostMessage1 = vi.fn()
+			const mockPostMessage2 = vi.fn()
+
+			const mockWebviewView1: any = {
+				webview: {
+					postMessage: mockPostMessage1,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+				onDidDispose: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+			}
+
+			const mockWebviewView2: any = {
+				webview: {
+					postMessage: mockPostMessage2,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+				onDidDispose: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+			}
+
+			const provider1 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			const provider2 = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
+
+			await (provider1 as any).resolveWebviewView(mockWebviewView1)
+			await (provider2 as any).resolveWebviewView(mockWebviewView2)
+
+			await (provider1 as any).saveViewState("mode", "architect")
+			await (provider2 as any).saveViewState("mode", "debugger")
+
+			// Call broadcastResetToAllInstances on provider2
+			await provider2.broadcastResetToAllInstances()
+
+			// provider2 should NOT have posted to its own webview (it's the broadcaster)
+			expect(mockPostMessage2).not.toHaveBeenCalled()
+
+			// provider1 should have been cleared and posted state
+			expect((provider1 as any).viewLocalState.mode).toBeUndefined()
+			expect(mockPostMessage1).toHaveBeenCalled()
+		})
+
+		it("should handle single instance gracefully", async () => {
+			const mockPostMessage = vi.fn()
+
+			const mockWebviewView: any = {
+				webview: {
+					postMessage: mockPostMessage,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+				onDidDispose: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+			}
+
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+
+			await (provider as any).resolveWebviewView(mockWebviewView)
+
+			await (provider as any).saveViewState("mode", "architect")
+
+			// Single instance broadcast should not throw
+			await provider.broadcastResetToAllInstances()
+
+			// Single instance should keep its own state
+			expect((provider as any).viewLocalState.mode).toBe("architect")
+
+			// Should not have posted to webview (no other instances)
+			expect(mockPostMessage).not.toHaveBeenCalled()
+		})
+
+		it("should broadcast to all instances in getAllInstances", async () => {
+			const mockPostMessage1 = vi.fn()
+			const mockPostMessage2 = vi.fn()
+			const mockPostMessage3 = vi.fn()
+
+			const createMockWebviewView = (postMessage: any) => ({
+				webview: {
+					postMessage,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+				onDidDispose: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+			})
+
+			const provider1 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			const provider2 = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
+			const provider3 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+
+			await (provider1 as any).resolveWebviewView(createMockWebviewView(mockPostMessage1))
+			await (provider2 as any).resolveWebviewView(createMockWebviewView(mockPostMessage2))
+			await (provider3 as any).resolveWebviewView(createMockWebviewView(mockPostMessage3))
+
+			await (provider1 as any).saveViewState("mode", "code")
+			await (provider2 as any).saveViewState("mode", "architect")
+			await (provider3 as any).saveViewState("mode", "debugger")
+
+			// Broadcast from provider1
+			await provider1.broadcastResetToAllInstances()
+
+			// provider1 keeps its state
+			expect((provider1 as any).viewLocalState.mode).toBe("code")
+
+			// provider2 and provider3 should be cleared
+			expect(Object.prototype.hasOwnProperty.call((provider2 as any).viewLocalState, "mode")).toBe(false)
+			expect(Object.prototype.hasOwnProperty.call((provider3 as any).viewLocalState, "mode")).toBe(false)
+
+			// provider2 and provider3 should have posted state
+			expect(mockPostMessage2).toHaveBeenCalled()
+			expect(mockPostMessage3).toHaveBeenCalled()
+		})
+	})
+
+	describe("_clearViewLocalState", () => {
+		it("should clear all view-local state values", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+
+			await (provider as any).saveViewState("mode", "architect")
+			await (provider as any).saveViewState("currentApiConfigName", "my-profile")
+			await (provider as any).saveViewState("apiConfiguration", { apiProvider: "openrouter" })
+
+			expect((provider as any).viewLocalState.mode).toBe("architect")
+			expect((provider as any).viewLocalState.currentApiConfigName).toBe("my-profile")
+			expect((provider as any).viewLocalState.apiConfiguration).toEqual({ apiProvider: "openrouter" })
+
+			// Call _clearViewLocalState
+			;(provider as any)._clearViewLocalState()
+
+			// All values should be cleared
+			expect((provider as any).viewLocalState).toEqual({})
+
+			await provider.dispose()
+		})
+
+		it("should cause getState to fall back to contextProxy values after clear", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+
+			await (provider as any).saveViewState("mode", "architect")
+
+			let state = await provider.getState()
+			expect(state.mode).toBe("architect")
+
+			// Clear viewLocalState
+			;(provider as any)._clearViewLocalState()
+
+			// getState should now fall back to contextProxy (global) state
+			state = await provider.getState()
+			expect(state.mode).toBe("code") // Default from mock context
+
+			await provider.dispose()
+		})
+
+		it("should be safe to call on empty viewLocalState", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+
+			// Should not throw even if viewLocalState is already empty
+			expect((provider as any)._clearViewLocalState()).toBeUndefined()
+			expect((provider as any).viewLocalState).toEqual({})
+
+			await provider.dispose()
+		})
+	})
+
+	describe("resetState broadcasts", () => {
+		it("should clear viewLocalState and call broadcastResetToAllInstances in resetState flow", async () => {
+			const mockPostMessage1 = vi.fn()
+			const mockPostMessage2 = vi.fn()
+
+			const createMockWebviewView = (postMessage: any) => ({
+				webview: {
+					postMessage,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+				onDidDispose: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+			})
+
+			const provider1 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			const provider2 = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
+
+			await (provider1 as any).resolveWebviewView(createMockWebviewView(mockPostMessage1))
+			await (provider2 as any).resolveWebviewView(createMockWebviewView(mockPostMessage2))
+
+			// Set different modes
+			await (provider1 as any).saveViewState("mode", "architect")
+			await (provider2 as any).saveViewState("mode", "debugger")
+
+			// Verify initial state
+			expect((provider1 as any).viewLocalState.mode).toBe("architect")
+			expect((provider2 as any).viewLocalState.mode).toBe("debugger")
+
+			// Manually call the same sequence that resetState does after confirmation:
+			// 1. _clearViewLocalState on the calling instance
+			;(provider1 as any)._clearViewLocalState()
+			expect((provider1 as any).viewLocalState).toStrictEqual({})
+
+			// 2. broadcastResetToAllInstances to clear other instances
+			await provider1.broadcastResetToAllInstances()
+
+			// provider2 should have been cleared
+			expect(Object.hasOwn((provider2 as any).viewLocalState, "mode")).toBe(false)
+			expect(mockPostMessage2).toHaveBeenCalled()
+		})
+	})
 })

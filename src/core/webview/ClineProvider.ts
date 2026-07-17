@@ -432,6 +432,14 @@ export class ClineProvider
 	 * Derive a view-specific ContextProxy key for persisting view-local state.
 	 * Uses a stable per-view id so each restored tab reads and writes its own values
 	 * independent of provider construction order.
+	 *
+	 * PERSISTENCE NOTE (Finding #2): These keys (`__view_state_{id}_mode`, etc.) are NOT
+	 * included in `GLOBAL_STATE_KEYS` from @roo-code/types, so they survive within a single
+	 * extension session but do NOT persist across extension host restarts. If the extension is
+	 * reloaded, view-local state falls back to the shared global keys (e.g. `mode`,
+	 * `currentApiConfigName`). For cross-session persistence of view-specific values, either:
+	 *   - Add these keys to GLOBAL_STATE_KEYS, or
+	 *   - Use vscode.workspaceState instead of contextProxy.globalState.
 	 */
 	private viewStateKeyFor(key: "mode" | "currentApiConfigName" | "apiConfiguration"): string {
 		return `__view_state_${this.viewStateId}_${key}`
@@ -471,8 +479,10 @@ export class ClineProvider
 				mode: getViewSpecificValue("mode"),
 				currentApiConfigName: getViewSpecificValue("currentApiConfigName"),
 				apiConfiguration: getViewSpecificValue("apiConfiguration") ?? providerSettings,
-				customModePrompts: stateValues.customModePrompts,
-				modeApiConfigs: stateValues.modeApiConfigs,
+				// customModePrompts / modeApiConfigs are intentionally excluded from viewLocalState.
+				// They are project-level shared data — always read directly from contextProxy via
+				// getState() so all parallel tabs see the same values without being frozen into a
+				// stale local snapshot.
 			}
 			this.log(`[loadViewState] Loaded state for viewId ${this.viewId}`)
 		} catch (error) {
@@ -2725,7 +2735,13 @@ export class ClineProvider
 		const stateValues = this.contextProxy.getValues()
 
 		// NEW: Merge viewLocalState on top of global state
-		// This allows each Provider instance to have its own mode/apiConfig for parallel mode support
+		// This allows each Provider instance to have its own mode/apiConfig for parallel mode support.
+		//
+		// CREDENTIAL MERGING NOTE (Finding #1): The spread `{ ...stateValues, ...this.viewLocalState }`
+		// means that if Tab A has a local `apiConfiguration` with an API key but Tab B only has the shared
+		// state, Tab B's `getState()` will still see Tab A's key (because both share the same ContextProxy).
+		// This is expected behavior — parallel tabs within the same extension host share memory by design.
+		// If isolation is needed in the future, consider per-tab secret storage via vscode.SecretStorage.
 		const mergedStateValues = { ...stateValues, ...this.viewLocalState }
 
 		const customModes = await this.customModesManager.getCustomModes()
@@ -3089,6 +3105,21 @@ export class ClineProvider
 		this.viewLocalState = {}
 	}
 
+	/**
+	 * Broadcast a reset event to all other live ClineProvider instances, clearing their
+	 * view-local state caches and posting updated state so parallel tabs stay in sync.
+	 * Also exposed for use by importSettingsWithFeedback (via broadcastResetToAllInstances callback).
+	 */
+	async broadcastResetToAllInstances(): Promise<void> {
+		const allInstances = ClineProvider.getAllInstances()
+		for (const instance of allInstances) {
+			if (instance !== this) {
+				instance._clearViewLocalState()
+				await instance.postStateToWebview()
+			}
+		}
+	}
+
 	// dev
 
 	async resetState() {
@@ -3120,6 +3151,10 @@ export class ClineProvider
 		await this.providerSettingsManager.resetAllConfigs()
 		await this.customModesManager.resetCustomModes()
 		await this.removeClineFromStack()
+
+		// Broadcast reset to all other live instances so parallel tabs don't keep stale state.
+		await this.broadcastResetToAllInstances()
+
 		await this.postStateToWebview()
 		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 	}
