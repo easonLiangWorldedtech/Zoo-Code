@@ -1780,4 +1780,121 @@ describe("ClineProvider - Parallel Mode Support", () => {
 			expect(mockPostMessage2).toHaveBeenCalled()
 		})
 	})
+
+	describe("deleteProviderProfile", () => {
+		it("should use merged state (view-local) when determining profileToActivate in parallel mode", async () => {
+			const mockPostMessage1 = vi.fn()
+			const mockPostMessage2 = vi.fn()
+
+			const createMockWebviewView = (postMessage: any) => ({
+				webview: {
+					postMessage,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+				onDidDispose: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+			})
+
+			const provider1 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			const provider2 = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
+
+			await (provider1 as any).resolveWebviewView(createMockWebviewView(mockPostMessage1))
+			await (provider2 as any).resolveWebviewView(createMockWebviewView(mockPostMessage2))
+
+			// Set different profiles for each provider via saveViewState
+			await (provider1 as any).saveViewState("currentApiConfigName", "profile-a")
+			await (provider2 as any).saveViewState("currentApiConfigName", "profile-b")
+
+			// Verify view-local state is isolated
+			const state1 = await provider1.getState()
+			let state2 = await provider2.getState()
+			expect(state1.currentApiConfigName).toBe("profile-a")
+			expect(state2.currentApiConfigName).toBe("profile-b")
+
+			// Set up global state listApiConfigMeta with 3 profiles (including profile-to-delete)
+			const profileToDelete = { id: "del-id", name: "profile-to-delete", apiProvider: "anthropic" as const }
+			await provider1.contextProxy.setValues({
+				listApiConfigMeta: [
+					{ id: "a-id", name: "profile-a", apiProvider: "anthropic" },
+					{ id: "b-id", name: "profile-b", apiProvider: "anthropic" },
+					profileToDelete,
+				],
+			})
+
+			// provider2's viewLocalState has currentApiConfigName = "profile-b"
+			// When provider2 deletes "profile-to-delete", it should NOT activate "profile-a" (provider1's profile)
+			// It should keep "profile-b" because that's what THIS TAB is using
+
+			// Spy on _updateViewLocalStateFromMutation to capture what profile gets activated
+			const updateViewLocalSpy = vi.spyOn(provider2 as any, "_updateViewLocalStateFromMutation")
+
+			await provider2.deleteProviderProfile(profileToDelete)
+
+			// The key assertion: profileToActivate should be "profile-b" (provider2's view-local),
+			// NOT "profile-a" (provider1's view-local from shared global state).
+			// _updateViewLocalStateFromMutation IS called with the merged state's currentApiConfigName.
+			expect(updateViewLocalSpy).toHaveBeenCalledWith({ currentApiConfigName: "profile-b" })
+
+			// Verify provider2's state is still "profile-b" after deletion
+			state2 = await provider2.getState()
+			expect(state2.currentApiConfigName).toBe("profile-b")
+
+			await provider1.dispose()
+			await provider2.dispose()
+		})
+
+		it("should activate the correct fallback profile when deleting the current profile in parallel mode", async () => {
+			const mockPostMessage = vi.fn()
+
+			const createMockWebviewView = (postMessage: any) => ({
+				webview: {
+					postMessage,
+					html: "",
+					options: {},
+					onDidReceiveMessage: vi.fn(),
+					asWebviewUri: vi.fn(),
+					cspSource: "vscode-webview://test-csp-source",
+				},
+				visible: true,
+				onDidChangeVisibility: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+				onDidDispose: vi.fn().mockImplementation(() => ({ dispose: vi.fn() })),
+			})
+
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+
+			await (provider as any).resolveWebviewView(createMockWebviewView(mockPostMessage))
+
+			// Set up view-local state to use "profile-a"
+			await (provider as any).saveViewState("currentApiConfigName", "profile-a")
+
+			// Set up global state with multiple profiles
+			await provider.contextProxy.setValues({
+				listApiConfigMeta: [
+					{ id: "a-id", name: "profile-a", apiProvider: "anthropic" },
+					{ id: "b-id", name: "profile-b", apiProvider: "openrouter" },
+					{ id: "c-id", name: "profile-c", apiProvider: "anthropic" },
+				],
+			})
+
+			// Delete the currently active profile (profile-a)
+			const profileToDelete = { id: "a-id", name: "profile-a", apiProvider: "anthropic" as const }
+			await provider.deleteProviderProfile(profileToDelete)
+
+			// After deletion, should activate to the first remaining profile (profile-b)
+			const state = await provider.getState()
+			expect(state.currentApiConfigName).toBe("profile-b")
+
+			await provider.dispose()
+		})
+	})
 })

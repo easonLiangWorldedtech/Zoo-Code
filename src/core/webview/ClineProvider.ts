@@ -1824,8 +1824,11 @@ export class ClineProvider
 	}
 
 	async deleteProviderProfile(profileToDelete: ProviderSettingsEntry) {
-		const globalSettings = this.contextProxy.getValues()
-		let profileToActivate: string | undefined = globalSettings.currentApiConfigName
+		// Use merged state (view-local + global) so we read THIS TAB's current profile choice,
+		// NOT the shared global state which may belong to another parallel tab.
+		const { currentApiConfigName: globalCurrentProfile } = await this.getState()
+
+		let profileToActivate: string | undefined = globalCurrentProfile
 
 		if (profileToDelete.name === profileToActivate) {
 			profileToActivate = this.getProviderProfileEntries().find(({ name }) => name !== profileToDelete.name)?.name
@@ -1836,6 +1839,8 @@ export class ClineProvider
 		}
 
 		const entries = this.getProviderProfileEntries().filter(({ name }) => name !== profileToDelete.name)
+
+		const globalSettings = await this.getState()
 
 		await this.contextProxy.setValues({
 			...globalSettings,
