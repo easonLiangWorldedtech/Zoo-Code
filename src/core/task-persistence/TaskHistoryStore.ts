@@ -7,6 +7,7 @@ import type { HistoryItem } from "@roo-code/types"
 import { GlobalFileNames } from "../../shared/globalFileNames"
 import { safeWriteJson } from "../../utils/safeWriteJson"
 import { getStorageBasePath } from "../../utils/storage"
+import { taskHistoryLock } from "./TaskHistoryLock"
 
 /** Valid status values for a task's HistoryItem. */
 export type HistoryItemStatus = NonNullable<HistoryItem["status"]>
@@ -184,7 +185,7 @@ export class TaskHistoryStore {
 	 * updates the in-memory Map, and schedules a debounced index write.
 	 */
 	async upsert(item: HistoryItem): Promise<HistoryItem[]> {
-		return this.withLock(() => this.upsertCore(item))
+		return this.withSharedStorageLock(() => this.upsertCore(item))
 	}
 
 	/**
@@ -237,7 +238,7 @@ export class TaskHistoryStore {
 	 * Delete a single task's history item.
 	 */
 	async delete(taskId: string): Promise<void> {
-		return this.withLock(async () => {
+		return this.withSharedStorageLock(async () => {
 			this.cache.delete(taskId)
 
 			// Remove per-task file (best-effort)
@@ -261,7 +262,7 @@ export class TaskHistoryStore {
 	 * Delete multiple tasks' history items in a batch.
 	 */
 	async deleteMany(taskIds: string[]): Promise<void> {
-		return this.withLock(() => this.deleteManyCore(taskIds))
+		return this.withSharedStorageLock(() => this.deleteManyCore(taskIds))
 	}
 
 	private async deleteManyCore(taskIds: string[]): Promise<void> {
@@ -293,8 +294,8 @@ export class TaskHistoryStore {
 	 * - Tasks in cache but missing from disk: remove
 	 */
 	async reconcile(): Promise<void> {
-		// Run through the write lock to prevent interleaving with upsert/delete
-		return this.withLock(() => this.reconcileCore())
+		// Run through the shared storage lock and write lock to prevent interleaving with upsert/delete.
+		return this.withSharedStorageLock(() => this.reconcileCore())
 	}
 
 	private async reconcileCore(): Promise<void> {
@@ -363,7 +364,7 @@ export class TaskHistoryStore {
 	 * A parent awaiting an `active`, `interrupted`, or `delegated` child is left as-is — the child is resumable.
 	 */
 	private async reconcileDelegationState(): Promise<void> {
-		return this.withLock(() => this.reconcileDelegationStateCore())
+		return this.withSharedStorageLock(() => this.reconcileDelegationStateCore())
 	}
 
 	private async reconcileDelegationStateCore(): Promise<void> {
@@ -464,11 +465,11 @@ export class TaskHistoryStore {
 	 * file if one doesn't already exist. This is idempotent and safe to re-run.
 	 */
 	async migrateFromGlobalState(taskHistoryEntries: HistoryItem[]): Promise<void> {
-		return this.withLock(() => this.migrateFromGlobalStateCore(taskHistoryEntries))
+		return this.withSharedStorageLock(() => this.migrateFromGlobalStateCore(taskHistoryEntries))
 	}
 
 	async mutateLocked<T>(fn: () => Promise<T>): Promise<T> {
-		return this.withLock(fn)
+		return this.withSharedStorageLock(fn)
 	}
 
 	async reconcileLocked(): Promise<void> {
@@ -703,7 +704,7 @@ export class TaskHistoryStore {
 	 * @throws If the task ID is not present in the cache.
 	 */
 	public atomicReadAndUpdate(taskId: string, updater: (current: HistoryItem) => HistoryItem): Promise<HistoryItem[]> {
-		return this.withLock(async () => {
+		return this.withSharedStorageLock(async () => {
 			const current = this.cache.get(taskId)
 			if (!current) {
 				throw new Error(`[TaskHistoryStore] atomicReadAndUpdate: task ${taskId} not found in cache`)
@@ -734,7 +735,7 @@ export class TaskHistoryStore {
 		firstUpdater: (current: HistoryItem) => HistoryItem,
 		secondUpdater: (current: HistoryItem) => HistoryItem,
 	): Promise<HistoryItem[]> {
-		return this.withLock(async () => {
+		return this.withSharedStorageLock(async () => {
 			const first = this.cache.get(firstId)
 			if (!first) throw new Error(`[TaskHistoryStore] atomicUpdatePair: ${firstId} not found`)
 			const second = this.cache.get(secondId)
@@ -790,6 +791,13 @@ export class TaskHistoryStore {
 	}
 
 	// ────────────────────────────── Private: Write lock ──────────────────────────────
+
+	/**
+	 * Acquires the shared task-history storage lock before entering the instance-local queue.
+	 */
+	private withSharedStorageLock<T>(fn: () => Promise<T>): Promise<T> {
+		return taskHistoryLock.withLock(this.globalStoragePath, () => this.withLock(fn))
+	}
 
 	/**
 	 * Serializes all read-modify-write operations within a single extension
