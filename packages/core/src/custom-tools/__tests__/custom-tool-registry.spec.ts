@@ -212,4 +212,144 @@ describe("CustomToolRegistry", () => {
 			expect(registry.list()).toEqual([])
 		})
 	})
+
+	describe("getAllSerialized", () => {
+		it("should return serialized versions of all tools", () => {
+			const tool1: CustomToolDefinition = {
+				name: "serialized_tool_1",
+				description: "First serialized tool",
+				execute: async () => "result1",
+			}
+			const tool2: CustomToolDefinition = {
+				name: "serialized_tool_2",
+				description: "Second serialized tool",
+				execute: async () => "result2",
+			}
+
+			registry.register(tool1)
+			registry.register(tool2)
+
+			const serialized = registry.getAllSerialized()
+
+			expect(serialized).toHaveLength(2)
+			const first = serialized[0]!
+			const second = serialized[1]!
+			expect(first.name).toBe("serialized_tool_1")
+			expect(first.description).toBe("First serialized tool")
+			expect(second.name).toBe("serialized_tool_2")
+		})
+
+		it("should return empty array when no tools registered", () => {
+			const serialized = registry.getAllSerialized()
+			expect(serialized).toEqual([])
+		})
+	})
+
+	describe("setExtensionPath / getExtensionPath", () => {
+		it("should return undefined by default", () => {
+			expect(registry.getExtensionPath()).toBeUndefined()
+		})
+
+		it("should set and retrieve extension path", () => {
+			const testPath = "/path/to/extension"
+
+			registry.setExtensionPath(testPath)
+
+			expect(registry.getExtensionPath()).toBe(testPath)
+		})
+
+		it("should update extension path when called multiple times", () => {
+			registry.setExtensionPath("/first/path")
+			expect(registry.getExtensionPath()).toBe("/first/path")
+
+			registry.setExtensionPath("/second/path")
+			expect(registry.getExtensionPath()).toBe("/second/path")
+		})
+	})
+
+	describe("clearCache", () => {
+		it("should clear the in-memory TypeScript cache", () => {
+			const testRegistry = new CustomToolRegistry({ cacheDir: "/tmp/test-cache-clear" })
+
+			expect(testRegistry).toBeDefined()
+			testRegistry.clearCache()
+		})
+
+		it("should handle clearCache on a registry with tools", () => {
+			const testRegistry = new CustomToolRegistry({ cacheDir: "/tmp/test-cache-with-tools" })
+
+			testRegistry.register({ name: "cache_test_tool", description: "Test", execute: async () => "result" })
+
+			expect(testRegistry.size).toBe(1)
+
+			testRegistry.clearCache()
+
+			expect(testRegistry.size).toBe(1)
+			expect(testRegistry.has("cache_test_tool")).toBe(true)
+		})
+	})
+
+	describe("validate edge cases", () => {
+		it("should reject null value via register", () => {
+			// @ts-expect-error - testing invalid input
+			expect(() => registry.register(null)).toThrow()
+		})
+
+		it("should reject undefined value via register", () => {
+			// @ts-expect-error - testing invalid input
+			expect(() => registry.register(undefined)).toThrow()
+		})
+
+		it("should reject object without execute function", () => {
+			const noExecuteTool = { name: "no_execute", description: "Missing execute" } as CustomToolDefinition
+			expect(() => registry.register(noExecuteTool)).toThrow(/Invalid tool definition/)
+		})
+
+		it("should reject non-string description", () => {
+			const badDescTool = {
+				name: "bad_desc_tool",
+				description: 123,
+				execute: async () => "result",
+			} as unknown as CustomToolDefinition
+			expect(() => registry.register(badDescTool)).toThrow(/description/)
+		})
+
+		it("should reject object with non-string name", () => {
+			const badNameTool = {
+				name: 456,
+				description: "Has description",
+				execute: async () => "result",
+			} as unknown as CustomToolDefinition
+			expect(() => registry.register(badNameTool)).toThrow(/name/)
+		})
+
+		it("should reject tool with missing description", () => {
+			const minimalTool = {
+				name: "minimal_tool",
+				execute: async () => "result",
+			} as unknown as CustomToolDefinition
+			expect(() => registry.register(minimalTool)).toThrow(/description/)
+		})
+
+		it("should reject tool with execute that is not a function", () => {
+			const badExecTool = {
+				name: "bad_exec_tool",
+				description: "Bad exec type",
+				execute: "not-a-function" as unknown as CustomToolDefinition["execute"],
+			}
+			expect(() => registry.register(badExecTool)).toThrow(/Invalid tool definition/)
+		})
+
+		it("should accept valid tool with all fields including parameters", () => {
+			const fullTool: CustomToolDefinition = {
+				name: "full_tool",
+				description: "Full featured tool",
+				parameters: z.object({ input: z.string() }),
+				execute: async (args) => `Processed: ${args.input}`,
+			}
+
+			expect(() => registry.register(fullTool)).not.toThrow()
+			expect(registry.has("full_tool")).toBe(true)
+		})
+	})
 })
