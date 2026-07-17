@@ -389,8 +389,13 @@ export const importSettingsWithFeedback = async (
 
 		// Broadcast invalidation to all other live ClineProvider instances so parallel
 		// tabs don't keep stale view-local state after a settings import.
-		if (provider.broadcastResetToAllInstances) {
-			await provider.broadcastResetToAllInstances()
+		try {
+			if (provider.broadcastResetToAllInstances) {
+				await provider.broadcastResetToAllInstances()
+			}
+		} catch (error) {
+			// Log but do not fail the import if broadcast fails — the import itself succeeded.
+			console.warn(`Failed to broadcast reset after settings import: ${error}`)
 		}
 
 		provider.settingsImportedAt = undefined
