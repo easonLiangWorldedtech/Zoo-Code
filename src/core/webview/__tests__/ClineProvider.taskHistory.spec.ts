@@ -5,6 +5,7 @@ import type { HistoryItem, ExtensionMessage } from "@roo-code/types"
 import { TelemetryService } from "@roo-code/telemetry"
 
 import { ContextProxy } from "../../config/ContextProxy"
+import { taskHistoryLock } from "../../task-persistence/TaskHistoryLock"
 import { ClineProvider } from "../ClineProvider"
 
 // Mock setup
@@ -116,7 +117,11 @@ vi.mock("vscode", () => ({
 		showInformationMessage: vi.fn(),
 		showWarningMessage: vi.fn(),
 		showErrorMessage: vi.fn(),
+		createTextEditorDecorationType: vi.fn(() => ({ dispose: vi.fn() })),
 		onDidChangeActiveTextEditor: vi.fn(() => ({ dispose: vi.fn() })),
+		tabGroups: {
+			onDidChangeTabs: vi.fn(() => ({ dispose: vi.fn() })),
+		},
 	},
 	workspace: {
 		getConfiguration: vi.fn().mockReturnValue({
@@ -132,6 +137,12 @@ vi.mock("vscode", () => ({
 		onDidChangeTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
 		onDidOpenTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
 		onDidCloseTextDocument: vi.fn(() => ({ dispose: vi.fn() })),
+		createFileSystemWatcher: vi.fn(() => ({
+			onDidCreate: vi.fn(() => ({ dispose: vi.fn() })),
+			onDidDelete: vi.fn(() => ({ dispose: vi.fn() })),
+			onDidChange: vi.fn(() => ({ dispose: vi.fn() })),
+			dispose: vi.fn(),
+		})),
 	},
 	env: {
 		uriScheme: "vscode",
@@ -240,6 +251,7 @@ vi.mock("@roo-code/cloud", () => ({
 				getOrganizationMemberships: vi.fn().mockResolvedValue([]),
 				getUserSettings: vi.fn().mockReturnValue(null),
 				isTaskSyncEnabled: vi.fn().mockReturnValue(false),
+				off: vi.fn(),
 			}
 		},
 	},
@@ -260,6 +272,8 @@ describe("ClineProvider Task History Synchronization", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks()
+		taskHistoryLock.reset()
+		vi.spyOn(taskHistoryLock, "withLock").mockImplementation(async (_globalStoragePath, fn) => fn())
 
 		if (!TelemetryService.hasInstance()) {
 			TelemetryService.createInstance([])
@@ -778,6 +792,119 @@ describe("ClineProvider Task History Synchronization", () => {
 			expect(item).toBeDefined()
 			// The second write (tokensIn: 222) should be the last one since writes are serialized
 			expect(item!.tokensIn).toBe(222)
+		})
+
+		it("routes concurrent updateTaskHistory calls from two parallel instances through the shared lock", async () => {
+			const provider2 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			await provider2.taskHistoryStore.initialized
+
+			const provider1Upsert = vi
+				.spyOn(provider.taskHistoryStore, "upsert")
+				.mockImplementation(async (item: HistoryItem) => [item])
+			const provider2Upsert = vi
+				.spyOn(provider2.taskHistoryStore, "upsert")
+				.mockImplementation(async (item: HistoryItem) => [item])
+
+			try {
+				await Promise.all([
+					provider.updateTaskHistory(createHistoryItem({ id: "parallel-provider-1", task: "Provider 1" }), {
+						broadcast: false,
+					}),
+					provider2.updateTaskHistory(createHistoryItem({ id: "parallel-provider-2", task: "Provider 2" }), {
+						broadcast: false,
+					}),
+				])
+
+				expect(provider1Upsert).toHaveBeenCalledTimes(1)
+				expect(provider2Upsert).toHaveBeenCalledTimes(1)
+				expect(taskHistoryLock.withLock).toHaveBeenCalledWith(
+					mockContext.globalStorageUri.fsPath,
+					expect.any(Function),
+				)
+				expect(taskHistoryLock.withLock).toHaveBeenCalledTimes(2)
+			} finally {
+				await provider2.dispose()
+			}
+		})
+
+		it("routes 5+ concurrent updateTaskHistory calls from different tabs through the shared lock", async () => {
+			const providers = [provider]
+
+			for (let i = 1; i < 5; i++) {
+				const nextProvider = new ClineProvider(
+					mockContext,
+					mockOutputChannel,
+					"sidebar",
+					new ContextProxy(mockContext),
+				)
+				await nextProvider.taskHistoryStore.initialized
+				providers.push(nextProvider)
+			}
+
+			try {
+				providers.forEach((currentProvider) => {
+					vi.spyOn(currentProvider.taskHistoryStore, "upsert").mockImplementation(
+						async (item: HistoryItem) => [item],
+					)
+				})
+
+				await Promise.all(
+					providers.map((currentProvider, index) =>
+						currentProvider.updateTaskHistory(
+							createHistoryItem({ id: `parallel-tab-${index}`, task: `Parallel Tab ${index}` }),
+							{ broadcast: false },
+						),
+					),
+				)
+
+				expect(taskHistoryLock.withLock).toHaveBeenCalledTimes(5)
+				for (const call of vi.mocked(taskHistoryLock.withLock).mock.calls) {
+					expect(call[0]).toBe(mockContext.globalStorageUri.fsPath)
+				}
+			} finally {
+				for (const currentProvider of providers.slice(1)) {
+					await currentProvider.dispose()
+				}
+			}
+		})
+
+		it("routes normal deleteTaskWithId deleteMany mutations through the shared lock", async () => {
+			const deleteManySpy = vi.spyOn(provider.taskHistoryStore, "deleteMany").mockResolvedValue(undefined)
+			const postStateSpy = vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
+			vi.spyOn(provider, "getTaskWithId").mockResolvedValue({
+				historyItem: createHistoryItem({ id: "delete-normal", task: "Delete normal" }),
+				taskDirPath: "/test/task/path",
+				apiConversationHistoryFilePath: "/test/task/path/api_conversation_history.json",
+				uiMessagesFilePath: "/test/task/path/ui_messages.json",
+				apiConversationHistory: [],
+			})
+
+			await provider.deleteTaskWithId("delete-normal", false)
+
+			expect(deleteManySpy).toHaveBeenCalledWith(["delete-normal"])
+			expect(taskHistoryLock.withLock).toHaveBeenCalledWith(
+				mockContext.globalStorageUri.fsPath,
+				expect.any(Function),
+			)
+			expect(postStateSpy).toHaveBeenCalled()
+		})
+
+		it("routes fallback deleteTaskFromState mutations through the shared lock", async () => {
+			const deleteSpy = vi.spyOn(provider.taskHistoryStore, "delete").mockResolvedValue(undefined)
+			vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
+
+			await provider.deleteTaskFromState("cross-delete")
+
+			expect(deleteSpy).toHaveBeenCalledWith("cross-delete")
+			expect(taskHistoryLock.withLock).toHaveBeenCalledWith(
+				mockContext.globalStorageUri.fsPath,
+				expect.any(Function),
+			)
 		})
 	})
 })

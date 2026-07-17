@@ -109,6 +109,7 @@ import {
 	TaskHistoryStore,
 	assertValidTransition,
 } from "../task-persistence"
+import { taskHistoryLock } from "../task-persistence/TaskHistoryLock"
 import { readTaskMessages } from "../task-persistence/taskMessages"
 import { getNonce } from "./getNonce"
 import { getUri } from "./getUri"
@@ -385,7 +386,9 @@ export class ClineProvider
 
 				if (legacyHistory.length > 0) {
 					this.log(`[initializeTaskHistoryStore] Migrating ${legacyHistory.length} entries from globalState`)
-					await this.taskHistoryStore.migrateFromGlobalState(legacyHistory)
+					await taskHistoryLock.withLock(this.contextProxy.globalStorageUri.fsPath, () =>
+						this.taskHistoryStore.migrateFromGlobalState(legacyHistory),
+					)
 				}
 
 				await this.context.globalState.update(migrationKey, true)
@@ -2049,9 +2052,13 @@ export class ClineProvider
 				}
 			}
 
-			// Delete all tasks from state in one batch
-			await this.taskHistoryStore.deleteMany(allIdsToDelete)
-			this.recentTasksCache = undefined
+			await taskHistoryLock.withLock(this.contextProxy.globalStorageUri.fsPath, async () => {
+				// Delete all tasks from state in one batch
+				await this.taskHistoryStore.deleteMany(allIdsToDelete)
+				this.recentTasksCache = undefined
+
+				await this.postStateToWebview()
+			})
 
 			// Delete associated shadow repositories or branches and task directories
 			const globalStorageDir = this.contextProxy.globalStorageUri.fsPath
@@ -2079,8 +2086,6 @@ export class ClineProvider
 					)
 				}
 			}
-
-			await this.postStateToWebview()
 		} catch (error) {
 			// If task is not found, just remove it from state
 			if (error instanceof Error && error.message === "Task not found") {
@@ -2092,10 +2097,12 @@ export class ClineProvider
 	}
 
 	async deleteTaskFromState(id: string) {
-		await this.taskHistoryStore.delete(id)
-		this.recentTasksCache = undefined
+		await taskHistoryLock.withLock(this.contextProxy.globalStorageUri.fsPath, async () => {
+			await this.taskHistoryStore.delete(id)
+			this.recentTasksCache = undefined
 
-		await this.postStateToWebview()
+			await this.postStateToWebview()
+		})
 	}
 
 	async refreshWorkspace() {
@@ -2736,17 +2743,20 @@ export class ClineProvider
 	async updateTaskHistory(item: HistoryItem, options: { broadcast?: boolean } = {}): Promise<HistoryItem[]> {
 		const { broadcast = true } = options
 
-		const history = await this.taskHistoryStore.upsert(item)
-		this.recentTasksCache = undefined
+		// Serialize all task history mutations across parallel tabs using the shared lock.
+		return taskHistoryLock.withLock(this.contextProxy.globalStorageUri.fsPath, async () => {
+			const history = await this.taskHistoryStore.upsert(item)
+			this.recentTasksCache = undefined
 
-		// Broadcast the updated history to the webview if requested.
-		// Prefer per-item updates to avoid repeatedly cloning/sending the full history.
-		if (broadcast && this.isViewLaunched) {
-			const updatedItem = this.taskHistoryStore.get(item.id) ?? item
-			await this.postMessageToWebview({ type: "taskHistoryItemUpdated", taskHistoryItem: updatedItem })
-		}
+			// Broadcast the updated history to the webview if requested.
+			// Prefer per-item updates to avoid repeatedly cloning/sending the full history.
+			if (broadcast && this.isViewLaunched) {
+				const updatedItem = this.taskHistoryStore.get(item.id) ?? item
+				await this.postMessageToWebview({ type: "taskHistoryItemUpdated", taskHistoryItem: updatedItem })
+			}
 
-		return history
+			return history
+		})
 	}
 
 	/**
@@ -3579,17 +3589,19 @@ export class ClineProvider
 		//    write, and the pure updater cannot re-enter the lock (no deadlock).
 		//    Broadcast and cache invalidation happen outside the lock after it releases.
 		try {
-			await this.taskHistoryStore.atomicReadAndUpdate(parentTaskId, (historyItem) => {
-				assertValidTransition(historyItem.status, "delegated")
-				const childIds = Array.from(new Set([...(historyItem.childIds ?? []), child.taskId]))
-				return {
-					...historyItem,
-					status: "delegated",
-					delegatedToId: child.taskId,
-					awaitingChildId: child.taskId,
-					childIds,
-				}
-			})
+			await taskHistoryLock.withLock(this.contextProxy.globalStorageUri.fsPath, () =>
+				this.taskHistoryStore.atomicReadAndUpdate(parentTaskId, (historyItem) => {
+					assertValidTransition(historyItem.status, "delegated")
+					const childIds = Array.from(new Set([...(historyItem.childIds ?? []), child.taskId]))
+					return {
+						...historyItem,
+						status: "delegated",
+						delegatedToId: child.taskId,
+						awaitingChildId: child.taskId,
+						childIds,
+					}
+				}),
+			)
 			this.recentTasksCache = undefined
 			if (this.isViewLaunched) {
 				const updatedItem = this.taskHistoryStore.get(parentTaskId)
@@ -3827,29 +3839,31 @@ export class ClineProvider
 			//      any concurrent write that landed between step 1 and the lock acquisition
 			//      is preserved rather than silently overwritten.
 			let updatedHistory!: typeof historyItem
-			await this.taskHistoryStore.atomicUpdatePair(
-				childTaskId,
-				parentTaskId,
-				(child) => {
-					assertValidTransition(child.status, "completed")
-					return { ...child, status: "completed" as const, completionResultSummary }
-				},
-				(parent) => {
-					if (parent.status !== "active") {
-						assertValidTransition(parent.status, "active")
-					}
-					const childIds = Array.from(new Set([...(parent.childIds ?? []), childTaskId]))
-					updatedHistory = {
-						...parent,
-						status: "active" as const,
-						completedByChildId: childTaskId,
-						completionResultSummary,
-						awaitingChildId: undefined,
-						delegatedToId: undefined,
-						childIds,
-					}
-					return updatedHistory
-				},
+			await taskHistoryLock.withLock(this.contextProxy.globalStorageUri.fsPath, () =>
+				this.taskHistoryStore.atomicUpdatePair(
+					childTaskId,
+					parentTaskId,
+					(child) => {
+						assertValidTransition(child.status, "completed")
+						return { ...child, status: "completed" as const, completionResultSummary }
+					},
+					(parent) => {
+						if (parent.status !== "active") {
+							assertValidTransition(parent.status, "active")
+						}
+						const childIds = Array.from(new Set([...(parent.childIds ?? []), childTaskId]))
+						updatedHistory = {
+							...parent,
+							status: "active" as const,
+							completedByChildId: childTaskId,
+							completionResultSummary,
+							awaitingChildId: undefined,
+							delegatedToId: undefined,
+							childIds,
+						}
+						return updatedHistory
+					},
+				),
 			)
 			this.recentTasksCache = undefined
 
