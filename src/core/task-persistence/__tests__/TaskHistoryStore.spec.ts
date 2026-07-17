@@ -233,6 +233,37 @@ describe("TaskHistoryStore", () => {
 		})
 	})
 
+	describe("locked mutation helpers", () => {
+		it("allows reconcileLocked and deleteManyLocked inside one mutateLocked callback without re-entering the lock", async () => {
+			await store.initialize()
+
+			await store.upsert(makeHistoryItem({ id: "locked-delete" }))
+
+			const tasksDir = path.join(tmpDir, "tasks")
+			const orphanDir = path.join(tasksDir, "locked-orphan")
+			await fs.mkdir(orphanDir, { recursive: true })
+			await fs.writeFile(
+				path.join(orphanDir, GlobalFileNames.historyItem),
+				JSON.stringify(makeHistoryItem({ id: "locked-orphan" })),
+			)
+
+			const result = await Promise.race([
+				store
+					.mutateLocked(async () => {
+						await store.reconcileLocked()
+						expect(store.get("locked-orphan")).toBeDefined()
+						await store.deleteManyLocked(["locked-delete", "locked-orphan"])
+					})
+					.then(() => "completed"),
+				new Promise<string>((resolve) => setTimeout(() => resolve("deadlocked"), 100)),
+			])
+
+			expect(result).toBe("completed")
+			expect(store.get("locked-delete")).toBeUndefined()
+			expect(store.get("locked-orphan")).toBeUndefined()
+		})
+	})
+
 	describe("reconcile()", () => {
 		it("detects tasks on disk missing from index", async () => {
 			await store.initialize()

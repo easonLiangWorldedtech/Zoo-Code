@@ -76,9 +76,9 @@ export class TaskHistoryLock {
 				update: 10000,
 				realpath: false,
 				retries: {
-					retries: 10,
-					factor: 2,
-					minTimeout: 50,
+					retries: 36,
+					factor: 1,
+					minTimeout: 1000,
 					maxTimeout: 1000,
 				},
 				onCompromised: (err) => {

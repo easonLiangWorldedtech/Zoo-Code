@@ -802,6 +802,8 @@ describe("ClineProvider Task History Synchronization", () => {
 				new ContextProxy(mockContext),
 			)
 			await provider2.taskHistoryStore.initialized
+			await new Promise((resolve) => setTimeout(resolve, 10))
+			vi.mocked(taskHistoryLock.withLock).mockClear()
 
 			const provider1Upsert = vi
 				.spyOn(provider.taskHistoryStore, "upsert")
@@ -845,6 +847,8 @@ describe("ClineProvider Task History Synchronization", () => {
 				await nextProvider.taskHistoryStore.initialized
 				providers.push(nextProvider)
 			}
+			await new Promise((resolve) => setTimeout(resolve, 10))
+			vi.mocked(taskHistoryLock.withLock).mockClear()
 
 			try {
 				providers.forEach((currentProvider) => {
@@ -874,15 +878,14 @@ describe("ClineProvider Task History Synchronization", () => {
 		})
 
 		it("routes normal deleteTaskWithId deleteMany mutations through the shared lock", async () => {
-			const deleteManySpy = vi.spyOn(provider.taskHistoryStore, "deleteMany").mockResolvedValue(undefined)
+			const deleteManySpy = vi.spyOn(provider.taskHistoryStore, "deleteManyLocked").mockResolvedValue(undefined)
 			const postStateSpy = vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
-			vi.spyOn(provider, "getTaskWithId").mockResolvedValue({
-				historyItem: createHistoryItem({ id: "delete-normal", task: "Delete normal" }),
-				taskDirPath: "/test/task/path",
-				apiConversationHistoryFilePath: "/test/task/path/api_conversation_history.json",
-				uiMessagesFilePath: "/test/task/path/ui_messages.json",
-				apiConversationHistory: [],
-			})
+			vi.spyOn(provider.taskHistoryStore, "reconcile").mockResolvedValue(undefined)
+			vi.spyOn(provider.taskHistoryStore, "get").mockImplementation((taskId: string) =>
+				taskId === "delete-normal"
+					? createHistoryItem({ id: "delete-normal", task: "Delete normal" })
+					: undefined,
+			)
 
 			await provider.deleteTaskWithId("delete-normal", false)
 
@@ -892,6 +895,67 @@ describe("ClineProvider Task History Synchronization", () => {
 				expect.any(Function),
 			)
 			expect(postStateSpy).toHaveBeenCalled()
+		})
+
+		it("collects cascade delete descendants from the locked persisted snapshot", async () => {
+			let insideSharedLock = false
+			vi.mocked(taskHistoryLock.withLock).mockImplementationOnce(async (_globalStoragePath, fn) => {
+				insideSharedLock = true
+				return fn()
+			})
+
+			const deleteManySpy = vi.spyOn(provider.taskHistoryStore, "deleteManyLocked").mockResolvedValue(undefined)
+			vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
+			vi.spyOn(provider.taskHistoryStore, "reconcile").mockResolvedValue(undefined)
+			vi.spyOn(provider.taskHistoryStore, "get").mockImplementation((taskId: string) => {
+				if (!insideSharedLock) {
+					return undefined
+				}
+				if (taskId === "delete-parent") {
+					return createHistoryItem({ id: "delete-parent", task: "Delete parent", childIds: ["late-child"] })
+				}
+				if (taskId === "late-child") {
+					return createHistoryItem({ id: "late-child", task: "Late child", childIds: [] })
+				}
+				return undefined
+			})
+
+			await provider.deleteTaskWithId("delete-parent", true)
+
+			expect(deleteManySpy).toHaveBeenCalledWith(["delete-parent", "late-child"])
+		})
+
+		it("rechecks migration state inside the shared lock before migrating legacy globalState history", async () => {
+			let locked = false
+			const legacyHistory = [createHistoryItem({ id: "legacy-task", task: "Legacy task" })]
+			const get = vi.fn((key: string) => {
+				if (key === "taskHistoryMigratedToFiles") {
+					return locked
+				}
+				if (key === "taskHistory") {
+					return locked ? [] : legacyHistory
+				}
+				return undefined
+			})
+			const update = vi.fn().mockResolvedValue(undefined)
+			const migrateFromGlobalState = vi.fn().mockResolvedValue(undefined)
+			vi.mocked(taskHistoryLock.withLock).mockImplementationOnce(async (_globalStoragePath, fn) => {
+				locked = true
+				return fn()
+			})
+
+			await (ClineProvider.prototype as any).initializeTaskHistoryStore.call({
+				taskHistoryStore: {
+					initialize: vi.fn().mockResolvedValue(undefined),
+					migrateFromGlobalState,
+				},
+				context: { globalState: { get, update } },
+				contextProxy: { globalStorageUri: { fsPath: mockContext.globalStorageUri.fsPath } },
+				log: vi.fn(),
+			})
+
+			expect(migrateFromGlobalState).not.toHaveBeenCalled()
+			expect(update).not.toHaveBeenCalledWith("taskHistoryMigratedToFiles", true)
 		})
 
 		it("routes fallback deleteTaskFromState mutations through the shared lock", async () => {

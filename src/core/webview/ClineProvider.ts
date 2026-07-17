@@ -377,23 +377,23 @@ export class ClineProvider
 		try {
 			await this.taskHistoryStore.initialize()
 
-			// Migration: backfill per-task files from globalState on first run
+			// Migration: backfill per-task files from globalState on first run.
 			const migrationKey = "taskHistoryMigratedToFiles"
-			const alreadyMigrated = this.context.globalState.get<boolean>(migrationKey)
+			await taskHistoryLock.withLock(this.contextProxy.globalStorageUri.fsPath, async () => {
+				const alreadyMigrated = this.context.globalState.get<boolean>(migrationKey)
+				if (alreadyMigrated) {
+					return
+				}
 
-			if (!alreadyMigrated) {
 				const legacyHistory = this.context.globalState.get<HistoryItem[]>("taskHistory") ?? []
-
 				if (legacyHistory.length > 0) {
 					this.log(`[initializeTaskHistoryStore] Migrating ${legacyHistory.length} entries from globalState`)
-					await taskHistoryLock.withLock(this.contextProxy.globalStorageUri.fsPath, () =>
-						this.taskHistoryStore.migrateFromGlobalState(legacyHistory),
-					)
+					await this.taskHistoryStore.migrateFromGlobalState(legacyHistory)
 				}
 
 				await this.context.globalState.update(migrationKey, true)
 				this.log("[initializeTaskHistoryStore] Migration complete")
-			}
+			})
 
 			this.taskHistoryStoreInitialized = true
 		} catch (error) {
@@ -2017,31 +2017,38 @@ export class ClineProvider
 	// If the task has subtasks (childIds), they will also be deleted recursively
 	async deleteTaskWithId(id: string, cascadeSubtasks: boolean = true) {
 		try {
-			// get the task directory full path and history item
-			const { taskDirPath, historyItem } = await this.getTaskWithId(id)
+			const allIdsToDelete: string[] = []
 
-			// Collect all task IDs to delete (parent + all subtasks)
-			const allIdsToDelete: string[] = [id]
+			await taskHistoryLock.withLock(this.contextProxy.globalStorageUri.fsPath, async () => {
+				await this.taskHistoryStore.mutateLocked(async () => {
+					await this.taskHistoryStore.reconcileLocked()
+					const rootItem = this.taskHistoryStore.get(id)
+					if (!rootItem) {
+						throw new Error("Task not found")
+					}
 
-			if (cascadeSubtasks) {
-				// Recursively collect all child IDs
-				const collectChildIds = async (taskId: string): Promise<void> => {
-					try {
-						const { historyItem: item } = await this.getTaskWithId(taskId)
-						if (item.childIds && item.childIds.length > 0) {
-							for (const childId of item.childIds) {
+					allIdsToDelete.push(id)
+					if (cascadeSubtasks) {
+						const visited = new Set<string>(allIdsToDelete)
+						const collectChildIds = (taskId: string): void => {
+							const item = this.taskHistoryStore.get(taskId)
+							for (const childId of item?.childIds ?? []) {
+								if (visited.has(childId)) {
+									continue
+								}
+								visited.add(childId)
 								allIdsToDelete.push(childId)
-								await collectChildIds(childId)
+								collectChildIds(childId)
 							}
 						}
-					} catch (error) {
-						// Child task may already be deleted or not found, continue
-						console.log(`[deleteTaskWithId] child task ${taskId} not found, skipping`)
+						collectChildIds(id)
 					}
-				}
 
-				await collectChildIds(id)
-			}
+					await this.taskHistoryStore.deleteManyLocked(allIdsToDelete)
+				})
+				this.recentTasksCache = undefined
+				await this.postStateToWebview()
+			})
 
 			// Remove from stack if any of the tasks to delete are in the current task stack
 			for (const taskId of allIdsToDelete) {
@@ -2051,14 +2058,6 @@ export class ClineProvider
 					break
 				}
 			}
-
-			await taskHistoryLock.withLock(this.contextProxy.globalStorageUri.fsPath, async () => {
-				// Delete all tasks from state in one batch
-				await this.taskHistoryStore.deleteMany(allIdsToDelete)
-				this.recentTasksCache = undefined
-
-				await this.postStateToWebview()
-			})
 
 			// Delete associated shadow repositories or branches and task directories
 			const globalStorageDir = this.contextProxy.globalStorageUri.fsPath
@@ -3839,32 +3838,49 @@ export class ClineProvider
 			//      any concurrent write that landed between step 1 and the lock acquisition
 			//      is preserved rather than silently overwritten.
 			let updatedHistory!: typeof historyItem
-			await taskHistoryLock.withLock(this.contextProxy.globalStorageUri.fsPath, () =>
-				this.taskHistoryStore.atomicUpdatePair(
-					childTaskId,
-					parentTaskId,
-					(child) => {
-						assertValidTransition(child.status, "completed")
-						return { ...child, status: "completed" as const, completionResultSummary }
-					},
-					(parent) => {
-						if (parent.status !== "active") {
-							assertValidTransition(parent.status, "active")
-						}
-						const childIds = Array.from(new Set([...(parent.childIds ?? []), childTaskId]))
-						updatedHistory = {
-							...parent,
-							status: "active" as const,
-							completedByChildId: childTaskId,
-							completionResultSummary,
-							awaitingChildId: undefined,
-							delegatedToId: undefined,
-							childIds,
-						}
-						return updatedHistory
-					},
-				),
-			)
+			try {
+				await taskHistoryLock.withLock(this.contextProxy.globalStorageUri.fsPath, () =>
+					this.taskHistoryStore.atomicUpdatePair(
+						childTaskId,
+						parentTaskId,
+						(child) => {
+							assertValidTransition(child.status, "completed")
+							return { ...child, status: "completed" as const, completionResultSummary }
+						},
+						(parent) => {
+							const parentCanCompleteDelegation =
+								(parent.status === "delegated" || parent.status === "active") &&
+								parent.awaitingChildId === childTaskId
+							if (!parentCanCompleteDelegation) {
+								throw new Error(
+									`[reopenParentFromDelegation] Aborting: parent ${parentTaskId} is no longer delegated to child ${childTaskId} ` +
+										`(status=${parent.status}, awaitingChildId=${parent.awaitingChildId})`,
+								)
+							}
+							if (parent.status !== "active") {
+								assertValidTransition(parent.status, "active")
+							}
+							const childIds = Array.from(new Set([...(parent.childIds ?? []), childTaskId]))
+							updatedHistory = {
+								...parent,
+								status: "active" as const,
+								completedByChildId: childTaskId,
+								completionResultSummary,
+								awaitingChildId: undefined,
+								delegatedToId: undefined,
+								childIds,
+							}
+							return updatedHistory
+						},
+					),
+				)
+			} catch (error) {
+				if (error instanceof Error && error.message.includes("[reopenParentFromDelegation] Aborting")) {
+					this.log(error.message)
+					return false
+				}
+				throw error
+			}
 			this.recentTasksCache = undefined
 
 			// Notify the webview of both updated items so its in-memory history stays current.

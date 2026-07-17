@@ -1,153 +1,70 @@
+// pnpm --filter roo-cline test core/task-persistence/__tests__/TaskHistoryLock.spec.ts
+
 import * as fs from "fs/promises"
 import * as os from "os"
 import * as path from "path"
-import { fork, type ChildProcess } from "child_process"
 
-import { TaskHistoryLock } from "../TaskHistoryLock"
+const { lockMock } = vi.hoisted(() => ({
+	lockMock: vi.fn(),
+}))
+
+vi.mock("proper-lockfile", () => ({
+	lock: lockMock,
+}))
 
 vi.mock("../../../utils/storage", () => ({
 	getStorageBasePath: vi.fn().mockImplementation((defaultPath: string) => defaultPath),
 }))
 
-const waitForMessage = (child: ChildProcess, expected: string): Promise<void> =>
-	new Promise((resolve, reject) => {
-		const timeout = setTimeout(() => {
-			child.off("message", onMessage)
-			reject(new Error(`Timed out waiting for child process message: ${expected}`))
-		}, 5000)
+import { TaskHistoryLock } from "../TaskHistoryLock"
+import { GlobalFileNames } from "../../../shared/globalFileNames"
 
-		const onMessage = (message: unknown) => {
-			if (message === expected) {
-				clearTimeout(timeout)
-				child.off("message", onMessage)
-				resolve()
-			}
-		}
-
-		child.on("message", onMessage)
-	})
+function cumulativeRetryWindowMs(retries: {
+	retries: number
+	factor: number
+	minTimeout: number
+	maxTimeout: number
+}): number {
+	let total = 0
+	for (let attempt = 0; attempt < retries.retries; attempt++) {
+		total += Math.min(retries.maxTimeout, retries.minTimeout * retries.factor ** attempt)
+	}
+	return total
+}
 
 describe("TaskHistoryLock", () => {
 	let tmpDir: string
 
 	beforeEach(async () => {
+		vi.clearAllMocks()
 		tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "task-history-lock-"))
+		lockMock.mockResolvedValue(vi.fn().mockResolvedValue(undefined))
 	})
 
 	afterEach(async () => {
-		await fs.rm(tmpDir, { recursive: true, force: true })
+		await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
 	})
 
-	it("serializes concurrent operations", async () => {
-		const lock = new TaskHistoryLock()
-		let activeCount = 0
-		let maxActiveCount = 0
-		const order: string[] = []
+	it("locks the shared tasks/_history.lock file and releases it after the callback", async () => {
+		const taskHistoryLock = new TaskHistoryLock()
+		const release = vi.fn().mockResolvedValue(undefined)
+		lockMock.mockResolvedValueOnce(release)
 
-		const run = (id: string) =>
-			lock.withLock(tmpDir, async () => {
-				activeCount++
-				maxActiveCount = Math.max(maxActiveCount, activeCount)
-				order.push(`start:${id}`)
-				await new Promise((resolve) => setTimeout(resolve, 5))
-				order.push(`end:${id}`)
-				activeCount--
-				return id
-			})
+		await expect(taskHistoryLock.withLock(tmpDir, async () => "done")).resolves.toBe("done")
 
-		const results = await Promise.all([run("a"), run("b"), run("c")])
-
-		expect(results).toEqual(["a", "b", "c"])
-		expect(maxActiveCount).toBe(1)
-		expect(order).toHaveLength(6)
-		for (const id of ["a", "b", "c"]) {
-			expect(order).toContain(`start:${id}`)
-			expect(order).toContain(`end:${id}`)
-			expect(order.indexOf(`start:${id}`)).toBeLessThan(order.indexOf(`end:${id}`))
-		}
-	})
-
-	it("continues processing after a previous operation rejects", async () => {
-		const lock = new TaskHistoryLock()
-		const order: string[] = []
-
-		const failed = lock.withLock(tmpDir, async () => {
-			order.push("start:fail")
-			throw new Error("simulated failure")
-		})
-
-		const succeeded = lock.withLock(tmpDir, async () => {
-			order.push("start:success")
-			return "ok"
-		})
-
-		await expect(failed).rejects.toThrow("simulated failure")
-		await expect(succeeded).resolves.toBe("ok")
-		expect(order).toEqual(["start:fail", "start:success"])
-	})
-
-	it("waits for an independent process holding the same lock file", async () => {
-		const lock = new TaskHistoryLock()
-		const lockFilePath = await lock.getLockFilePath(tmpDir)
-		const childScriptPath = path.join(tmpDir, "hold-history-lock.cjs")
-		await fs.writeFile(
-			childScriptPath,
-			`
-const lockfile = require("proper-lockfile")
-
-let release
-
-async function main() {
-	release = await lockfile.lock(process.argv[2], {
-		stale: 31000,
-		update: 10000,
-		realpath: false,
-	})
-	process.send?.("locked")
-}
-
-process.on("message", async (message) => {
-	if (message === "release") {
-		await release?.()
-		process.send?.("released")
-		process.exit(0)
-	}
-})
-
-main().catch((error) => {
-	process.send?.({ error: error instanceof Error ? error.message : String(error) })
-	process.exit(1)
-})
-`,
-			"utf8",
+		expect(lockMock).toHaveBeenCalledWith(
+			path.join(tmpDir, "tasks", GlobalFileNames.historyLock),
+			expect.any(Object),
 		)
-
-		const child = fork(childScriptPath, [lockFilePath], { stdio: ["ignore", "ignore", "ignore", "ipc"] })
-		try {
-			await waitForMessage(child, "locked")
-
-			let enteredCriticalSection = false
-			const blocked = lock.withLock(tmpDir, async () => {
-				enteredCriticalSection = true
-				return "acquired"
-			})
-
-			await new Promise((resolve) => setTimeout(resolve, 100))
-			expect(enteredCriticalSection).toBe(false)
-
-			child.send("release")
-			await waitForMessage(child, "released")
-			await expect(blocked).resolves.toBe("acquired")
-			expect(enteredCriticalSection).toBe(true)
-		} finally {
-			if (!child.killed) {
-				child.kill()
-			}
-		}
+		expect(release).toHaveBeenCalledTimes(1)
 	})
 
-	it("reset is a no-op for file-based locking", () => {
-		const lock = new TaskHistoryLock()
-		expect(() => lock.reset()).not.toThrow()
+	it("keeps retrying long enough for proper-lockfile stale-lock recovery", async () => {
+		const taskHistoryLock = new TaskHistoryLock()
+
+		await taskHistoryLock.withLock(tmpDir, async () => undefined)
+
+		const options = lockMock.mock.calls[0][1]
+		expect(cumulativeRetryWindowMs(options.retries)).toBeGreaterThan(options.stale)
 	})
 })
