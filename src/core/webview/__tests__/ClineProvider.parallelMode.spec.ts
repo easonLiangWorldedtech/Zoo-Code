@@ -290,6 +290,11 @@ vi.mock("../../config/ContextProxy", () => {
 			)
 		})
 		setProviderSettings = vi.fn().mockImplementation((settings: Record<string, any>) => this.setValues(settings))
+		resetAllState = vi.fn().mockImplementation(() => {
+			return Promise.all(
+				Object.keys(this.context?.globalState ?? {}).map((key) => this.setValue(key, undefined)),
+			).then(() => undefined)
+		})
 	}
 	return { ContextProxy: MockContextProxy }
 })
@@ -475,6 +480,7 @@ vi.mock("../../config/ProviderSettingsManager", () => ({
 			saveConfig: vi.fn().mockResolvedValue("test-id"),
 			listConfig: vi.fn().mockResolvedValue([]),
 			getProfile: vi.fn().mockResolvedValue({}),
+			resetAllConfigs: vi.fn().mockResolvedValue(undefined),
 			activateProfile: vi.fn().mockImplementation(async (args: { name?: string; id?: string }) => ({
 				name: args.name ?? "default",
 				id: args.id ?? "test-id",
@@ -492,6 +498,7 @@ vi.mock("../../config/CustomModesManager", () => ({
 		return {
 			updateCustomMode: vi.fn().mockResolvedValue(undefined),
 			getCustomModes: vi.fn().mockResolvedValue([]),
+			resetCustomModes: vi.fn().mockResolvedValue(undefined),
 			dispose: vi.fn(),
 		}
 	}),
@@ -1234,6 +1241,109 @@ describe("ClineProvider - Parallel Mode Support", () => {
 			expect((provider as any).viewLocalState).toEqual({})
 
 			await provider.dispose()
+		})
+	})
+
+	describe("broadcastResetToAllInstances", () => {
+		it("should clear viewLocalState in other instances and post updated state", async () => {
+			const provider1 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			const provider2 = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
+			const postStateToWebview2 = vi.spyOn(provider2, "postStateToWebview").mockResolvedValue(undefined)
+
+			await (provider1 as any).saveViewState("mode", "architect")
+			await (provider2 as any).saveViewState("mode", "debugger")
+
+			await provider1.broadcastResetToAllInstances()
+
+			expect((provider1 as any).viewLocalState.mode).toBe("architect")
+			expect((provider2 as any).viewLocalState).toEqual({})
+			expect(postStateToWebview2).toHaveBeenCalledTimes(1)
+
+			await provider1.dispose()
+			await provider2.dispose()
+		})
+
+		it("should be a no-op for a single live instance", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			const postStateToWebview = vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
+
+			await (provider as any).saveViewState("mode", "architect")
+
+			await provider.broadcastResetToAllInstances()
+
+			expect((provider as any).viewLocalState.mode).toBe("architect")
+			expect(postStateToWebview).not.toHaveBeenCalled()
+
+			await provider.dispose()
+		})
+
+		it("should broadcast to multiple other live instances", async () => {
+			const provider1 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			const provider2 = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
+			const provider3 = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
+			const postStateToWebview1 = vi.spyOn(provider1, "postStateToWebview").mockResolvedValue(undefined)
+			const postStateToWebview2 = vi.spyOn(provider2, "postStateToWebview").mockResolvedValue(undefined)
+			const postStateToWebview3 = vi.spyOn(provider3, "postStateToWebview").mockResolvedValue(undefined)
+
+			await (provider1 as any).saveViewState("mode", "code")
+			await (provider2 as any).saveViewState("mode", "architect")
+			await (provider3 as any).saveViewState("currentApiConfigName", "profile-c")
+
+			await provider1.broadcastResetToAllInstances()
+
+			expect((provider1 as any).viewLocalState.mode).toBe("code")
+			expect((provider2 as any).viewLocalState).toEqual({})
+			expect((provider3 as any).viewLocalState).toEqual({})
+			expect(postStateToWebview1).not.toHaveBeenCalled()
+			expect(postStateToWebview2).toHaveBeenCalledTimes(1)
+			expect(postStateToWebview3).toHaveBeenCalledTimes(1)
+
+			await provider1.dispose()
+			await provider2.dispose()
+			await provider3.dispose()
+		})
+	})
+
+	describe("resetState cross-tab invalidation", () => {
+		it("should clear caller and other live instances during resetState flow", async () => {
+			const provider1 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			const provider2 = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
+			const postStateToWebview1 = vi.spyOn(provider1, "postStateToWebview").mockResolvedValue(undefined)
+			const postStateToWebview2 = vi.spyOn(provider2, "postStateToWebview").mockResolvedValue(undefined)
+			vi.spyOn(provider1, "postMessageToWebview").mockResolvedValue(true)
+			vi.spyOn(provider1 as any, "removeClineFromStack").mockResolvedValue(undefined)
+			;(vscode.window.showInformationMessage as any).mockImplementation(async (...args: any[]) => args[2])
+
+			await (provider1 as any).saveViewState("mode", "architect")
+			await (provider2 as any).saveViewState("currentApiConfigName", "profile-b")
+
+			await provider1.resetState()
+
+			expect((provider1 as any).viewLocalState).toEqual({})
+			expect((provider2 as any).viewLocalState).toEqual({})
+			expect((provider1.contextProxy as any).resetAllState).toHaveBeenCalledTimes(1)
+			expect((provider1.providerSettingsManager as any).resetAllConfigs).toHaveBeenCalledTimes(1)
+			expect((provider1.customModesManager as any).resetCustomModes).toHaveBeenCalledTimes(1)
+			expect(postStateToWebview1).toHaveBeenCalledTimes(1)
+			expect(postStateToWebview2).toHaveBeenCalledTimes(1)
+
+			await provider1.dispose()
+			await provider2.dispose()
 		})
 	})
 })

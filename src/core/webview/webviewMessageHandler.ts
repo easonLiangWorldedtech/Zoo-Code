@@ -914,7 +914,16 @@ export const webviewMessageHandler = async (
 				providerSettingsManager: provider.providerSettingsManager,
 				contextProxy: provider.contextProxy,
 				customModesManager: provider.customModesManager,
-				provider: provider,
+				provider: {
+					get settingsImportedAt() {
+						return provider.settingsImportedAt
+					},
+					set settingsImportedAt(value) {
+						provider.settingsImportedAt = value
+					},
+					postStateToWebview: () => provider.postStateToWebview(),
+					broadcastResetToAllInstances: () => provider.broadcastResetToAllInstances(),
+				},
 			})
 
 			break

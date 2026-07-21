@@ -3056,6 +3056,21 @@ export class ClineProvider
 		this.viewLocalState = {}
 	}
 
+	/**
+	 * Broadcast a reset event to all other live ClineProvider instances, clearing their
+	 * view-local state caches and posting updated state so parallel tabs stay in sync.
+	 * Also exposed for use by importSettingsWithFeedback (via broadcastResetToAllInstances callback).
+	 */
+	async broadcastResetToAllInstances(): Promise<void> {
+		const allInstances = ClineProvider.getAllInstances()
+		for (const instance of allInstances) {
+			if (instance !== this) {
+				instance._clearViewLocalState()
+				await instance.postStateToWebview()
+			}
+		}
+	}
+
 	// dev
 
 	async resetState() {
@@ -3086,6 +3101,11 @@ export class ClineProvider
 		await this.providerSettingsManager.resetAllConfigs()
 		await this.customModesManager.resetCustomModes()
 		await this.removeClineFromStack()
+
+		// Clear this instance and all other live instances so parallel tabs don't keep stale state.
+		this._clearViewLocalState()
+		await this.broadcastResetToAllInstances()
+
 		await this.postStateToWebview()
 		await this.postMessageToWebview({ type: "action", action: "chatButtonClicked" })
 	}
