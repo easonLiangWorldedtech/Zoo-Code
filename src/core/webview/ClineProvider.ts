@@ -1772,6 +1772,8 @@ export class ClineProvider
 					this.updateGlobalState("currentApiConfigName", name),
 					this.providerSettingsManager.setModeConfig(mode, id),
 					this.contextProxy.setProviderSettings(providerSettings),
+					this.saveViewState("currentApiConfigName", name),
+					this.saveViewState("apiConfiguration", providerSettings),
 				])
 
 				// Change the provider for the current task.
@@ -1861,6 +1863,8 @@ export class ClineProvider
 			this.contextProxy.setValue("listApiConfigMeta", await this.providerSettingsManager.listConfig()),
 			this.contextProxy.setValue("currentApiConfigName", name),
 			this.contextProxy.setProviderSettings(providerSettings),
+			this.saveViewState("currentApiConfigName", name),
+			this.saveViewState("apiConfiguration", providerSettings),
 		])
 
 		const { mode } = await this.getState()
