@@ -1260,8 +1260,10 @@ describe("ClineProvider - Parallel Mode Support", () => {
 
 			await provider1.broadcastResetToAllInstances()
 
-			expect((provider1 as any).viewLocalState.mode).toBe("architect")
+			expect((provider1 as any).viewLocalState).toEqual({})
 			expect((provider2 as any).viewLocalState).toEqual({})
+			expect(provider1.contextProxy.getValue("viewStates" as any)).toBeUndefined()
+			expect(provider2.contextProxy.getValue("viewStates" as any)).toBeUndefined()
 			expect(postStateToWebview2).toHaveBeenCalledTimes(1)
 
 			await provider1.dispose()
@@ -1276,7 +1278,8 @@ describe("ClineProvider - Parallel Mode Support", () => {
 
 			await provider.broadcastResetToAllInstances()
 
-			expect((provider as any).viewLocalState.mode).toBe("architect")
+			expect((provider as any).viewLocalState).toEqual({})
+			expect(provider.contextProxy.getValue("viewStates" as any)).toBeUndefined()
 			expect(postStateToWebview).not.toHaveBeenCalled()
 
 			await provider.dispose()
@@ -1301,9 +1304,12 @@ describe("ClineProvider - Parallel Mode Support", () => {
 
 			await provider1.broadcastResetToAllInstances()
 
-			expect((provider1 as any).viewLocalState.mode).toBe("code")
+			expect((provider1 as any).viewLocalState).toEqual({})
 			expect((provider2 as any).viewLocalState).toEqual({})
 			expect((provider3 as any).viewLocalState).toEqual({})
+			expect(provider1.contextProxy.getValue("viewStates" as any)).toBeUndefined()
+			expect(provider2.contextProxy.getValue("viewStates" as any)).toBeUndefined()
+			expect(provider3.contextProxy.getValue("viewStates" as any)).toBeUndefined()
 			expect(postStateToWebview1).not.toHaveBeenCalled()
 			expect(postStateToWebview2).toHaveBeenCalledTimes(1)
 			expect(postStateToWebview3).toHaveBeenCalledTimes(1)
@@ -1336,6 +1342,8 @@ describe("ClineProvider - Parallel Mode Support", () => {
 
 			expect((provider1 as any).viewLocalState).toEqual({})
 			expect((provider2 as any).viewLocalState).toEqual({})
+			expect(provider1.contextProxy.getValue("viewStates" as any)).toBeUndefined()
+			expect(provider2.contextProxy.getValue("viewStates" as any)).toBeUndefined()
 			expect((provider1.contextProxy as any).resetAllState).toHaveBeenCalledTimes(1)
 			expect((provider1.providerSettingsManager as any).resetAllConfigs).toHaveBeenCalledTimes(1)
 			expect((provider1.customModesManager as any).resetCustomModes).toHaveBeenCalledTimes(1)
