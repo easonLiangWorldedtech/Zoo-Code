@@ -1038,6 +1038,132 @@ describe("ClineProvider - Parallel Mode Support", () => {
 		})
 	})
 
+	describe("parallel mode writes", () => {
+		it("should persist mode switches to the stable view-local state key", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			await (provider as any).setViewStateId("stable-sidebar-mode")
+			const contextProxySpy = vi.spyOn(provider.contextProxy, "setValue")
+
+			await provider.handleModeSwitch("architect")
+
+			expect(contextProxySpy).toHaveBeenCalledWith("__view_state_stable-sidebar-mode_mode", "architect")
+			const state = await provider.getState()
+			expect(state.mode).toBe("architect")
+
+			await provider.dispose()
+		})
+
+		it("should keep mode switches isolated between parallel provider instances", async () => {
+			const provider1 = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+			)
+			const provider2 = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
+			await (provider1 as any).setViewStateId("stable-sidebar-mode-a")
+			await (provider2 as any).setViewStateId("stable-editor-mode-b")
+
+			await provider1.handleModeSwitch("architect")
+			await provider2.handleModeSwitch("debugger" as any)
+
+			const state1 = await provider1.getState()
+			const state2 = await provider2.getState()
+			expect(state1.mode).toBe("architect")
+			expect(state2.mode).toBe("debugger")
+			expect(provider1.contextProxy.getValue("__view_state_stable-sidebar-mode-a_mode" as any)).toBe("architect")
+			expect(provider2.contextProxy.getValue("__view_state_stable-editor-mode-b_mode" as any)).toBe("debugger")
+
+			await provider1.dispose()
+			await provider2.dispose()
+		})
+
+		it("should update view-local profile state when activating a provider profile", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			await (provider as any).setViewStateId("stable-sidebar-profile")
+			const providerSettings = {
+				apiProvider: "openrouter" as const,
+				openRouterModelId: "openrouter/anthropic/claude-sonnet-4",
+			}
+			vi.spyOn(provider.providerSettingsManager, "activateProfile").mockResolvedValue({
+				name: "profile-a",
+				id: "profile-a-id",
+				...providerSettings,
+			} as any)
+			vi.spyOn(provider.providerSettingsManager, "listConfig").mockResolvedValue([
+				{ name: "profile-a", id: "profile-a-id", apiProvider: "openrouter" },
+			])
+
+			await provider.activateProviderProfile({ name: "profile-a" })
+
+			const state = await provider.getState()
+			expect(state.currentApiConfigName).toBe("profile-a")
+			expect(state.apiConfiguration).toMatchObject(providerSettings)
+			expect(
+				provider.contextProxy.getValue("__view_state_stable-sidebar-profile_currentApiConfigName" as any),
+			).toBe("profile-a")
+			expect(
+				provider.contextProxy.getValue("__view_state_stable-sidebar-profile_apiConfiguration" as any),
+			).toMatchObject(providerSettings)
+
+			await provider.dispose()
+		})
+
+		it("should update view-local profile state when upserting and activating a provider profile", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			await (provider as any).setViewStateId("stable-sidebar-upsert")
+			const providerSettings = {
+				apiProvider: "openrouter" as const,
+				openRouterModelId: "openrouter/anthropic/claude-sonnet-4",
+			}
+			vi.spyOn(provider.providerSettingsManager, "saveConfig").mockResolvedValue("profile-b-id")
+			vi.spyOn(provider.providerSettingsManager, "listConfig").mockResolvedValue([
+				{ name: "profile-b", id: "profile-b-id", apiProvider: "openrouter" },
+			])
+
+			await provider.upsertProviderProfile("profile-b", providerSettings, true)
+
+			const state = await provider.getState()
+			expect(state.currentApiConfigName).toBe("profile-b")
+			expect(state.apiConfiguration).toMatchObject(providerSettings)
+			expect(
+				provider.contextProxy.getValue("__view_state_stable-sidebar-upsert_currentApiConfigName" as any),
+			).toBe("profile-b")
+			expect(
+				provider.contextProxy.getValue("__view_state_stable-sidebar-upsert_apiConfiguration" as any),
+			).toMatchObject(providerSettings)
+
+			await provider.dispose()
+		})
+	})
+
+	describe("deleteProviderProfile", () => {
+		it("should use merged view-local state when choosing the profile to keep", async () => {
+			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
+			await (provider as any).setViewStateId("stable-delete-profile")
+			await (provider as any).saveViewState("currentApiConfigName", "profile-b")
+
+			await provider.contextProxy.setValues({
+				currentApiConfigName: "profile-a",
+				listApiConfigMeta: [
+					{ id: "a-id", name: "profile-a", apiProvider: "anthropic" },
+					{ id: "b-id", name: "profile-b", apiProvider: "openrouter" },
+					{ id: "del-id", name: "profile-to-delete", apiProvider: "anthropic" },
+				],
+			})
+
+			await provider.deleteProviderProfile({ id: "del-id", name: "profile-to-delete", apiProvider: "anthropic" })
+
+			const state = await provider.getState()
+			expect(state.currentApiConfigName).toBe("profile-b")
+			expect(
+				provider.contextProxy.getValue("__view_state_stable-delete-profile_currentApiConfigName" as any),
+			).toBe("profile-b")
+
+			await provider.dispose()
+		})
+	})
+
 	describe("handleModeSwitch integration", () => {
 		it("should update viewLocalState.mode when handleModeSwitch is called", async () => {
 			const postMessage = vi.fn()

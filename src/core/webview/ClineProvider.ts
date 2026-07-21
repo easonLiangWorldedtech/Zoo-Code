@@ -1674,8 +1674,8 @@ export class ClineProvider
 				// The task will continue with the current/default configuration.
 			}
 		} else {
-			// If no saved config for this mode, save current config as default.
-			const currentApiConfigNameAfter = this.getGlobalState("currentApiConfigName")
+			// If no saved config for this mode, save this view's current config as default.
+			const { currentApiConfigName: currentApiConfigNameAfter } = await this.getState()
 
 			if (currentApiConfigNameAfter) {
 				const config = listApiConfig.find((c) => c.name === currentApiConfigNameAfter)
@@ -1772,6 +1772,8 @@ export class ClineProvider
 					this.updateGlobalState("currentApiConfigName", name),
 					this.providerSettingsManager.setModeConfig(mode, id),
 					this.contextProxy.setProviderSettings(providerSettings),
+					this.saveViewState("currentApiConfigName", name),
+					this.saveViewState("apiConfiguration", providerSettings),
 				])
 
 				// Change the provider for the current task.
@@ -1797,8 +1799,10 @@ export class ClineProvider
 	}
 
 	async deleteProviderProfile(profileToDelete: ProviderSettingsEntry) {
-		const globalSettings = this.contextProxy.getValues()
-		let profileToActivate: string | undefined = globalSettings.currentApiConfigName
+		// Use merged state (view-local + global) so this tab reads its own current profile,
+		// not another parallel tab's latest shared ContextProxy value.
+		const { currentApiConfigName } = await this.getState()
+		let profileToActivate: string | undefined = currentApiConfigName
 
 		if (profileToDelete.name === profileToActivate) {
 			profileToActivate = this.getProviderProfileEntries().find(({ name }) => name !== profileToDelete.name)?.name
@@ -1809,12 +1813,14 @@ export class ClineProvider
 		}
 
 		const entries = this.getProviderProfileEntries().filter(({ name }) => name !== profileToDelete.name)
+		const globalSettings = await this.getState()
 
 		await this.contextProxy.setValues({
 			...globalSettings,
 			currentApiConfigName: profileToActivate,
 			listApiConfigMeta: entries,
 		})
+		await this.saveViewState("currentApiConfigName", profileToActivate)
 
 		await this.postStateToWebview()
 	}
@@ -1861,6 +1867,8 @@ export class ClineProvider
 			this.contextProxy.setValue("listApiConfigMeta", await this.providerSettingsManager.listConfig()),
 			this.contextProxy.setValue("currentApiConfigName", name),
 			this.contextProxy.setProviderSettings(providerSettings),
+			this.saveViewState("currentApiConfigName", name),
+			this.saveViewState("apiConfiguration", providerSettings),
 		])
 
 		const { mode } = await this.getState()

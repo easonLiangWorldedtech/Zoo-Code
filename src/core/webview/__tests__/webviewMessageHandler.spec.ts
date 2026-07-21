@@ -239,6 +239,21 @@ describe("webviewMessageHandler - webviewDidLaunch", () => {
 	})
 })
 
+describe("webviewMessageHandler - mode", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		vi.mocked(mockClineProvider.contextProxy.setValue).mockResolvedValue(undefined)
+		;(mockClineProvider as any).handleModeSwitch = vi.fn().mockResolvedValue(undefined)
+	})
+
+	it("routes mode messages through handleModeSwitch instead of writing ContextProxy directly", async () => {
+		await webviewMessageHandler(mockClineProvider, { type: "mode", text: "architect" })
+
+		expect((mockClineProvider as any).handleModeSwitch).toHaveBeenCalledWith("architect")
+		expect(mockClineProvider.contextProxy.setValue).not.toHaveBeenCalledWith("mode", expect.anything())
+	})
+})
+
 describe("webviewMessageHandler - requestLmStudioModels", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
