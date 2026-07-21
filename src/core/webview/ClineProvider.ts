@@ -1633,8 +1633,7 @@ export class ClineProvider
 			}
 		}
 
-		await this.updateGlobalState("mode", newMode)
-		this._updateViewLocalStateFromMutation({ mode: newMode })
+		await this.saveViewState("mode", newMode)
 
 		this.emit(RooCodeEventName.ModeChanged, newMode)
 
