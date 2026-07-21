@@ -1331,7 +1331,7 @@ describe("ClineProvider - Parallel Mode Support", () => {
 			const provider2 = new ClineProvider(mockContext, mockOutputChannel, "editor", new ContextProxy(mockContext))
 			const postStateToWebview1 = vi.spyOn(provider1, "postStateToWebview").mockResolvedValue(undefined)
 			const postStateToWebview2 = vi.spyOn(provider2, "postStateToWebview").mockResolvedValue(undefined)
-			vi.spyOn(provider1, "postMessageToWebview").mockResolvedValue(true)
+			vi.spyOn(provider1, "postMessageToWebview").mockResolvedValue(undefined)
 			vi.spyOn(provider1 as any, "removeClineFromStack").mockResolvedValue(undefined)
 			;(vscode.window.showInformationMessage as any).mockImplementation(async (...args: any[]) => args[2])
 
