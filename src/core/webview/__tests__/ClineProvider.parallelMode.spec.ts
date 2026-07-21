@@ -1039,14 +1039,20 @@ describe("ClineProvider - Parallel Mode Support", () => {
 	})
 
 	describe("parallel mode writes", () => {
-		it("should persist mode switches to the stable view-local state key", async () => {
+		it("should persist mode switches to registered durable viewStates", async () => {
 			const provider = new ClineProvider(mockContext, mockOutputChannel, "sidebar", new ContextProxy(mockContext))
 			await (provider as any).setViewStateId("stable-sidebar-mode")
 			const contextProxySpy = vi.spyOn(provider.contextProxy, "setValue")
 
 			await provider.handleModeSwitch("architect")
 
-			expect(contextProxySpy).toHaveBeenCalledWith("__view_state_stable-sidebar-mode_mode", "architect")
+			expect(contextProxySpy).toHaveBeenCalledWith(
+				"viewStates",
+				expect.objectContaining({
+					"stable-sidebar-mode": expect.objectContaining({ mode: "architect" }),
+				}),
+			)
+			expect(contextProxySpy).not.toHaveBeenCalledWith("__view_state_stable-sidebar-mode_mode", expect.anything())
 			const state = await provider.getState()
 			expect(state.mode).toBe("architect")
 
@@ -1071,8 +1077,12 @@ describe("ClineProvider - Parallel Mode Support", () => {
 			const state2 = await provider2.getState()
 			expect(state1.mode).toBe("architect")
 			expect(state2.mode).toBe("debugger")
-			expect(provider1.contextProxy.getValue("__view_state_stable-sidebar-mode-a_mode" as any)).toBe("architect")
-			expect(provider2.contextProxy.getValue("__view_state_stable-editor-mode-b_mode" as any)).toBe("debugger")
+			expect(provider1.contextProxy.getValue("viewStates" as any)).toMatchObject({
+				"stable-sidebar-mode-a": { mode: "architect" },
+			})
+			expect(provider2.contextProxy.getValue("viewStates" as any)).toMatchObject({
+				"stable-editor-mode-b": { mode: "debugger" },
+			})
 
 			await provider1.dispose()
 			await provider2.dispose()
@@ -1099,12 +1109,12 @@ describe("ClineProvider - Parallel Mode Support", () => {
 			const state = await provider.getState()
 			expect(state.currentApiConfigName).toBe("profile-a")
 			expect(state.apiConfiguration).toMatchObject(providerSettings)
-			expect(
-				provider.contextProxy.getValue("__view_state_stable-sidebar-profile_currentApiConfigName" as any),
-			).toBe("profile-a")
-			expect(
-				provider.contextProxy.getValue("__view_state_stable-sidebar-profile_apiConfiguration" as any),
-			).toMatchObject(providerSettings)
+			expect(provider.contextProxy.getValue("viewStates" as any)).toMatchObject({
+				"stable-sidebar-profile": { currentApiConfigName: "profile-a" },
+			})
+			expect(provider.contextProxy.getValue("viewStates" as any)["stable-sidebar-profile"]).not.toMatchObject(
+				providerSettings,
+			)
 
 			await provider.dispose()
 		})
@@ -1126,12 +1136,12 @@ describe("ClineProvider - Parallel Mode Support", () => {
 			const state = await provider.getState()
 			expect(state.currentApiConfigName).toBe("profile-b")
 			expect(state.apiConfiguration).toMatchObject(providerSettings)
-			expect(
-				provider.contextProxy.getValue("__view_state_stable-sidebar-upsert_currentApiConfigName" as any),
-			).toBe("profile-b")
-			expect(
-				provider.contextProxy.getValue("__view_state_stable-sidebar-upsert_apiConfiguration" as any),
-			).toMatchObject(providerSettings)
+			expect(provider.contextProxy.getValue("viewStates" as any)).toMatchObject({
+				"stable-sidebar-upsert": { currentApiConfigName: "profile-b" },
+			})
+			expect(provider.contextProxy.getValue("viewStates" as any)["stable-sidebar-upsert"]).not.toMatchObject(
+				providerSettings,
+			)
 
 			await provider.dispose()
 		})
@@ -1156,9 +1166,9 @@ describe("ClineProvider - Parallel Mode Support", () => {
 
 			const state = await provider.getState()
 			expect(state.currentApiConfigName).toBe("profile-b")
-			expect(
-				provider.contextProxy.getValue("__view_state_stable-delete-profile_currentApiConfigName" as any),
-			).toBe("profile-b")
+			expect(provider.contextProxy.getValue("viewStates" as any)).toMatchObject({
+				"stable-delete-profile": { currentApiConfigName: "profile-b" },
+			})
 
 			await provider.dispose()
 		})
