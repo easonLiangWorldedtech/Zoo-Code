@@ -1930,13 +1930,9 @@ export class ClineProvider
 						this.updateGlobalState("currentApiConfigName", name),
 						this.providerSettingsManager.setModeConfig(mode, id),
 						this.contextProxy.setProviderSettings(providerSettings),
+						this.saveViewState("currentApiConfigName", name),
+						this.saveViewState("apiConfiguration", providerSettings),
 					])
-
-					this._updateViewLocalStateFromMutation({
-						listApiConfigMeta,
-						currentApiConfigName: name,
-						apiConfiguration: providerSettings,
-					})
 
 					// Change the provider for the current task.
 					// TODO: We should rename `buildApiHandler` for clarity (e.g. `getProviderClient`).
@@ -2061,13 +2057,9 @@ export class ClineProvider
 				this.contextProxy.setValue("listApiConfigMeta", listApiConfigMeta),
 				this.contextProxy.setValue("currentApiConfigName", name),
 				this.contextProxy.setProviderSettings(providerSettings),
+				this.saveViewState("currentApiConfigName", name),
+				this.saveViewState("apiConfiguration", providerSettings),
 			])
-
-			this._updateViewLocalStateFromMutation({
-				listApiConfigMeta,
-				currentApiConfigName: name,
-				apiConfiguration: providerSettings,
-			})
 		}
 
 		const { mode } = await this.getState()
