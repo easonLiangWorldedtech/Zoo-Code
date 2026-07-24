@@ -836,6 +836,104 @@ describe("importExport", () => {
 				expect(mockProvider.settingsImportedAt).toBeUndefined()
 			})
 
+			it("should call broadcastResetToAllInstances after successful import when available", async () => {
+				const filePath = "/mock/path/settings.json"
+				const mockFileContent = JSON.stringify({
+					providerProfiles: {
+						currentApiConfigName: "valid-profile",
+						apiConfigs: {
+							"valid-profile": {
+								apiProvider: "openai" as ProviderName,
+								apiKey: "test-key",
+								id: "valid-id",
+							},
+						},
+					},
+					globalSettings: { mode: "code" },
+				})
+
+				;(fs.readFile as Mock).mockResolvedValue(mockFileContent)
+				;(fs.access as Mock).mockResolvedValue(undefined)
+
+				mockProviderSettingsManager.export.mockResolvedValue({
+					currentApiConfigName: "default",
+					apiConfigs: { default: { apiProvider: "anthropic" as ProviderName, id: "default-id" } },
+				})
+				mockProviderSettingsManager.listConfig.mockResolvedValue([
+					{ name: "valid-profile", id: "valid-id", apiProvider: "openai" as ProviderName },
+				])
+
+				const broadcastResetSpy = vi.fn().mockResolvedValue(undefined)
+				const mockProvider = {
+					settingsImportedAt: 0,
+					postStateToWebview: vi.fn().mockResolvedValue(undefined),
+					broadcastResetToAllInstances: broadcastResetSpy,
+				}
+
+				await importSettingsWithFeedback(
+					{
+						providerSettingsManager: mockProviderSettingsManager,
+						contextProxy: mockContextProxy,
+						customModesManager: mockCustomModesManager,
+						provider: mockProvider,
+					},
+					filePath,
+				)
+
+				expect(mockProvider.postStateToWebview).toHaveBeenCalled()
+				expect(broadcastResetSpy).toHaveBeenCalledTimes(1)
+
+				mockProviderSettingsManager.listConfig.mockResolvedValue([])
+			})
+
+			it("should skip broadcastResetToAllInstances when provider does not have it", async () => {
+				const filePath = "/mock/path/settings.json"
+				const mockFileContent = JSON.stringify({
+					providerProfiles: {
+						currentApiConfigName: "valid-profile",
+						apiConfigs: {
+							"valid-profile": {
+								apiProvider: "openai" as ProviderName,
+								apiKey: "test-key",
+								id: "valid-id",
+							},
+						},
+					},
+					globalSettings: { mode: "code" },
+				})
+
+				;(fs.readFile as Mock).mockResolvedValue(mockFileContent)
+				;(fs.access as Mock).mockResolvedValue(undefined)
+
+				mockProviderSettingsManager.export.mockResolvedValue({
+					currentApiConfigName: "default",
+					apiConfigs: { default: { apiProvider: "anthropic" as ProviderName, id: "default-id" } },
+				})
+				mockProviderSettingsManager.listConfig.mockResolvedValue([
+					{ name: "valid-profile", id: "valid-id", apiProvider: "openai" as ProviderName },
+				])
+
+				const mockProvider = {
+					settingsImportedAt: 0,
+					postStateToWebview: vi.fn().mockResolvedValue(undefined),
+					// No broadcastResetToAllInstances property
+				}
+
+				await importSettingsWithFeedback(
+					{
+						providerSettingsManager: mockProviderSettingsManager,
+						contextProxy: mockContextProxy,
+						customModesManager: mockCustomModesManager,
+						provider: mockProvider,
+					},
+					filePath,
+				)
+
+				expect(mockProvider.postStateToWebview).toHaveBeenCalled()
+
+				mockProviderSettingsManager.listConfig.mockResolvedValue([])
+			})
+
 			it("should handle multiple profiles with mixed valid and invalid providers", async () => {
 				;(vscode.window.showOpenDialog as Mock).mockResolvedValue([{ fsPath: "/mock/path/settings.json" }])
 
