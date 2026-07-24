@@ -1,6 +1,7 @@
 import * as fs from "fs/promises"
 import * as fsSync from "fs"
 import * as path from "path"
+import * as lockfile from "proper-lockfile"
 
 import type { HistoryItem } from "@roo-code/types"
 
@@ -48,9 +49,15 @@ interface HistoryIndex {
  * A single index file (`globalStorage/tasks/_index.json`) is maintained
  * as a cache for fast list reads at startup.
  *
- * Cross-process safety comes from `safeWriteJson`'s `proper-lockfile`
- * on per-task file writes. Within a single extension host process,
- * an in-process write lock serializes mutations.
+ * Cross-process safety comes from two layers:
+ * 1. `safeWriteJson`'s `proper-lockfile` on per-task file writes (atomic write).
+ * 2. A global lock file (`_history.lock`) that serializes the full
+ *    read-modify-write cycle across all extension host processes, preventing
+ *    stale-cache overwrites when parallel tabs call `updateTaskHistory()`
+ *    concurrently. See issue #920 for details.
+ *
+ * Within a single extension host process, an in-process write lock further
+ * serializes mutations to avoid redundant disk I/O.
  */
 /**
  * Options for TaskHistoryStore constructor.
@@ -73,6 +80,9 @@ export class TaskHistoryStore {
 	private fsWatcher: fsSync.FSWatcher | null = null
 	private reconcileTimer: ReturnType<typeof setTimeout> | null = null
 	private disposed = false
+
+	/** Path to the global lock file used for cross-instance serialization. */
+	private globalLockPathPromise: Promise<string> | null = null
 
 	/**
 	 * Promise that resolves when initialization is complete.
@@ -104,6 +114,9 @@ export class TaskHistoryStore {
 		try {
 			const tasksDir = await this.getTasksDir()
 			await fs.mkdir(tasksDir, { recursive: true })
+
+			// Resolve the global lock file path (used for cross-instance serialization)
+			this.globalLockPathPromise = this.getGlobalLockFilePath()
 
 			// 1. Load existing index into the cache
 			await this.loadIndex()
@@ -776,14 +789,54 @@ export class TaskHistoryStore {
 	/**
 	 * Serializes all read-modify-write operations within a single extension
 	 * host process to prevent concurrent interleaving.
+	 *
+	 * Additionally acquires a global file-level lock (via `proper-lockfile`)
+	 * so that mutations from **different** ClineProvider instances (parallel tabs)
+	 * are also serialized — preventing stale-cache overwrites described in #920.
 	 */
-	private withLock<T>(fn: () => Promise<T>): Promise<T> {
-		const result = this.writeLock.then(fn, fn)
-		this.writeLock = result.then(
-			() => {},
-			() => {},
-		)
-		return result
+	private async withLock<T>(fn: () => Promise<T>): Promise<T> {
+		// Acquire global lock first for cross-instance serialization.
+		let releaseGlobalLock: (() => Promise<void>) | null = null
+
+		if (this.globalLockPathPromise) {
+			const lockPath = await this.globalLockPathPromise
+			try {
+				await lockfile.lock(lockPath, {
+					stale: 31000,
+					update: 10000,
+					realpath: false,
+					retries: {
+						retries: 5,
+						factor: 2,
+						minTimeout: 100,
+						maxTimeout: 1000,
+					},
+				})
+				releaseGlobalLock = () => lockfile.unlock(lockPath)
+			} catch (lockErr) {
+				console.warn(
+					`[TaskHistoryStore] Failed to acquire global lock for cross-instance serialization:`,
+					lockErr,
+				)
+				// Non-fatal — in-process lock still protects this instance.
+			}
+		}
+
+		try {
+			// In-process serialization via promise chain (fast path, no I/O).
+			const result = this.writeLock.then(fn, fn)
+			this.writeLock = result.then(
+				() => {},
+				() => {},
+			)
+			return await result
+		} finally {
+			if (releaseGlobalLock) {
+				await releaseGlobalLock().catch((err) => {
+					console.warn(`[TaskHistoryStore] Failed to release global lock:`, err)
+				})
+			}
+		}
 	}
 
 	// ────────────────────────────── Private: Path helpers ──────────────────────────────
@@ -810,5 +863,16 @@ export class TaskHistoryStore {
 	private async getIndexPath(): Promise<string> {
 		const tasksDir = await this.getTasksDir()
 		return path.join(tasksDir, GlobalFileNames.historyIndex)
+	}
+
+	/**
+	 * Get the path to the global lock file (`_history.lock`) used for
+	 * cross-instance serialization. All TaskHistoryStore instances share
+	 * this single lock file so that mutations from parallel tabs are
+	 * serialized regardless of which extension host process they run in.
+	 */
+	private async getGlobalLockFilePath(): Promise<string> {
+		const tasksDir = await this.getTasksDir()
+		return path.join(tasksDir, "_history.lock")
 	}
 }
