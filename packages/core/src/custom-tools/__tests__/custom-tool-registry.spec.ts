@@ -212,4 +212,69 @@ describe("CustomToolRegistry", () => {
 			expect(registry.list()).toEqual([])
 		})
 	})
+
+	describe("getAllSerialized", () => {
+		it("should return serialized tool definitions", () => {
+			const validTool = {
+				name: "serialized_tool",
+				description: "A serialized tool",
+				execute: async () => "result",
+			}
+
+			registry.register(validTool)
+
+			const serialized = registry.getAllSerialized()
+
+			expect(serialized).toHaveLength(1)
+			expect(serialized[0].name).toBe("serialized_tool")
+			expect(serialized[0].description).toBe("A serialized tool")
+		})
+
+		it("should return empty array when no tools registered", () => {
+			const serialized = registry.getAllSerialized()
+			expect(serialized).toEqual([])
+		})
+	})
+
+	describe("setExtensionPath / getExtensionPath", () => {
+		it("should return undefined by default", () => {
+			expect(registry.getExtensionPath()).toBeUndefined()
+		})
+
+		it("should set and retrieve extension path", () => {
+			const testPath = "/path/to/extension"
+
+			registry.setExtensionPath(testPath)
+
+			expect(registry.getExtensionPath()).toBe(testPath)
+		})
+
+		it("should update existing extension path", () => {
+			registry.setExtensionPath("/first/path")
+			expect(registry.getExtensionPath()).toBe("/first/path")
+
+			registry.setExtensionPath("/second/path")
+			expect(registry.getExtensionPath()).toBe("/second/path")
+		})
+	})
+
+	describe("clearCache", () => {
+		it("should clear the in-memory TypeScript cache", () => {
+			const registryWithCache = new CustomToolRegistry({
+				cacheDir: "/tmp/test-cache-clear",
+			})
+
+			expect(registryWithCache).toBeDefined()
+			// clearCache should not throw even with empty cache
+			expect(() => registryWithCache.clearCache()).not.toThrow()
+		})
+
+		it("should handle clearing when cache directory does not exist", () => {
+			const registryNoDir = new CustomToolRegistry({
+				cacheDir: "/tmp/nonexistent-cache-dir-12345",
+			})
+
+			expect(() => registryNoDir.clearCache()).not.toThrow()
+		})
+	})
 })
