@@ -563,7 +563,7 @@ export const webviewMessageHandler = async (
 	}
 
 	switch (message.type) {
-		case "webviewDidLaunch":
+		case "webviewDidLaunch": {
 			await provider.setViewStateId(message.viewStateId)
 
 			// Load custom modes first
@@ -650,6 +650,7 @@ export const webviewMessageHandler = async (
 
 			provider.isViewLaunched = true
 			break
+		}
 		case "newTask":
 			// Initializing new instance of Cline will make sure that any
 			// agentically running promises in old instance don't affect our new
@@ -1242,18 +1243,24 @@ export const webviewMessageHandler = async (
 			})
 
 			if (!providerFilter || providerFilter === "kimi-code") {
-				const { kimiCodeOAuthManager } = await import("../../integrations/kimi-code/oauth")
-				const kimiCodeAuthMethod =
-					message?.values?.kimiCodeAuthMethod ?? apiConfiguration.kimiCodeAuthMethod ?? "oauth"
-				const kimiCodeApiKey =
-					kimiCodeAuthMethod === "api-key"
-						? (message?.values?.kimiCodeApiKey ?? apiConfiguration.kimiCodeApiKey)
-						: await kimiCodeOAuthManager.getAccessToken()
-				if (kimiCodeApiKey) {
-					candidates.push({
-						key: "kimi-code",
-						options: { provider: "kimi-code", apiKey: kimiCodeApiKey },
-					})
+				try {
+					const { kimiCodeOAuthManager } = await import("../../integrations/kimi-code/oauth")
+					const kimiCodeAuthMethod =
+						message?.values?.kimiCodeAuthMethod ?? apiConfiguration.kimiCodeAuthMethod ?? "oauth"
+					const kimiCodeApiKey =
+						kimiCodeAuthMethod === "api-key"
+							? (message?.values?.kimiCodeApiKey ?? apiConfiguration.kimiCodeApiKey)
+							: await kimiCodeOAuthManager.getAccessToken()
+					if (kimiCodeApiKey) {
+						candidates.push({
+							key: "kimi-code",
+							options: { provider: "kimi-code", apiKey: kimiCodeApiKey },
+						})
+					}
+				} catch (error) {
+					provider.log(
+						`[requestRouterModels] kimi-code credential lookup failed: ${error instanceof Error ? error.message : String(error)}`,
+					)
 				}
 			}
 
