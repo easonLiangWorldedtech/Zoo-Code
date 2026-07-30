@@ -3284,7 +3284,7 @@ export class ClineProvider
 	}
 
 	public getValues() {
-		return this.contextProxy.getValues()
+		return { ...this.contextProxy.getValues(), ...this.viewLocalState }
 	}
 
 	public async setValues(values: RooCodeSettings) {
