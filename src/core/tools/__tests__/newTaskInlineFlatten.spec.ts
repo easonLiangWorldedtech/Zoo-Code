@@ -92,9 +92,9 @@ describe("NewTaskTool auto-flatten inline", () => {
 		const pushed = pushToolResult.mock.calls[0][0] as string
 		expect(pushed).toContain("auto-flattened")
 		expect(pushed).toContain("do X")
-		// The auto-flatten is surfaced to the UI via a say message (tool results are not rendered).
+		// The auto-flatten is surfaced to the UI via a structured say payload (tool results are not rendered).
 		const say = (task as unknown as { say: ReturnType<typeof vi.fn> }).say
-		expect(say).toHaveBeenCalledWith("inline_subtask_started", expect.stringContaining("Nesting limit 2 reached"))
+		expect(say).toHaveBeenCalledWith("inline_subtask_started", JSON.stringify({ maxDepth: 2 }))
 	})
 
 	it("rejects when over the limit and autoFlattenOnLimit is false (error result, no marker)", async () => {
@@ -113,9 +113,9 @@ describe("NewTaskTool auto-flatten inline", () => {
 		expect(task.inlineSubtask).toBeUndefined()
 		const pushed = pushToolResult.mock.calls[0][0] as string
 		expect(pushed.toLowerCase()).toContain("error")
-		// The rejection is surfaced to the UI via a say message.
+		// The rejection is surfaced to the UI via a structured say payload.
 		const say = (task as unknown as { say: ReturnType<typeof vi.fn> }).say
-		expect(say).toHaveBeenCalledWith("inline_subtask_rejected", expect.stringContaining("auto-flatten is disabled"))
+		expect(say).toHaveBeenCalledWith("inline_subtask_rejected", JSON.stringify({ reason: "limit", maxDepth: 2 }))
 	})
 
 	it("rejects a nested new_task while an inline phase is already active", async () => {
@@ -135,9 +135,9 @@ describe("NewTaskTool auto-flatten inline", () => {
 		expect(task.inlineSubtask?.message).toBe("outer")
 		const pushed = pushToolResult.mock.calls[0][0] as string
 		expect(pushed.toLowerCase()).toContain("error")
-		// The rejection is surfaced to the UI via a say message.
+		// The rejection is surfaced to the UI via a structured say payload.
 		const say = (task as unknown as { say: ReturnType<typeof vi.fn> }).say
-		expect(say).toHaveBeenCalledWith("inline_subtask_rejected", expect.stringContaining("already in progress"))
+		expect(say).toHaveBeenCalledWith("inline_subtask_rejected", JSON.stringify({ reason: "nested" }))
 	})
 })
 

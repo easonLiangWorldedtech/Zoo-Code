@@ -274,7 +274,10 @@
 		"goToSubtask": "查看任务",
 		"inlineStarted": "子任务已扁平化为内联执行",
 		"inlineRejected": "嵌套子任务被拒绝",
-		"inlineConfigure": "调整任务树设置"
+		"inlineConfigure": "调整任务树设置",
+		"inlineStartedDetail": "已达到嵌套上限 {{maxDepth}} — 子任务已扁平化，正在本对话中内联执行。",
+		"inlineRejectedLimitDetail": "已达到嵌套上限 {{maxDepth}}，且自动扁平化已关闭。请直接在当前对话中继续工作，而非委派。",
+		"inlineRejectedNestedDetail": "当一个内联子任务正在进行时，无法启动嵌套的子任务。请先用 attempt_completion 完成当前的内联子任务。"
 	},
 	"questions": {
 		"hasQuestion": "Zoo有一个问题"

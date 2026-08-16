@@ -14,13 +14,22 @@ vi.mock("@src/utils/vscode", () => ({
 // Mock i18n — the two inline-subtask banner titles plus a fallback to the key itself.
 vi.mock("react-i18next", () => ({
 	useTranslation: () => ({
-		t: (key: string) => {
+		t: (key: string, options?: Record<string, unknown>) => {
 			const map: Record<string, string> = {
 				"chat:subtasks.inlineStarted": "Subtask flattened to inline",
 				"chat:subtasks.inlineRejected": "Nested subtask rejected",
 				"chat:subtasks.inlineConfigure": "Adjust task tree settings",
+				"chat:subtasks.inlineStartedDetail":
+					"Nesting limit {{maxDepth}} reached — subtask flattened and executing inline in this conversation.",
+				"chat:subtasks.inlineRejectedLimitDetail":
+					"Nesting limit {{maxDepth}} reached and auto-flatten is disabled. Continue working directly in the current conversation instead of delegating.",
+				"chat:subtasks.inlineRejectedNestedDetail":
+					"Cannot start a nested subtask while an inline subtask is already in progress. Complete the current inline subtask with attempt_completion first.",
 			}
-			return map[key] ?? key
+			const raw = map[key] ?? key
+			if (!options) return raw
+			// Substitute {{var}} placeholders from the options object.
+			return raw.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(options[name] ?? `{{${name}}}`))
 		},
 		i18n: { exists: () => true },
 	}),
@@ -68,33 +77,42 @@ describe("ChatRow - inline subtask banners", () => {
 			ts: Date.now(),
 			type: "say" as const,
 			say: "inline_subtask_started" as const,
-			text: "Nesting limit 2 reached — subtask flattened and executing inline in this conversation.",
+			text: JSON.stringify({ maxDepth: 2 }),
 		}
 
 		renderChatRow(message)
 
 		// Banner title (i18n) is present…
 		expect(screen.getByText("Subtask flattened to inline")).toBeInTheDocument()
-		// …and the detail text from message.text renders below it.
+		// …and the localized detail text renders below it.
 		expect(
 			screen.getByText("Nesting limit 2 reached — subtask flattened and executing inline in this conversation."),
 		).toBeInTheDocument()
 	})
 
-	it("renders a distinct banner when a nested new_task is rejected", () => {
+	it.each([
+		[
+			"nested",
+			JSON.stringify({ reason: "nested" }),
+			"Cannot start a nested subtask while an inline subtask is already in progress. Complete the current inline subtask with attempt_completion first.",
+		],
+		[
+			"limit",
+			JSON.stringify({ reason: "limit", maxDepth: 2 }),
+			"Nesting limit 2 reached and auto-flatten is disabled. Continue working directly in the current conversation instead of delegating.",
+		],
+	] as const)("renders a distinct banner when a new_task is rejected (%s)", (_reason, text, detail) => {
 		const message: ClineMessage = {
 			ts: Date.now(),
 			type: "say" as const,
 			say: "inline_subtask_rejected" as const,
-			text: "Cannot start a nested subtask while an inline subtask is already in progress.",
+			text,
 		}
 
 		renderChatRow(message)
 
 		expect(screen.getByText("Nested subtask rejected")).toBeInTheDocument()
-		expect(
-			screen.getByText("Cannot start a nested subtask while an inline subtask is already in progress."),
-		).toBeInTheDocument()
+		expect(screen.getByText(detail)).toBeInTheDocument()
 	})
 
 	describe("settings hint link", () => {

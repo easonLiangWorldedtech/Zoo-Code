@@ -1068,8 +1068,9 @@ export const ChatRowContent = ({
 							)}
 						</div>
 					)
-				case "inline_subtask_started":
+				case "inline_subtask_started": {
 					// A subtask was auto-flattened and now runs inline in this conversation.
+					const started = safeJsonParse<{ maxDepth?: number }>(message.text)
 					return (
 						<div className="group pr-2 py-1">
 							<div className="flex items-center gap-2 break-words">
@@ -1080,7 +1081,9 @@ export const ChatRowContent = ({
 							</div>
 							<div className="cursor-default ml-2 pl-4 mt-1 pt-0.5 border-l border-vscode-editorWarning-foreground/50">
 								<p className="my-0 font-light whitespace-pre-wrap break-words text-vscode-descriptionForeground">
-									{message.text}
+									{started?.maxDepth != null
+										? t("chat:subtasks.inlineStartedDetail", { maxDepth: started.maxDepth })
+										: message.text}
 								</p>
 								<a
 									href="#"
@@ -1099,8 +1102,11 @@ export const ChatRowContent = ({
 							</div>
 						</div>
 					)
-				case "inline_subtask_rejected":
-					// A nested new_task was rejected because an inline phase is already active.
+				}
+				case "inline_subtask_rejected": {
+					// A nested new_task was rejected (an inline phase is already active, or the
+					// nesting limit was hit with auto-flatten disabled).
+					const rejected = safeJsonParse<{ reason?: string; maxDepth?: number }>(message.text)
 					return (
 						<div className="group pr-2 py-1">
 							<div className="flex items-center gap-2 break-words">
@@ -1111,7 +1117,11 @@ export const ChatRowContent = ({
 							</div>
 							<div className="cursor-default ml-2 pl-4 mt-1 pt-0.5 border-l border-vscode-errorForeground/50">
 								<p className="my-0 font-light whitespace-pre-wrap break-words text-vscode-descriptionForeground">
-									{message.text}
+									{rejected?.reason === "limit"
+										? t("chat:subtasks.inlineRejectedLimitDetail", { maxDepth: rejected.maxDepth })
+										: rejected?.reason === "nested"
+											? t("chat:subtasks.inlineRejectedNestedDetail")
+											: message.text}
 								</p>
 								<a
 									href="#"
@@ -1130,6 +1140,7 @@ export const ChatRowContent = ({
 							</div>
 						</div>
 					)
+				}
 				case "reasoning":
 					return (
 						<ReasoningBlock

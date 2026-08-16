@@ -115,7 +115,8 @@ export class NewTaskTool extends BaseTool<"new_task"> {
 
 			if (decision.action === "reject-nested") {
 				// Surface the rejection in the UI as well — tool results are not rendered.
-				await task.say("inline_subtask_rejected", decision.message)
+				// Structured payload so the webview can localize the detail text.
+				await task.say("inline_subtask_rejected", JSON.stringify({ reason: "nested" }))
 				pushToolResult(formatResponse.toolError(decision.message))
 				return
 			}
@@ -125,17 +126,19 @@ export class NewTaskTool extends BaseTool<"new_task"> {
 				task.inlineSubtask = { message: unescapedMessage, todos: todoItems }
 				// Surface the auto-flatten in the UI — the model sees it via the tool result,
 				// but without this the user has no indication that a subtask now runs inline.
-				await task.say(
-					"inline_subtask_started",
-					`Nesting limit ${maxNestingDepth} reached — subtask flattened and executing inline in this conversation.`,
-				)
+				// Structured payload so the webview can localize the detail text.
+				await task.say("inline_subtask_started", JSON.stringify({ maxDepth: maxNestingDepth }))
 				pushToolResult(decision.directive)
 				return
 			}
 
 			if (decision.action === "reject-limit") {
 				// Surface the rejection in the UI as well — tool results are not rendered.
-				await task.say("inline_subtask_rejected", decision.message)
+				// Structured payload so the webview can localize the detail text.
+				await task.say(
+					"inline_subtask_rejected",
+					JSON.stringify({ reason: "limit", maxDepth: maxNestingDepth }),
+				)
 				pushToolResult(formatResponse.toolError(decision.message))
 				return
 			}

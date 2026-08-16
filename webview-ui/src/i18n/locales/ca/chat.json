@@ -273,7 +273,10 @@
 		"goToSubtask": "Veure tasca",
 		"inlineStarted": "Subtarea aplanada en línia",
 		"inlineRejected": "Subtarea niuada rebutjada",
-		"inlineConfigure": "Ajusta la configuració de l'arbre de tasques"
+		"inlineConfigure": "Ajusta la configuració de l'arbre de tasques",
+		"inlineStartedDetail": "S'ha assolit el límit d'anidament {{maxDepth}} — la subtasca s'ha aplanat i s'executa en línia en aquesta conversa.",
+		"inlineRejectedLimitDetail": "S'ha assolit el límit d'anidament {{maxDepth}} i l'aplanament automàtic està desactivat. Continua treballant directament en la conversa actual en lloc de delegar.",
+		"inlineRejectedNestedDetail": "No es pot iniciar una subtasca anidada mentre n'hi ha una d'en línia en curs. Completa primer la subtasca en línia amb attempt_completion."
 	},
 	"questions": {
 		"hasQuestion": "Zoo té una pregunta"

@@ -273,7 +273,10 @@
 		"goToSubtask": "Afficher la tâche",
 		"inlineStarted": "Sous-tâche aplatie en ligne",
 		"inlineRejected": "Sous-tâche imbriquée rejetée",
-		"inlineConfigure": "Ajuster les paramètres de l'arborescence des tâches"
+		"inlineConfigure": "Ajuster les paramètres de l'arborescence des tâches",
+		"inlineStartedDetail": "Limite d'imbrication {{maxDepth}} atteinte — la sous-tâche a été aplatie et s'exécute en ligne dans cette conversation.",
+		"inlineRejectedLimitDetail": "Limite d'imbrication {{maxDepth}} atteinte et l'aplatissement automatique est désactivé. Continuez à travailler directement dans la conversation actuelle au lieu de déléguer.",
+		"inlineRejectedNestedDetail": "Impossible de démarrer une sous-tâche imbriquée pendant qu'une sous-tâche en ligne est en cours. Terminez d'abord la sous-tâche en ligne avec attempt_completion."
 	},
 	"questions": {
 		"hasQuestion": "Zoo a une question"

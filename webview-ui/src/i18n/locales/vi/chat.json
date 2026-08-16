@@ -274,7 +274,10 @@
 		"goToSubtask": "Xem nhiệm vụ",
 		"inlineStarted": "Nhiệm vụ con đã được làm phẳng inline",
 		"inlineRejected": "Từ chối nhiệm vụ con lồng nhau",
-		"inlineConfigure": "Điều chỉnh cài đặt cây nhiệm vụ"
+		"inlineConfigure": "Điều chỉnh cài đặt cây nhiệm vụ",
+		"inlineStartedDetail": "Đã đạt giới hạn lồng nhau {{maxDepth}} — tác vụ con đã được làm phẳng và chạy inline trong cuộc trò chuyện này.",
+		"inlineRejectedLimitDetail": "Đã đạt giới hạn lồng nhau {{maxDepth}} và tự động làm phẳng đang tắt. Tiếp tục làm việc trực tiếp trong cuộc trò chuyện hiện tại thay vì ủy quyền.",
+		"inlineRejectedNestedDetail": "Không thể bắt đầu tác vụ con lồng nhau khi một tác vụ con inline đang chạy. Hãy hoàn thành trước tác vụ inline hiện tại bằng attempt_completion."
 	},
 	"questions": {
 		"hasQuestion": "Zoo có một câu hỏi"
