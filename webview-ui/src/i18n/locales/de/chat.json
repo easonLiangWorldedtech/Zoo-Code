@@ -270,7 +270,10 @@
 		"resultContent": "Teilaufgabenergebnisse",
 		"defaultResult": "Bitte fahre mit der nächsten Aufgabe fort.",
 		"completionInstructions": "Teilaufgabe abgeschlossen! Du kannst die Ergebnisse überprüfen und Korrekturen oder nächste Schritte vorschlagen. Wenn alles gut aussieht, bestätige, um das Ergebnis an die übergeordnete Aufgabe zurückzugeben.",
-		"goToSubtask": "Aufgabe anzeigen"
+		"goToSubtask": "Aufgabe anzeigen",
+		"inlineStarted": "Unteraufgabe inline ausgeführt",
+		"inlineRejected": "Verschachtelte Unteraufgabe abgelehnt",
+		"inlineConfigure": "Aufgabenbaum-Einstellungen anpassen"
 	},
 	"questions": {
 		"hasQuestion": "Zoo hat eine Frage"

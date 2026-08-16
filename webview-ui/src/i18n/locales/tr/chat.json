@@ -271,7 +271,10 @@
 		"resultContent": "Alt Görev Sonuçları",
 		"defaultResult": "Lütfen sonraki göreve devam edin.",
 		"completionInstructions": "Alt görev tamamlandı! Sonuçları inceleyebilir ve düzeltmeler veya sonraki adımlar önerebilirsiniz. Her şey iyi görünüyorsa, sonucu üst göreve döndürmek için onaylayın.",
-		"goToSubtask": "Görevi görüntüle"
+		"goToSubtask": "Görevi görüntüle",
+		"inlineStarted": "Alt görev içine düzleştirildi",
+		"inlineRejected": "İç içe alt görev reddedildi",
+		"inlineConfigure": "Görev ağacı ayarlarını düzenle"
 	},
 	"questions": {
 		"hasQuestion": "Zoo'nun bir sorusu var"

@@ -321,7 +321,10 @@
 		"resultContent": "Hasil Subtugas",
 		"defaultResult": "Silakan lanjutkan ke tugas berikutnya.",
 		"completionInstructions": "Subtugas selesai! Kamu bisa meninjau hasilnya dan menyarankan koreksi atau langkah selanjutnya. Jika semuanya terlihat baik, konfirmasi untuk mengembalikan hasil ke tugas induk.",
-		"goToSubtask": "Lihat tugas"
+		"goToSubtask": "Lihat tugas",
+		"inlineStarted": "Subtugas diratakan inline",
+		"inlineRejected": "Subtugas bersarang ditolak",
+		"inlineConfigure": "Atur pengaturan pohon tugas"
 	},
 	"questions": {
 		"hasQuestion": "Zoo punya pertanyaan"

@@ -114,6 +114,8 @@ export class NewTaskTool extends BaseTool<"new_task"> {
 			})
 
 			if (decision.action === "reject-nested") {
+				// Surface the rejection in the UI as well — tool results are not rendered.
+				await task.say("inline_subtask_rejected", decision.message)
 				pushToolResult(formatResponse.toolError(decision.message))
 				return
 			}
@@ -121,11 +123,19 @@ export class NewTaskTool extends BaseTool<"new_task"> {
 			if (decision.action === "flatten") {
 				// Set the phase marker and let the tool_result double as the inline prompt.
 				task.inlineSubtask = { message: unescapedMessage, todos: todoItems }
+				// Surface the auto-flatten in the UI — the model sees it via the tool result,
+				// but without this the user has no indication that a subtask now runs inline.
+				await task.say(
+					"inline_subtask_started",
+					`Nesting limit ${maxNestingDepth} reached — subtask flattened and executing inline in this conversation.`,
+				)
 				pushToolResult(decision.directive)
 				return
 			}
 
 			if (decision.action === "reject-limit") {
+				// Surface the rejection in the UI as well — tool results are not rendered.
+				await task.say("inline_subtask_rejected", decision.message)
 				pushToolResult(formatResponse.toolError(decision.message))
 				return
 			}

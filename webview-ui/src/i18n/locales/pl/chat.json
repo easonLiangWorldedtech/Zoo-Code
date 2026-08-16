@@ -270,7 +270,10 @@
 		"resultContent": "Wyniki podzadania",
 		"defaultResult": "Proszę kontynuować następne zadanie.",
 		"completionInstructions": "Podzadanie zakończone! Możesz przejrzeć wyniki i zasugerować poprawki lub następne kroki. Jeśli wszystko wygląda dobrze, potwierdź, aby zwrócić wynik do zadania nadrzędnego.",
-		"goToSubtask": "Wyświetl zadanie"
+		"goToSubtask": "Wyświetl zadanie",
+		"inlineStarted": "Zadanie podrzędne spłaszczone do inline",
+		"inlineRejected": "Zagnieżdżone zadanie odrzucone",
+		"inlineConfigure": "Dostosuj ustawienia drzewa zadań"
 	},
 	"questions": {
 		"hasQuestion": "Zoo ma pytanie"

@@ -73,6 +73,7 @@ import {
 	ArrowRight,
 	Check,
 	OctagonX,
+	Settings,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { PathTooltip } from "../ui/PathTooltip"
@@ -1065,6 +1066,68 @@ export const ChatRowContent = ({
 									<ArrowRight className="size-3" />
 								</button>
 							)}
+						</div>
+					)
+				case "inline_subtask_started":
+					// A subtask was auto-flattened and now runs inline in this conversation.
+					return (
+						<div className="group pr-2 py-1">
+							<div className="flex items-center gap-2 break-words">
+								<Split className="w-4 text-vscode-editorWarning-foreground shrink-0" />
+								<span className="font-bold text-vscode-editorWarning-foreground grow cursor-default">
+									{t("chat:subtasks.inlineStarted")}
+								</span>
+							</div>
+							<div className="cursor-default ml-2 pl-4 mt-1 pt-0.5 border-l border-vscode-editorWarning-foreground/50">
+								<p className="my-0 font-light whitespace-pre-wrap break-words text-vscode-descriptionForeground">
+									{message.text}
+								</p>
+								<a
+									href="#"
+									className="mt-1 inline-flex items-center gap-1 text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground cursor-pointer"
+									onClick={(e) => {
+										e.preventDefault()
+										vscode.postMessage({
+											type: "switchTab",
+											tab: "settings",
+											values: { section: "contextManagement" },
+										})
+									}}>
+									<Settings className="size-3.5" />
+									{t("chat:subtasks.inlineConfigure")}
+								</a>
+							</div>
+						</div>
+					)
+				case "inline_subtask_rejected":
+					// A nested new_task was rejected because an inline phase is already active.
+					return (
+						<div className="group pr-2 py-1">
+							<div className="flex items-center gap-2 break-words">
+								<OctagonX className="w-4 text-vscode-errorForeground shrink-0" />
+								<span className="font-bold text-vscode-errorForeground grow cursor-default">
+									{t("chat:subtasks.inlineRejected")}
+								</span>
+							</div>
+							<div className="cursor-default ml-2 pl-4 mt-1 pt-0.5 border-l border-vscode-errorForeground/50">
+								<p className="my-0 font-light whitespace-pre-wrap break-words text-vscode-descriptionForeground">
+									{message.text}
+								</p>
+								<a
+									href="#"
+									className="mt-1 inline-flex items-center gap-1 text-vscode-textLink-foreground hover:text-vscode-textLink-activeForeground cursor-pointer"
+									onClick={(e) => {
+										e.preventDefault()
+										vscode.postMessage({
+											type: "switchTab",
+											tab: "settings",
+											values: { section: "contextManagement" },
+										})
+									}}>
+									<Settings className="size-3.5" />
+									{t("chat:subtasks.inlineConfigure")}
+								</a>
+							</div>
 						</div>
 					)
 				case "reasoning":

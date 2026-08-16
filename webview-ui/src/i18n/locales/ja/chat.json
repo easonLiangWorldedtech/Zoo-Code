@@ -270,7 +270,10 @@
 		"resultContent": "サブタスク結果",
 		"defaultResult": "次のタスクに進んでください。",
 		"completionInstructions": "サブタスク完了！結果を確認し、修正や次のステップを提案できます。問題なければ、親タスクに結果を返すために確認してください。",
-		"goToSubtask": "タスクを表示"
+		"goToSubtask": "タスクを表示",
+		"inlineStarted": "サブタスクをインラインにフラット化しました",
+		"inlineRejected": "ネストしたサブタスクを拒否しました",
+		"inlineConfigure": "タスクツリー設定を調整する"
 	},
 	"questions": {
 		"hasQuestion": "Zooは質問があります"

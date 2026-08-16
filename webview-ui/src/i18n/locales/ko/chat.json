@@ -270,7 +270,10 @@
 		"resultContent": "하위 작업 결과",
 		"defaultResult": "다음 작업을 계속 진행해주세요.",
 		"completionInstructions": "하위 작업 완료! 결과를 검토하고 수정 사항이나 다음 단계를 제안할 수 있습니다. 모든 것이 괜찮아 보이면, 부모 작업에 결과를 반환하기 위해 확인해주세요.",
-		"goToSubtask": "작업 보기"
+		"goToSubtask": "작업 보기",
+		"inlineStarted": "서브태스크를 인라인으로 평탄화했습니다",
+		"inlineRejected": "중첩 서브태스크가 거부되었습니다",
+		"inlineConfigure": "작업 트리 설정 조정"
 	},
 	"questions": {
 		"hasQuestion": "Zoo에게 질문이 있습니다"

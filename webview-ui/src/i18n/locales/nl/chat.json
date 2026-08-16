@@ -265,7 +265,10 @@
 		"resultContent": "Subtaakresultaten",
 		"defaultResult": "Ga verder met de volgende taak.",
 		"completionInstructions": "Subtaak voltooid! Je kunt de resultaten bekijken en eventuele correcties of volgende stappen voorstellen. Als alles goed is, bevestig dan om het resultaat terug te sturen naar de hoofdtaak.",
-		"goToSubtask": "Taak weergeven"
+		"goToSubtask": "Taak weergeven",
+		"inlineStarted": "Onderopdracht inline afgevlakt",
+		"inlineRejected": "Geneste onderopdracht afgewezen",
+		"inlineConfigure": "Instellingen van de taakboom aanpassen"
 	},
 	"questions": {
 		"hasQuestion": "Zoo heeft een vraag"

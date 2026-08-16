@@ -312,7 +312,10 @@
 		"resultContent": "Subtask completed",
 		"defaultResult": "Please continue to the next task.",
 		"completionInstructions": "You can review the results and suggest any corrections or next steps. If everything looks good, confirm to return the result to the parent task.",
-		"goToSubtask": "View task"
+		"goToSubtask": "View task",
+		"inlineStarted": "Subtask flattened to inline",
+		"inlineRejected": "Nested subtask rejected",
+		"inlineConfigure": "Adjust task tree settings"
 	},
 	"questions": {
 		"hasQuestion": "Zoo has a question"
