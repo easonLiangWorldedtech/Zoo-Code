@@ -904,11 +904,6 @@
 			"count": 1
 		}
 	},
-	"core/tools/NewTaskTool.ts": {
-		"@typescript-eslint/no-explicit-any": {
-			"count": 1
-		}
-	},
 	"core/tools/ReadFileTool.ts": {
 		"@typescript-eslint/no-explicit-any": {
 			"count": 4
