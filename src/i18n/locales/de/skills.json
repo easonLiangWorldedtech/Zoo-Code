@@ -11,6 +11,7 @@
 		"missing_update_modes_fields": "Erforderliche Felder fehlen: skillName oder source",
 		"manager_unavailable": "Skill-Manager nicht verfügbar",
 		"missing_delete_fields": "Erforderliche Felder fehlen: skillName oder source",
+		"missing_open_fields": "Erforderliche Felder fehlen: skillName oder source",
 		"skill_not_found": "Skill \"{{name}}\" nicht gefunden"
 	}
 }

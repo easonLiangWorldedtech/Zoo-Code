@@ -11,6 +11,7 @@
 		"missing_update_modes_fields": "必須フィールドが不足しています：skillNameまたはsource",
 		"manager_unavailable": "スキルマネージャーが利用できません",
 		"missing_delete_fields": "必須フィールドが不足しています：skillNameまたはsource",
+		"missing_open_fields": "必須フィールドが不足しています：skillNameまたはsource",
 		"skill_not_found": "スキル「{{name}}」が見つかりません"
 	}
 }

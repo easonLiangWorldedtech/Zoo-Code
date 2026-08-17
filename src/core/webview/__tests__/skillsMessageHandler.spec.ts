@@ -26,6 +26,7 @@ vi.mock("../../../i18n", () => ({
 			"skills:errors.missing_create_fields": "Missing required fields: skillName, source, or skillDescription",
 			"skills:errors.manager_unavailable": "Skills manager not available",
 			"skills:errors.missing_delete_fields": "Missing required fields: skillName or source",
+			"skills:errors.missing_open_fields": "Missing required fields: skillName or source",
 			"skills:errors.missing_move_fields": "Missing required fields: skillName or source",
 			"skills:errors.skill_not_found": `Skill "${params?.name}" not found`,
 		}

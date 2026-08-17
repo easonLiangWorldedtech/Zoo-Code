@@ -185,7 +185,7 @@ export async function handleOpenSkillFile(provider: ClineProvider, message: Webv
 		const source = message.source as SkillSource
 
 		if (!skillName || !source) {
-			throw new Error(t("skills:errors.missing_delete_fields"))
+			throw new Error(t("skills:errors.missing_open_fields"))
 		}
 
 		const skillsManager = provider.getSkillsManager()
