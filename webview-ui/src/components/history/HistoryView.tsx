@@ -17,11 +17,11 @@ import {
 	StandardTooltip,
 } from "@/components/ui"
 import { useAppTranslation } from "@/i18n/TranslationContext"
+import { useExtensionState } from "@/context/ExtensionStateContext"
 
 import { Tab, TabContent, TabHeader } from "../common/Tab"
 import { useTaskSearch } from "./useTaskSearch"
 import { useGroupedTasks } from "./useGroupedTasks"
-import { countAllSubtasks } from "./types"
 import TaskItem from "./TaskItem"
 import TaskGroupItem from "./TaskGroupItem"
 
@@ -54,13 +54,37 @@ const HistoryView = ({ onDone }: HistoryViewProps) => {
 	const [showBatchDeleteDialog, setShowBatchDeleteDialog] = useState<boolean>(false)
 
 	// Get subtask count for a task (recursive total)
+	// Derived from the FULL unfiltered task history (not `tasks`, which is filtered by
+	// search query, and not `groups`, which is empty in search mode). The host cascades
+	// deletion to ALL children of a deleted task regardless of what is currently visible,
+	// so the warning must reflect the true recursive count.
+	const { taskHistory } = useExtensionState()
 	const getSubtaskCount = useMemo(() => {
-		const countMap = new Map<string, number>()
-		for (const group of groups) {
-			countMap.set(group.parent.id, countAllSubtasks(group.subtasks))
+		const childIdsByParent = new Map<string, string[]>()
+		for (const task of taskHistory) {
+			if (task.parentTaskId) {
+				const children = childIdsByParent.get(task.parentTaskId) ?? []
+				children.push(task.id)
+				childIdsByParent.set(task.parentTaskId, children)
+			}
 		}
-		return (taskId: string) => countMap.get(taskId) || 0
-	}, [groups])
+
+		const countCache = new Map<string, number>()
+		const countRecursive = (taskId: string): number => {
+			const cached = countCache.get(taskId)
+			if (cached !== undefined) {
+				return cached
+			}
+			let total = 0
+			for (const childId of childIdsByParent.get(taskId) ?? []) {
+				total += 1 + countRecursive(childId)
+			}
+			countCache.set(taskId, total)
+			return total
+		}
+
+		return (taskId: string) => countRecursive(taskId)
+	}, [taskHistory])
 
 	// Handle delete with subtask count
 	const handleDelete = (taskId: string) => {
