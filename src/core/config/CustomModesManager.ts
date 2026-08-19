@@ -1,7 +1,6 @@
 import * as vscode from "vscode"
 import * as path from "path"
 import * as fs from "fs/promises"
-import * as os from "os"
 
 import * as yaml from "yaml"
 import stripBom from "strip-bom"
@@ -410,8 +409,11 @@ export class CustomModesManager {
 					.map((err) => `${err.path.join(".")}: ${err.message}`)
 					.join(", ")
 				const errorMessage = `Invalid mode configuration: ${errorMessages}`
+				// Note: no toast here — the outer catch below shows a single
+				// updateFailed toast for every failure path (validation, missing
+				// workspace, write errors). Callers treat a thrown error as
+				// "already shown to the user".
 				logger.error("Mode validation failed", { slug, errors: validationResult.error.errors })
-				vscode.window.showErrorMessage(t("common:customModes.errors.updateFailed", { error: errorMessage }))
 				throw new Error(errorMessage)
 			}
 
@@ -573,9 +575,10 @@ export class CustomModesManager {
 					return // No workspace, can't delete project rules
 				}
 			} else {
-				// Global scope - use OS home directory
-				const homeDir = os.homedir()
-				rulesFolderPath = path.join(homeDir, ".roo", `rules-${slug}`)
+				// Global scope — use the same global .roo directory as every other
+				// method in this class (checkRulesDirectoryHasContent, exportModeWithRules,
+				// importRulesFiles) so deletion finds the folder those methods manage.
+				rulesFolderPath = path.join(getGlobalRooDirectory(), `rules-${slug}`)
 			}
 
 			// Check if the rules folder exists and delete it

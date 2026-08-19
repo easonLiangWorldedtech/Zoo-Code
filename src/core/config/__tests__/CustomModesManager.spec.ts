@@ -3,6 +3,7 @@
 import type { Mock } from "vitest"
 
 import * as path from "path"
+import * as os from "os"
 import * as fs from "fs/promises"
 
 import * as yaml from "yaml"
@@ -627,6 +628,31 @@ describe("CustomModesManager", () => {
 			// Should trigger onUpdate
 			expect(mockOnUpdate).toHaveBeenCalled()
 		})
+
+		it("shows a single error toast when mode configuration is invalid", async () => {
+			const mockShowError = vi.fn()
+			;(vscode.window.showErrorMessage as Mock) = mockShowError
+
+			const invalidMode: ModeConfig = {
+				slug: "invalid-mode",
+				name: "", // Invalid: empty name
+				roleDefinition: "Role",
+				groups: ["read"],
+				source: "global",
+			}
+
+			await expect(manager.updateCustomMode("invalid-mode", invalidMode)).rejects.toThrow(
+				"Invalid mode configuration",
+			)
+
+			// Exactly one toast — the outer catch shows updateFailed for every failure
+			// path. A second toast from the validation block would be a regression
+			// (double error notification to the user).
+			const updateFailedCalls = mockShowError.mock.calls.filter((args: unknown[]) =>
+				String(args[0]).includes("updateFailed"),
+			)
+			expect(updateFailedCalls).toHaveLength(1)
+		})
 	})
 
 	describe("File Operations", () => {
@@ -761,6 +787,37 @@ describe("CustomModesManager", () => {
 			await manager.deleteCustomMode("non-existent-mode")
 
 			expect(mockShowError).toHaveBeenCalledWith("customModes.errors.deleteFailed")
+		})
+
+		it("deletes the global rules folder via getGlobalRooDirectory", async () => {
+			const existingMode = {
+				slug: "global-mode",
+				name: "Global Mode",
+				roleDefinition: "Test role",
+				groups: ["read"],
+				source: "global",
+			}
+
+			const settingsContent = { customModes: [existingMode] }
+			;(fs.readFile as Mock).mockImplementation(async (p: string) => {
+				if (p === mockSettingsPath) {
+					return yaml.stringify(settingsContent)
+				}
+				throw new Error("File not found")
+			})
+			;(fs.writeFile as Mock).mockResolvedValue(undefined)
+			// The global rules folder exists and must be deleted.
+			;(fileExistsAtPath as Mock).mockImplementation(async (p: string) => {
+				return p === mockSettingsPath || p.includes("rules-global-mode")
+			})
+
+			await manager.deleteCustomMode("global-mode")
+
+			// Regression test: deletion must target the same global .roo directory
+			// used by checkRulesDirectoryHasContent / exportModeWithRules /
+			// importRulesFiles (getGlobalRooDirectory()), not a hand-rolled path.
+			const expectedPath = path.join(os.homedir(), ".roo", "rules-global-mode")
+			expect(fs.rm).toHaveBeenCalledWith(expectedPath, { recursive: true, force: true })
 		})
 	})
 
