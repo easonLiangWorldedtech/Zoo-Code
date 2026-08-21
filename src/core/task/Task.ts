@@ -117,6 +117,11 @@ import {
 	saveTaskMessages,
 	taskMetadata,
 } from "../task-persistence"
+import {
+	saveConversationCheckpoint,
+	listConversationCheckpoints,
+	type ConversationCheckpoint,
+} from "../checkpoints/conversation-checkpoint"
 import { getEnvironmentDetails } from "../environment/getEnvironmentDetails"
 import { checkContextWindowExceededError } from "../context/context-management/context-error-handling"
 import {
@@ -141,6 +146,24 @@ const MAX_EXPONENTIAL_BACKOFF_SECONDS = 600 // 10 minutes
 const DEFAULT_USAGE_COLLECTION_TIMEOUT_MS = 5000 // 5 seconds
 const FORCED_CONTEXT_REDUCTION_PERCENT = 75 // Keep 75% of context (remove 25%) on context window errors
 const MAX_CONTEXT_WINDOW_RETRIES = 3 // Maximum retries for context window errors
+
+/**
+ * In-memory phase marker for an auto-flattened inline subtask.
+ *
+ * When `new_task` would exceed `maxNestingDepth` and `autoFlattenOnLimit` is set,
+ * the subtask is NOT opened as a child Task. Instead the parent Task records this
+ * marker and executes the instruction inline in its own conversation (the tool_result
+ * doubles as the inline prompt). The marker is cleared when the inline phase completes
+ * (`attempt_completion`) or the task is aborted/cancelled.
+ *
+ * Deliberately NOT persisted: inline state is a transient execution phase, not lineage.
+ */
+export interface InlineSubtask {
+	/** The subtask instruction to execute inline. */
+	message: string
+	/** Parsed todos for the subtask (empty when none were provided). */
+	todos: TodoItem[]
+}
 
 export interface TaskOptions extends CreateTaskOptions {
 	provider: ClineProvider
@@ -170,6 +193,19 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	readonly rootTaskId?: string
 	readonly parentTaskId?: string
 	childTaskId?: string
+	/** Nesting level; root = 0, child = parent.depth + 1. */
+	readonly depth: number
+	/**
+	 * True when `depth` was derived authoritatively (persisted value, live parent,
+	 * or a genuine root) and is safe to persist on save. False for legacy children
+	 * resumed without their live parent — the provider backfills those before first save.
+	 */
+	readonly depthAuthoritative: boolean
+	/**
+	 * Set while an auto-flattened subtask is executing inline in this task's own
+	 * conversation. Cleared on completion or abort. Never persisted.
+	 */
+	inlineSubtask?: InlineSubtask
 	pendingNewTaskToolCallId?: string
 
 	readonly instanceId: string
@@ -504,6 +540,30 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.rootTaskId = historyItem ? historyItem.rootTaskId : rootTask?.taskId
 		this.parentTaskId = historyItem ? historyItem.parentTaskId : parentTask?.taskId
 		this.childTaskId = undefined
+
+		// Nesting depth (root = 0). A persisted value is authoritative; otherwise derive it
+		// from the live parent task (parent.depth + 1) or default to root (0).
+		const persistedDepth = historyItem?.depth
+		if (typeof persistedDepth === "number" && Number.isInteger(persistedDepth) && persistedDepth >= 0) {
+			this.depth = persistedDepth
+			this.depthAuthoritative = true
+		} else if (parentTask) {
+			// Live parent available. The child inherits the parent's authority:
+			// a legacy parent that is itself non-authoritative must not stamp its
+			// placeholder depth onto the child as a persisted fact.
+			this.depth = parentTask.depth + 1
+			this.depthAuthoritative = parentTask.depthAuthoritative
+		} else if (!this.parentTaskId) {
+			// No persisted depth and no parent reference at all: this task is a root.
+			this.depth = 0
+			this.depthAuthoritative = true
+		} else {
+			// Legacy child resumed without its live parent (e.g. reopened from history):
+			// the depth cannot be derived here, so mark it non-authoritative and let
+			// ClineProvider.createTaskWithHistoryItem() backfill it before first save.
+			this.depth = 0
+			this.depthAuthoritative = false
+		}
 
 		this.metadata = {
 			task: historyItem ? historyItem.task : task,
@@ -1121,6 +1181,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				mode: this._taskMode || defaultModeSlug, // Use the task's own mode, not the current provider mode.
 				apiConfigName: this._taskApiConfigName, // Use the task's own provider profile, not the current provider profile.
 				initialStatus: this.initialStatus,
+				// Only persist depth when it was derived authoritatively; a legacy child resumed
+				// without its live parent carries a placeholder 0 that must not be written back.
+				depth: this.depthAuthoritative ? this.depth : undefined,
 			})
 
 			// Emit token/tool usage updates using debounced function
@@ -1138,6 +1201,29 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			console.error("Failed to save Roo messages:", error)
 			return false
 		}
+	}
+
+	/**
+	 * Manually-triggered conversation checkpoint (P4 of the Task Tree plan).
+	 *
+	 * Snapshots the task's full message history to `<taskDir>/checkpoints/<id>.json` so the
+	 * user can restore the conversation to this point later. This is distinct from the
+	 * git-based file checkpoints: it captures the CONVERSATION, not the working tree.
+	 */
+	async createConversationCheckpoint(summary?: string): Promise<ConversationCheckpoint> {
+		const taskDir = await getTaskDirectoryPath(this.globalStoragePath, this.taskId)
+		return saveConversationCheckpoint({
+			taskDir,
+			taskId: this.taskId,
+			messages: structuredClone(this.clineMessages),
+			summary,
+		})
+	}
+
+	/** Lists all conversation checkpoints for this task, newest first. */
+	async listConversationCheckpoints(): Promise<ConversationCheckpoint[]> {
+		const taskDir = await getTaskDirectoryPath(this.globalStoragePath, this.taskId)
+		return listConversationCheckpoints(taskDir)
 	}
 
 	private findMessageByTimestamp(ts: number): ClineMessage | undefined {
@@ -2251,6 +2337,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		this.abort = true
+
+		// Clear any in-flight inline subtask phase so a cancelled task resumes as an
+		// ordinary parent conversation with no orphaned marker.
+		this.inlineSubtask = undefined
 
 		// Reset consecutive error counters on abort (manual intervention)
 		this.consecutiveNoToolUseCount = 0
