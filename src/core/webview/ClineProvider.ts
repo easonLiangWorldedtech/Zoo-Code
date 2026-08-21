@@ -44,6 +44,8 @@ import {
 	DEFAULT_WRITE_DELAY_MS,
 	DEFAULT_DIFF_FUZZY_THRESHOLD,
 	DEFAULT_DESTRUCTIVE_COMMAND_GUARD_ENABLED,
+	DEFAULT_MAX_NESTING_DEPTH,
+	DEFAULT_AUTO_FLATTEN_ON_LIMIT,
 	DEFAULT_AUTO_CLOSE_ZOO_OPENED_FILES,
 	DEFAULT_AUTO_CLOSE_ZOO_OPENED_FILES_AFTER_USER_EDITED,
 	DEFAULT_AUTO_CLOSE_ZOO_OPENED_NEW_FILES,
@@ -104,6 +106,7 @@ import { ContextProxy } from "../config/ContextProxy"
 import { ProviderSettingsManager } from "../config/ProviderSettingsManager"
 import { CustomModesManager } from "../config/CustomModesManager"
 import { Task } from "../task/Task"
+import { computeTaskDepth } from "../task/taskDepth"
 
 import { webviewMessageHandler } from "./webviewMessageHandler"
 import type { ClineMessage, TodoItem } from "@roo-code/types"
@@ -709,6 +712,120 @@ export class ClineProvider
 		}
 	}
 
+	/**
+	 * Re-establish a parent→child delegation link when an interrupted child is resumed.
+	 *
+	 * The interrupt path (cancelTask / evictCurrentTask) preserves the link only while the
+	 * parent is still "delegated". After a crash or resume cycle the parent can be left
+	 * "active" with no awaitingChildId, so AttemptCompletionTool refuses to route the child's
+	 * completion back (it requires parent.awaitingChildId === this child). Restoring the link
+	 * here — the common funnel for every resume path — lets a resumed child report back.
+	 *
+	 * Safe by construction:
+	 *  - only called for children whose delegation was NOT intentionally severed
+	 *    (cancelledDelegationChildIds),
+	 *  - never clobbers a live delegation to a different child,
+	 *  - and only transitions an "active" parent to "delegated" (the sole legal path).
+	 * Non-fatal: any failure is logged and the resume proceeds without the link.
+	 */
+	private async reestablishDelegationLinkOnResume(childTaskId: string, parentTaskId: string): Promise<void> {
+		// A child whose delegation was intentionally severed (abandonSubtask) or that failed a
+		// cancel must NOT be reattached — its parentTaskId may still point at the old parent.
+		if (this.cancelledDelegationChildIds.has(childTaskId)) {
+			return
+		}
+
+		try {
+			await this.taskHistoryStore.atomicReadAndUpdate(parentTaskId, (parent) => {
+				// Already linked to this child — nothing to do.
+				if (parent.status === "delegated" && parent.awaitingChildId === childTaskId) {
+					return parent
+				}
+
+				// Never clobber a live delegation to a different child.
+				if (parent.awaitingChildId && parent.awaitingChildId !== childTaskId) {
+					const otherStatus = this.taskHistoryStore.get(parent.awaitingChildId)?.status
+					if (otherStatus === "active" || otherStatus === "delegated") {
+						return parent
+					}
+				}
+
+				// Only an "active" parent can legally become "delegated"; any other status is left untouched.
+				if (parent.status !== "active") {
+					return parent
+				}
+
+				const childIds = Array.from(new Set([...(parent.childIds ?? []), childTaskId]))
+				this.log(
+					`[reestablishDelegationLinkOnResume] Restored link: parent ${parentTaskId} → child ${childTaskId}`,
+				)
+				return {
+					...parent,
+					status: "delegated" as const,
+					awaitingChildId: childTaskId,
+					delegatedToId: childTaskId,
+					childIds,
+				}
+			})
+		} catch (err) {
+			this.log(
+				`[reestablishDelegationLinkOnResume] Failed to restore link for parent ${parentTaskId} → child ${childTaskId}: ${err instanceof Error ? err.message : String(err)}`,
+			)
+		}
+	}
+
+	/**
+	 * Cancel cascade: interrupt every LIVE child of the given parent task.
+	 *
+	 * When a task is cancelled, any children it spawned that are still running in the
+	 * registry would otherwise keep streaming as orphans. This aborts each live child
+	 * instance (which also clears its inlineSubtask phase marker) and marks its persisted
+	 * status "interrupted" so the user can resume it later. The parent's delegation link is
+	 * left intact — this mirrors markDelegatedChildInterrupted() on the parent side.
+	 *
+	 * No-op when the task has no live children (the common single-open case, where the child
+	 * is itself the current task and is handled by cancelTaskInternal's own interruption path).
+	 */
+	private async interruptLiveChildren(parentTaskId: string): Promise<void> {
+		const parentHistory = this.taskHistoryStore.get(parentTaskId)
+		const childIds = parentHistory?.childIds ?? []
+
+		for (const childId of childIds) {
+			// Skip children already in a terminal state — never overwrite completed/interrupted.
+			const existingStatus = this.taskHistoryStore.get(childId)?.status
+			if (existingStatus === "interrupted" || existingStatus === "completed") {
+				continue
+			}
+
+			// Only cascade to children that are actually running (not already aborted/abandoned).
+			const liveChild = this.taskRegistry.getById(childId)
+			if (!liveChild || liveChild.abort || liveChild.abandoned) {
+				continue
+			}
+
+			this.log(`[interruptLiveChildren] Cancelling parent ${parentTaskId} — interrupting live child ${childId}`)
+			try {
+				// Abort the live instance (clears inlineSubtask, stops its stream). Fire-and-forget is
+				// acceptable: abortTask settles asynchronously and cancelTaskInternal awaits the parent's
+				// own abort promise before persisting "interrupted".
+				void liveChild.abortTask().catch((err) => {
+					this.log(
+						`[interruptLiveChildren] Failed to abort child ${childId}: ${err instanceof Error ? err.message : String(err)}`,
+					)
+				})
+
+				const childHistory = this.taskHistoryStore.get(childId)
+				if (childHistory && childHistory.status !== "interrupted") {
+					await this.updateTaskHistory({ ...childHistory, status: "interrupted" })
+				}
+			} catch (err) {
+				this.log(
+					`[interruptLiveChildren] Failed to interrupt child ${childId}: ${err instanceof Error ? err.message : String(err)}`,
+				)
+			}
+		}
+	}
+
 	getTaskStackSize(): number {
 		return this.taskRegistry.length
 	}
@@ -1174,6 +1291,16 @@ export class ClineProvider
 			await this.evictCurrentTask()
 		}
 
+		// Re-establish the parent→child delegation link when resuming an interrupted child.
+		// The interrupt path preserves the link only while the parent is still "delegated";
+		// after a crash or resume cycle the parent can be left "active" with no awaitingChildId,
+		// which would prevent the resumed child's completion from routing back (AttemptCompletionTool
+		// requires parent.awaitingChildId === this child). Restoring it here — before the child Task
+		// instance starts writing its own history — lets a resumed child report back to its parent.
+		if (historyItem.parentTaskId && historyItem.status === "interrupted") {
+			await this.reestablishDelegationLinkOnResume(historyItem.id, historyItem.parentTaskId)
+		}
+
 		// If the history item has a saved mode, restore it and its associated API configuration.
 		if (historyItem.mode) {
 			// Validate that the mode still exists
@@ -1301,6 +1428,12 @@ export class ClineProvider
 			diffFuzzyThreshold,
 		})
 
+		// Backfill the nesting depth for legacy tasks that lack a persisted value and were
+		// resumed without their live parent, so their first save persists a correct depth.
+		if (!task.depthAuthoritative) {
+			await this.backfillTaskDepth(task)
+		}
+
 		if (isRehydratingCurrentTask) {
 			// Replace the current task in-place to avoid UI flicker
 			const oldTask = this.taskRegistry.current
@@ -1394,6 +1527,41 @@ export class ClineProvider
 		}
 
 		return task
+	}
+
+	/**
+	 * Backfill the nesting depth for a resumed legacy task that lacks a persisted value.
+	 *
+	 * The Task constructor cannot derive depth when the live parent is not available (e.g.
+	 * reopening from history), so it marks such tasks non-authoritative. Here we walk the
+	 * `parentTaskId` chain through the in-memory store / global state and persist the
+	 * computed depth so subsequent saves carry a correct value. A cycle or dangling parent
+	 * reference yields no depth, leaving the task as-is rather than persisting a bogus one.
+	 */
+	private async backfillTaskDepth(task: Task): Promise<void> {
+		if (task.depthAuthoritative) {
+			return
+		}
+
+		const lookup = (id: string) =>
+			this.taskHistoryStore.get(id) ?? (this.getGlobalState("taskHistory") ?? []).find((item) => item.id === id)
+		const depth = computeTaskDepth(task.taskId, undefined, lookup)
+		if (depth === undefined) {
+			return
+		}
+
+		// Write back the complete existing record with `depth` added so no other fields are lost.
+		const existing = lookup(task.taskId)
+		if (!existing) {
+			return
+		}
+		try {
+			await this.updateTaskHistory({ ...existing, depth }, { broadcast: false })
+		} catch (error) {
+			this.log(
+				`[backfillTaskDepth] Failed to persist backfilled depth for ${task.taskId}: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
 	}
 
 	public async postMessageToWebview(message: ExtensionMessage) {
@@ -2508,6 +2676,8 @@ export class ClineProvider
 			soundVolume,
 			writeDelayMs,
 			diffFuzzyThreshold,
+			maxNestingDepth,
+			autoFlattenOnLimit,
 			terminalShellIntegrationTimeout,
 			terminalShellIntegrationDisabled,
 			terminalCommandDelay,
@@ -2668,6 +2838,8 @@ export class ClineProvider
 			soundVolume: soundVolume ?? 0.5,
 			writeDelayMs: writeDelayMs ?? DEFAULT_WRITE_DELAY_MS,
 			diffFuzzyThreshold: diffFuzzyThreshold ?? DEFAULT_DIFF_FUZZY_THRESHOLD,
+			maxNestingDepth,
+			autoFlattenOnLimit,
 			terminalShellIntegrationTimeout: terminalShellIntegrationTimeout ?? Terminal.defaultShellIntegrationTimeout,
 			terminalShellIntegrationDisabled: terminalShellIntegrationDisabled ?? true,
 			terminalCommandDelay: terminalCommandDelay ?? 0,
@@ -2897,6 +3069,8 @@ export class ClineProvider
 			soundVolume: stateValues.soundVolume,
 			writeDelayMs: stateValues.writeDelayMs ?? DEFAULT_WRITE_DELAY_MS,
 			diffFuzzyThreshold: stateValues.diffFuzzyThreshold ?? DEFAULT_DIFF_FUZZY_THRESHOLD,
+			maxNestingDepth: stateValues.maxNestingDepth ?? DEFAULT_MAX_NESTING_DEPTH,
+			autoFlattenOnLimit: stateValues.autoFlattenOnLimit ?? DEFAULT_AUTO_FLATTEN_ON_LIMIT,
 			terminalShellIntegrationTimeout:
 				stateValues.terminalShellIntegrationTimeout ?? Terminal.defaultShellIntegrationTimeout,
 			terminalShellIntegrationDisabled: stateValues.terminalShellIntegrationDisabled ?? true,
@@ -3470,6 +3644,14 @@ export class ClineProvider
 		// Wait for abortTask to fully settle (including its final saveClineMessages write)
 		// before we persist "interrupted", so our write is always the last one.
 		await abortPromise.catch(() => {})
+
+		// Cancel cascade: interrupt any live children of this task so they don't keep streaming
+		// as orphans. No-op in the common single-open case (the child is the current task itself).
+		void this.interruptLiveChildren(task.taskId).catch((err) => {
+			this.log(
+				`[cancelTask] Failed to interrupt live children of ${task.taskId}: ${err instanceof Error ? err.message : String(err)}`,
+			)
+		})
 
 		// Defensive safeguard: if current instance already changed, skip rehydrate
 		const current = this.getCurrentTask()
