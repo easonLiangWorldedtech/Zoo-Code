@@ -44,6 +44,8 @@ import {
 	DEFAULT_WRITE_DELAY_MS,
 	DEFAULT_DIFF_FUZZY_THRESHOLD,
 	DEFAULT_DESTRUCTIVE_COMMAND_GUARD_ENABLED,
+	DEFAULT_MAX_NESTING_DEPTH,
+	DEFAULT_AUTO_FLATTEN_ON_LIMIT,
 	DEFAULT_AUTO_CLOSE_ZOO_OPENED_FILES,
 	DEFAULT_AUTO_CLOSE_ZOO_OPENED_FILES_AFTER_USER_EDITED,
 	DEFAULT_AUTO_CLOSE_ZOO_OPENED_NEW_FILES,
@@ -104,6 +106,7 @@ import { ContextProxy } from "../config/ContextProxy"
 import { ProviderSettingsManager } from "../config/ProviderSettingsManager"
 import { CustomModesManager } from "../config/CustomModesManager"
 import { Task } from "../task/Task"
+import { computeTaskDepth } from "../task/taskDepth"
 
 import { webviewMessageHandler } from "./webviewMessageHandler"
 import type { ClineMessage, TodoItem } from "@roo-code/types"
@@ -1301,6 +1304,12 @@ export class ClineProvider
 			diffFuzzyThreshold,
 		})
 
+		// Backfill the nesting depth for legacy tasks that lack a persisted value and were
+		// resumed without their live parent, so their first save persists a correct depth.
+		if (!task.depthAuthoritative) {
+			await this.backfillTaskDepth(task)
+		}
+
 		if (isRehydratingCurrentTask) {
 			// Replace the current task in-place to avoid UI flicker
 			const oldTask = this.taskRegistry.current
@@ -1394,6 +1403,41 @@ export class ClineProvider
 		}
 
 		return task
+	}
+
+	/**
+	 * Backfill the nesting depth for a resumed legacy task that lacks a persisted value.
+	 *
+	 * The Task constructor cannot derive depth when the live parent is not available (e.g.
+	 * reopening from history), so it marks such tasks non-authoritative. Here we walk the
+	 * `parentTaskId` chain through the in-memory store / global state and persist the
+	 * computed depth so subsequent saves carry a correct value. A cycle or dangling parent
+	 * reference yields no depth, leaving the task as-is rather than persisting a bogus one.
+	 */
+	private async backfillTaskDepth(task: Task): Promise<void> {
+		if (task.depthAuthoritative) {
+			return
+		}
+
+		const lookup = (id: string) =>
+			this.taskHistoryStore.get(id) ?? (this.getGlobalState("taskHistory") ?? []).find((item) => item.id === id)
+		const depth = computeTaskDepth(task.taskId, undefined, lookup)
+		if (depth === undefined) {
+			return
+		}
+
+		// Write back the complete existing record with `depth` added so no other fields are lost.
+		const existing = lookup(task.taskId)
+		if (!existing) {
+			return
+		}
+		try {
+			await this.updateTaskHistory({ ...existing, depth }, { broadcast: false })
+		} catch (error) {
+			this.log(
+				`[backfillTaskDepth] Failed to persist backfilled depth for ${task.taskId}: ${error instanceof Error ? error.message : String(error)}`,
+			)
+		}
 	}
 
 	public async postMessageToWebview(message: ExtensionMessage) {
@@ -2508,6 +2552,8 @@ export class ClineProvider
 			soundVolume,
 			writeDelayMs,
 			diffFuzzyThreshold,
+			maxNestingDepth,
+			autoFlattenOnLimit,
 			terminalShellIntegrationTimeout,
 			terminalShellIntegrationDisabled,
 			terminalCommandDelay,
@@ -2668,6 +2714,8 @@ export class ClineProvider
 			soundVolume: soundVolume ?? 0.5,
 			writeDelayMs: writeDelayMs ?? DEFAULT_WRITE_DELAY_MS,
 			diffFuzzyThreshold: diffFuzzyThreshold ?? DEFAULT_DIFF_FUZZY_THRESHOLD,
+			maxNestingDepth,
+			autoFlattenOnLimit,
 			terminalShellIntegrationTimeout: terminalShellIntegrationTimeout ?? Terminal.defaultShellIntegrationTimeout,
 			terminalShellIntegrationDisabled: terminalShellIntegrationDisabled ?? true,
 			terminalCommandDelay: terminalCommandDelay ?? 0,
@@ -2897,6 +2945,8 @@ export class ClineProvider
 			soundVolume: stateValues.soundVolume,
 			writeDelayMs: stateValues.writeDelayMs ?? DEFAULT_WRITE_DELAY_MS,
 			diffFuzzyThreshold: stateValues.diffFuzzyThreshold ?? DEFAULT_DIFF_FUZZY_THRESHOLD,
+			maxNestingDepth: stateValues.maxNestingDepth ?? DEFAULT_MAX_NESTING_DEPTH,
+			autoFlattenOnLimit: stateValues.autoFlattenOnLimit ?? DEFAULT_AUTO_FLATTEN_ON_LIMIT,
 			terminalShellIntegrationTimeout:
 				stateValues.terminalShellIntegrationTimeout ?? Terminal.defaultShellIntegrationTimeout,
 			terminalShellIntegrationDisabled: stateValues.terminalShellIntegrationDisabled ?? true,
