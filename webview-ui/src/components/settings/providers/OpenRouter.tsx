@@ -22,7 +22,6 @@ type OpenRouterProps = {
 	apiConfiguration: ProviderSettings
 	setApiConfigurationField: (field: keyof ProviderSettings, value: ProviderSettings[keyof ProviderSettings]) => void
 	routerModels?: RouterModels
-	selectedModelId: string
 	uriScheme: string | undefined
 	simplifySettings?: boolean
 	organizationAllowList: OrganizationAllowList
