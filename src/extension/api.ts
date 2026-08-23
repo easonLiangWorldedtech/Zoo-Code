@@ -15,6 +15,7 @@ import {
 	type ProviderSettingsEntry,
 	type TaskEvent,
 	type CreateTaskOptions,
+	type WebviewThemeFixture,
 	RooCodeEventName,
 	TaskCommandName,
 	isSecretStateKey,
@@ -26,6 +27,7 @@ import { IpcServer } from "@roo-code/ipc"
 import { Package } from "../shared/package"
 import { getAllModes, type Mode } from "../shared/modes"
 import { ClineProvider } from "../core/webview/ClineProvider"
+import type { Task } from "../task/Task"
 import { Terminal } from "../integrations/terminal/Terminal"
 import { TerminalRegistry } from "../integrations/terminal/TerminalRegistry"
 import { openClineInNewTab } from "../activate/registerCommands"
@@ -368,7 +370,10 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 			const isValidMode = getAllModes(customModes).some((modeConfig) => modeConfig.slug === mode)
 
 			if (isValidMode) {
-				await entry.provider.handleModeSwitch(mode)
+				// entry.task is the registered Task instance (TaskAskController narrows it
+				// to the ask-response surface); pass it explicitly so the switch is scoped to
+				// this task rather than the provider's currently focused task.
+				await entry.provider.handleModeSwitch(mode, entry.task as Task)
 			} else {
 				this.log(`[API#selectTaskFollowupSuggestion] ignoring unknown mode "${mode}" for task ${taskId}`)
 			}
@@ -380,6 +385,10 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 
 	public isReady() {
 		return this.sidebarProvider.viewLaunched
+	}
+
+	public captureWebviewThemeFixture(): Promise<WebviewThemeFixture> {
+		return this.sidebarProvider.requestWebviewThemeFixture()
 	}
 
 	private async waitForWebviewLaunch(timeoutMs: number): Promise<boolean> {
@@ -571,8 +580,13 @@ export class API extends EventEmitter<RooCodeEvents> implements RooCodeAPI {
 	// Global Settings Management
 
 	public getConfiguration(): RooCodeSettings {
+		// getValues() merges view-local state, whose apiConfiguration is a nested object that
+		// can carry provider secrets (e.g. apiKey). Flatten the provider settings onto the top
+		// level (the pre-existing flat shape) so the secret filter removes them before return.
+		const values = this.sidebarProvider.getValues()
+		const { apiConfiguration, ...rest } = values
 		return Object.fromEntries(
-			Object.entries(this.sidebarProvider.getValues()).filter(([key]) => !isSecretStateKey(key)),
+			Object.entries({ ...rest, ...apiConfiguration }).filter(([key]) => !isSecretStateKey(key)),
 		)
 	}
 
