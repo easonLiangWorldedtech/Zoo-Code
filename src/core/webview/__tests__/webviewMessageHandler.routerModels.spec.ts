@@ -59,15 +59,9 @@ vi.mock("vscode", () => ({
 // Mock modelCache getModels/flushModels used by the handler
 const getModelsMock = vi.fn()
 const flushModelsMock = vi.fn()
-const kimiCodeGetAccessTokenMock = vi.fn()
 vi.mock("../../../api/providers/fetchers/modelCache", () => ({
 	getModels: (...args: any[]) => getModelsMock(...args),
 	flushModels: (...args: any[]) => flushModelsMock(...args),
-}))
-vi.mock("../../../integrations/kimi-code/oauth", () => ({
-	kimiCodeOAuthManager: {
-		getAccessToken: (...args: unknown[]) => kimiCodeGetAccessTokenMock(...args),
-	},
 }))
 
 describe("webviewMessageHandler - requestRouterModels provider filter", () => {
@@ -461,14 +455,14 @@ describe("webviewMessageHandler - requestRouterModels provider filter", () => {
 				kimiCodeAuthMethod: "oauth",
 			},
 		})
-		kimiCodeGetAccessTokenMock.mockRejectedValueOnce(new Error("refresh failed"))
+		getKimiCodeAccessTokenMock.mockRejectedValueOnce(new Error("refresh failed"))
 
 		await webviewMessageHandler(mockProvider, {
 			type: "requestRouterModels",
 			values: { provider: providerIdentifiers.kimiCode },
 		} satisfies WebviewMessage)
 
-		expect(kimiCodeGetAccessTokenMock).toHaveBeenCalledOnce()
+		expect(getKimiCodeAccessTokenMock).toHaveBeenCalledOnce()
 		expect(mockProvider.log).toHaveBeenCalledWith(
 			"[requestRouterModels] kimi-code credential lookup failed: refresh failed",
 		)
