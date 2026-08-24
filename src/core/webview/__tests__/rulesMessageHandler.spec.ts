@@ -20,6 +20,20 @@ vi.mock("../../../services/rules/rules", () => ({
 	getRulesDirectoryPath: vi.fn(),
 }))
 
+// Mock i18n
+vi.mock("../../../i18n", () => ({
+	t: (key: string) => {
+		const translations: Record<string, string> = {
+			"rules:errors.missing_create_fields": "Missing required fields: scope, kind, or fileName",
+			"rules:errors.missing_delete_fields": "Missing required fields: scope, kind, or relativePath",
+			"rules:errors.rule_not_found": "Rule file not found",
+			"rules:errors.refresh_failed_after_create": "Rule created, but refreshing the rules list failed.",
+			"rules:errors.refresh_failed_after_delete": "Rule deleted, but refreshing the rules list failed.",
+		}
+		return translations[key] || key
+	},
+}))
+
 import * as vscode from "vscode"
 import { openFile } from "../../../integrations/misc/open-file"
 import { createRule, deleteRule, getRules, getRulesDirectoryPath, resolveRuleFile } from "../../../services/rules/rules"

@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "Thiếu các trường bắt buộc: scope, kind hoặc fileName",
+		"missing_delete_fields": "Thiếu các trường bắt buộc: scope, kind hoặc relativePath",
+		"rule_not_found": "Không tìm thấy tệp quy tắc",
+		"refresh_failed_after_create": "Đã tạo quy tắc nhưng làm mới danh sách quy tắc thất bại.",
+		"refresh_failed_after_delete": "Đã xóa quy tắc nhưng làm mới danh sách quy tắc thất bại."
+	}
+}

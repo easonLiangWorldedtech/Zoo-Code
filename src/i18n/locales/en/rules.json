@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "Missing required fields: scope, kind, or fileName",
+		"missing_delete_fields": "Missing required fields: scope, kind, or relativePath",
+		"rule_not_found": "Rule file not found",
+		"refresh_failed_after_create": "Rule created, but refreshing the rules list failed.",
+		"refresh_failed_after_delete": "Rule deleted, but refreshing the rules list failed."
+	}
+}

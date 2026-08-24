@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "Отсутствуют обязательные поля: scope, kind или fileName",
+		"missing_delete_fields": "Отсутствуют обязательные поля: scope, kind или relativePath",
+		"rule_not_found": "Файл правила не найден",
+		"refresh_failed_after_create": "Правило создано, но обновление списка правил не удалось.",
+		"refresh_failed_after_delete": "Правило удалено, но обновление списка правил не удалось."
+	}
+}

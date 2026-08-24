@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "Verplichte velden ontbreken: scope, kind of fileName",
+		"missing_delete_fields": "Verplichte velden ontbreken: scope, kind of relativePath",
+		"rule_not_found": "Regelbestand niet gevonden",
+		"refresh_failed_after_create": "Regel gemaakt, maar het vernieuwen van de regellijst is mislukt.",
+		"refresh_failed_after_delete": "Regel verwijderd, maar het vernieuwen van de regellijst is mislukt."
+	}
+}

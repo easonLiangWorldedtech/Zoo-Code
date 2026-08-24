@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "必須フィールドが不足しています: scope、kind または fileName",
+		"missing_delete_fields": "必須フィールドが不足しています: scope、kind または relativePath",
+		"rule_not_found": "ルールファイルが見つかりません",
+		"refresh_failed_after_create": "ルールは作成されましたが、ルールリストの更新に失敗しました。",
+		"refresh_failed_after_delete": "ルールは削除されましたが、ルールリストの更新に失敗しました。"
+	}
+}

@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "Erforderliche Felder fehlen: scope, kind oder fileName",
+		"missing_delete_fields": "Erforderliche Felder fehlen: scope, kind oder relativePath",
+		"rule_not_found": "Regeldatei nicht gefunden",
+		"refresh_failed_after_create": "Regel erstellt, aber das Aktualisieren der Regelliste ist fehlgeschlagen.",
+		"refresh_failed_after_delete": "Regel gelöscht, aber das Aktualisieren der Regelliste ist fehlgeschlagen."
+	}
+}

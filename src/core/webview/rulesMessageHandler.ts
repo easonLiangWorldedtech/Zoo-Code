@@ -12,6 +12,7 @@ import type {
 import type { ClineProvider } from "./ClineProvider"
 import { openFile } from "../../integrations/misc/open-file"
 import { createRule, deleteRule, getRules, getRulesDirectoryPath, resolveRuleFile } from "../../services/rules/rules"
+import { t } from "../../i18n"
 
 function getErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error)
@@ -51,7 +52,7 @@ export async function handleCreateRule(
 	} catch (error) {
 		const errorMessage = getErrorMessage(error)
 		provider.log(`Rule created but failed to refresh rules: ${errorMessage}`)
-		vscode.window.showWarningMessage("Rule created, but refreshing the rules list failed.")
+		vscode.window.showWarningMessage(t("rules:errors.refresh_failed_after_create"))
 		return undefined
 	}
 }
@@ -76,7 +77,7 @@ export async function handleDeleteRule(
 	} catch (error) {
 		const errorMessage = getErrorMessage(error)
 		provider.log(`Rule deleted but failed to refresh rules: ${errorMessage}`)
-		vscode.window.showWarningMessage("Rule deleted, but refreshing the rules list failed.")
+		vscode.window.showWarningMessage(t("rules:errors.refresh_failed_after_delete"))
 		return undefined
 	}
 }
@@ -86,7 +87,7 @@ export async function handleOpenRuleFile(provider: ClineProvider, cwd: string, m
 		const input = parseDeleteRuleInput(message)
 		const filePath = await resolveRuleFile(cwd, input)
 		if (!filePath) {
-			throw new Error("Rule file not found")
+			throw new Error(t("rules:errors.rule_not_found"))
 		}
 
 		await openFile(filePath)
@@ -131,7 +132,7 @@ function parseCreateRuleInput(message: WebviewMessage): CreateRuleInput {
 	const fileName = values.fileName ?? message.text
 
 	if (!scope || !kind || !fileName) {
-		throw new Error("Missing required fields: scope, kind, or fileName")
+		throw new Error(t("rules:errors.missing_create_fields"))
 	}
 
 	return {
@@ -149,7 +150,7 @@ function parseDeleteRuleInput(message: WebviewMessage): DeleteRuleInput {
 	const relativePath = values.relativePath ?? message.text
 
 	if (!scope || !kind || !relativePath) {
-		throw new Error("Missing required fields: scope, kind, or relativePath")
+		throw new Error(t("rules:errors.missing_delete_fields"))
 	}
 
 	return {

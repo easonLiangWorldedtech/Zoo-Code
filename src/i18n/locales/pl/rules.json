@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "Brak wymaganych pól: scope, kind lub fileName",
+		"missing_delete_fields": "Brak wymaganych pól: scope, kind lub relativePath",
+		"rule_not_found": "Nie znaleziono pliku reguły",
+		"refresh_failed_after_create": "Zasada została utworzona, ale odświeżenie listy zasad nie powiodło się.",
+		"refresh_failed_after_delete": "Zasada została usunięta, ale odświeżenie listy zasad nie powiodło się."
+	}
+}

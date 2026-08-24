@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "Zorunlu alanlar eksik: scope, kind veya fileName",
+		"missing_delete_fields": "Zorunlu alanlar eksik: scope, kind veya relativePath",
+		"rule_not_found": "Kural dosyası bulunamadı",
+		"refresh_failed_after_create": "Kural oluşturuldu ancak kural listesi yenilenemedi.",
+		"refresh_failed_after_delete": "Kural silindi ancak kural listesi yenilenemedi."
+	}
+}

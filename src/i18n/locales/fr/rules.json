@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "Champs obligatoires manquants : scope, kind ou fileName",
+		"missing_delete_fields": "Champs obligatoires manquants : scope, kind ou relativePath",
+		"rule_not_found": "Fichier de règle introuvable",
+		"refresh_failed_after_create": "Règle créée, mais l'actualisation de la liste des règles a échoué.",
+		"refresh_failed_after_delete": "Règle supprimée, mais l'actualisation de la liste des règles a échoué."
+	}
+}

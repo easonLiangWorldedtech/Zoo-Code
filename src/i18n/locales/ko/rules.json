@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "필수 필드가 없습니다: scope, kind 또는 fileName",
+		"missing_delete_fields": "필수 필드가 없습니다: scope, kind 또는 relativePath",
+		"rule_not_found": "규칙 파일을 찾을 수 없습니다",
+		"refresh_failed_after_create": "규칙이 생성되었지만 규칙 목록을 새로고침하지 못했습니다.",
+		"refresh_failed_after_delete": "규칙이 삭제되었지만 규칙 목록을 새로고침하지 못했습니다."
+	}
+}

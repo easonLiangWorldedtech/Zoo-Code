@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "Falten camps obligatoris: scope, kind o fileName",
+		"missing_delete_fields": "Falten camps obligatoris: scope, kind o relativePath",
+		"rule_not_found": "No s'ha trobat el fitxer de la regla",
+		"refresh_failed_after_create": "Regla creada, però ha fallat l'actualització de la llista de regles.",
+		"refresh_failed_after_delete": "Regla eliminada, però ha fallat l'actualització de la llista de regles."
+	}
+}

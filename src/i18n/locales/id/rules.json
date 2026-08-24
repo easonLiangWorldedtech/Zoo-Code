@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "Field wajib tidak ada: scope, kind, atau fileName",
+		"missing_delete_fields": "Field wajib tidak ada: scope, kind, atau relativePath",
+		"rule_not_found": "File aturan tidak ditemukan",
+		"refresh_failed_after_create": "Aturan dibuat, tetapi pembaruan daftar aturan gagal.",
+		"refresh_failed_after_delete": "Aturan dihapus, tetapi pembaruan daftar aturan gagal."
+	}
+}

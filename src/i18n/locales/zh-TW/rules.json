@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "缺少必填欄位：scope、kind 或 fileName",
+		"missing_delete_fields": "缺少必填欄位：scope、kind 或 relativePath",
+		"rule_not_found": "找不到規則檔案",
+		"refresh_failed_after_create": "規則已建立，但重新整理規則清單失敗。",
+		"refresh_failed_after_delete": "規則已刪除，但重新整理規則清單失敗。"
+	}
+}

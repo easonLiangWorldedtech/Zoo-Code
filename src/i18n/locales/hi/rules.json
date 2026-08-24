@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "आवश्यक फ़ील्ड गायब हैं: scope, kind या fileName",
+		"missing_delete_fields": "आवश्यक फ़ील्ड गायब हैं: scope, kind या relativePath",
+		"rule_not_found": "नियम फ़ाइल नहीं मिली",
+		"refresh_failed_after_create": "नियम बनाया गया, लेकिन नियम सूची की पुनर्चालना विफल रही।",
+		"refresh_failed_after_delete": "नियम हटाया गया, लेकिन नियम सूची की पुनर्चालना विफल रही।"
+	}
+}

@@ -1,0 +1,9 @@
+{
+	"errors": {
+		"missing_create_fields": "Campos obrigatórios ausentes: scope, kind ou fileName",
+		"missing_delete_fields": "Campos obrigatórios ausentes: scope, kind ou relativePath",
+		"rule_not_found": "Arquivo da regra não encontrado",
+		"refresh_failed_after_create": "Regra criada, mas a atualização da lista de regras falhou.",
+		"refresh_failed_after_delete": "Regra excluída, mas a atualização da lista de regras falhou."
+	}
+}
