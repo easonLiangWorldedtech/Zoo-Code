@@ -78,6 +78,9 @@ describe("API - configuration", () => {
 				openRouterApiKey: "nested-openrouter-secret",
 			},
 		})
+		// Structural double: API.getConfiguration() only reads sidebarProvider.getValues()
+		// from the provider; the double assertion adapts this minimal shape to the
+		// constructor's ClineProvider parameter (same pattern as the tests above).
 		const provider = {
 			context: {},
 			on: vi.fn(),
