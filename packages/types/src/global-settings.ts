@@ -118,6 +118,15 @@ export const DEFAULT_PER_WRITE_CHECKPOINTS = true
 export const DEFAULT_CHANGE_CARD_DETAIL: ChangeCardDetail = "summary"
 
 /**
+ * Persisted non-secret selections for a stable webview instance.
+ */
+export const viewStateSchema = z.object({
+	mode: z.string().optional(),
+	currentApiConfigName: z.string().optional(),
+	updatedAt: z.number().optional(),
+})
+
+/**
  * GlobalSettings
  */
 
@@ -125,6 +134,7 @@ export const globalSettingsSchema = z.object({
 	currentApiConfigName: z.string().optional(),
 	listApiConfigMeta: z.array(providerSettingsEntrySchema).optional(),
 	pinnedApiConfigs: z.record(z.string(), z.boolean()).optional(),
+	viewStates: z.record(z.string(), viewStateSchema).optional(),
 
 	lastShownAnnouncementId: z.string().optional(),
 	customInstructions: z.string().optional(),

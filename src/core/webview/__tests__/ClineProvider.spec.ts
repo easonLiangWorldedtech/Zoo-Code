@@ -578,7 +578,7 @@ describe("ClineProvider", () => {
 	})
 
 	test("does not reload full model details when the LM Studio model is already loaded", async () => {
-		vi.mocked(hasLoadedFullDetails).mockReturnValue(true)
+		vi.mocked(hasLoadedFullDetails).mockReturnValueOnce(true)
 
 		await provider.performPreparationTasks({
 			apiConfiguration: {
@@ -2314,11 +2314,19 @@ describe("ClineProvider", () => {
 				getProfile: vi.fn().mockResolvedValue(profile),
 			} as any
 
+			// Register a stable view id so the durable per-view write is persisted
+			await provider["setViewStateId"]("stable-test-view")
+
 			// Switch to architect mode
 			await provider.handleModeSwitch("architect")
 
-			// Verify mode was updated
-			expect(mockContext.globalState.update).toHaveBeenCalledWith("mode", "architect")
+			// Verify mode was updated in durable per-view state
+			expect(mockContext.globalState.update).toHaveBeenCalledWith(
+				"viewStates",
+				expect.objectContaining({
+					["stable-test-view"]: expect.objectContaining({ mode: "architect" }),
+				}),
+			)
 
 			// Verify saved config was loaded
 			expect(provider.providerSettingsManager.getModeConfigId).toHaveBeenCalledWith("architect")
@@ -2348,11 +2356,19 @@ describe("ClineProvider", () => {
 				return undefined
 			})
 
+			// Register a stable view id so the durable per-view write is persisted
+			await provider["setViewStateId"]("stable-test-view")
+
 			// Switch to architect mode
 			await provider.handleModeSwitch("architect")
 
-			// Verify mode was updated
-			expect(mockContext.globalState.update).toHaveBeenCalledWith("mode", "architect")
+			// Verify mode was updated in durable per-view state
+			expect(mockContext.globalState.update).toHaveBeenCalledWith(
+				"viewStates",
+				expect.objectContaining({
+					["stable-test-view"]: expect.objectContaining({ mode: "architect" }),
+				}),
+			)
 
 			// Verify current config was saved as default for new mode
 			expect(provider.providerSettingsManager.setModeConfig).toHaveBeenCalledWith("architect", "current-id")
@@ -2419,8 +2435,10 @@ describe("ClineProvider", () => {
 			expect(mockCustomModesManager.getCustomModes).toHaveBeenCalled()
 			expect(getModeBySlug).toHaveBeenCalledWith("non-existent-mode", expect.any(Array))
 
-			// Verify fallback to default mode
-			expect(mockContext.globalState.update).toHaveBeenCalledWith("mode", "code")
+			// Verify fallback to default mode, view-locally: history restore no longer
+			// writes the shared global mode
+			expect(provider["viewLocalState"].mode).toBe("code")
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith("mode", "code")
 			expect(logSpy).toHaveBeenCalledWith(
 				"Mode 'non-existent-mode' from history no longer exists. Falling back to default mode 'code'.",
 			)
@@ -2492,8 +2510,9 @@ describe("ClineProvider", () => {
 			expect(mockCustomModesManager.getCustomModes).toHaveBeenCalled()
 			expect(getModeBySlug).toHaveBeenCalledWith("custom-mode", expect.any(Array))
 
-			// Verify mode was preserved
-			expect(mockContext.globalState.update).toHaveBeenCalledWith("mode", "custom-mode")
+			// Verify mode was preserved view-locally (no shared global mode write)
+			expect(provider["viewLocalState"].mode).toBe("custom-mode")
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith("mode", "custom-mode")
 			expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining("no longer exists"))
 
 			// Verify history item mode was not changed
@@ -2540,8 +2559,9 @@ describe("ClineProvider", () => {
 			// Initialize with history item
 			await provider.createTaskWithHistoryItem(historyItem)
 
-			// Verify mode was preserved
-			expect(mockContext.globalState.update).toHaveBeenCalledWith("mode", "architect")
+			// Verify mode was preserved view-locally (no shared global mode write)
+			expect(provider["viewLocalState"].mode).toBe("architect")
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith("mode", "architect")
 
 			// Verify history item mode was not changed
 			expect(historyItem.mode).toBe("architect")
