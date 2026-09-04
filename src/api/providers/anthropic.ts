@@ -18,7 +18,11 @@ import type { ApiHandlerOptions } from "../../shared/api"
 import { ApiStream } from "../transform/stream"
 import { getModelParams } from "../transform/model-params"
 import { filterNonAnthropicBlocks } from "../transform/anthropic-filter"
-import { getAnthropicProviderReasoning } from "../transform/reasoning"
+import {
+	ADAPTIVE_OUTPUT_CONFIG_EFFORTS,
+	getAnthropicProviderReasoning,
+	resolveEffectiveReasoningEffort,
+} from "../transform/reasoning"
 import { handleProviderError } from "./utils/error-handler"
 
 import { BaseProvider } from "./base-provider"
@@ -58,6 +62,21 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 		})
 	}
 
+	/**
+	 * Creates a streaming Anthropic message for the current model.
+	 *
+	 * Resolves the effective thinking effort for this request through the shared
+	 * `resolveEffectiveReasoningEffort` point (per-request override → settings →
+	 * model default). For adaptive-thinking models, when the resolved effort is one
+	 * of `ADAPTIVE_OUTPUT_CONFIG_EFFORTS` (low|medium|high|xhigh|max), the request
+	 * carries `output_config: { effort }` (DTE series 2/5); out-of-range or unset
+	 * efforts omit it so the API default applies.
+	 *
+	 * @param systemPrompt - The system prompt for the request.
+	 * @param messages - The message history to send.
+	 * @param metadata - Per-request metadata (carries the task-local effort override).
+	 * @returns An async iterator of parsed Anthropic stream events.
+	 */
 	async *createMessage(
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
@@ -78,6 +97,25 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 			reasoningBudget,
 			settings: this.options,
 		})
+
+		// DTE series 2/5: per-request adaptive effort envelope (output_config.effort).
+		// The task-local per-request override (metadata.reasoningEffort) takes
+		// precedence over the settings-derived value (shared resolution in
+		// resolveEffectiveReasoningEffort). Only adaptive-thinking requests whose
+		// effective effort is in-range get the envelope; everything else (unset,
+		// "disable", "none", "minimal") omits it and lets the API apply its default.
+		const effectiveReasoningEffort = resolveEffectiveReasoningEffort({
+			override: metadata?.reasoningEffort,
+			settingsReasoningEffort: this.options.reasoningEffort,
+			modelDefaultEffort: info.reasoningEffort,
+		})
+		const adaptiveEffort =
+			thinking?.type === "adaptive" &&
+			effectiveReasoningEffort !== undefined &&
+			effectiveReasoningEffort !== "disable" &&
+			ADAPTIVE_OUTPUT_CONFIG_EFFORTS.includes(effectiveReasoningEffort)
+				? effectiveReasoningEffort
+				: undefined
 
 		// Filter out non-Anthropic blocks (reasoning, thoughtSignature, etc.) before sending to the API
 		const sanitizedMessages = filterNonAnthropicBlocks(messages)
@@ -141,6 +179,8 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 						max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
 						temperature,
 						thinking,
+						// DTE series 2/5: adaptive effort envelope (omitted unless in-range).
+						...(adaptiveEffort !== undefined ? { output_config: { effort: adaptiveEffort } } : {}),
 						// Setting cache breakpoint for system prompt so new tasks can reuse it.
 						system: [{ text: systemPrompt, type: "text", cache_control: cacheControl }],
 						messages: sanitizedMessages.map((message, index) => {
@@ -216,6 +256,8 @@ export class AnthropicHandler extends BaseProvider implements SingleCompletionHa
 						max_tokens: maxTokens ?? ANTHROPIC_DEFAULT_MAX_TOKENS,
 						temperature,
 						thinking,
+						// DTE series 2/5: adaptive effort envelope (omitted unless in-range).
+						...(adaptiveEffort !== undefined ? { output_config: { effort: adaptiveEffort } } : {}),
 						system: [{ text: systemPrompt, type: "text" }],
 						messages: sanitizedMessages,
 						stream: true,
