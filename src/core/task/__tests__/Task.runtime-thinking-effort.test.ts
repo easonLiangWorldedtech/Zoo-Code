@@ -124,10 +124,10 @@ describe("Task runtime thinking effort (DTE series 2/5)", () => {
 		})
 	})
 
-	afterEach(() => {
+	afterEach(async () => {
 		vi.useRealTimers()
 		if (task && !task.abort) {
-			task.dispose()
+			await task.dispose().catch(() => {})
 		}
 	})
 
@@ -302,9 +302,9 @@ describe("Task runtime thinking effort (DTE series 2/5)", () => {
 	})
 
 	describe("dispose", () => {
-		it("clears the task-local override at task end", () => {
+		it("clears the task-local override at task end", async () => {
 			task.setRuntimeThinkingEffort("xhigh", "source")
-			task.dispose()
+			await task.dispose()
 
 			expect(task.getRuntimeThinkingEffort()).toEqual({ effort: undefined, source: undefined })
 			const access = getPrivateAccess(task)
@@ -334,7 +334,7 @@ describe("Task runtime thinking effort (DTE series 2/5)", () => {
 			})
 		}
 
-		it("restores the persisted task-local effort when constructed from a history item", () => {
+		it("restores the persisted task-local effort when constructed from a history item", async () => {
 			const histTask = makeHistoryTask({ thinkingEffort: "xhigh", thinkingEffortSource: "you" })
 
 			expect(histTask.getRuntimeThinkingEffort()).toEqual({ effort: "xhigh", source: "you" })
@@ -342,15 +342,15 @@ describe("Task runtime thinking effort (DTE series 2/5)", () => {
 			expect(histTask.apiConfiguration).toEqual(expect.objectContaining({ reasoningEffort: "xhigh" }))
 			const lastCall = vi.mocked(buildApiHandler).mock.calls.at(-1)
 			expect(lastCall?.[0]).toEqual(expect.objectContaining({ reasoningEffort: "xhigh" }))
-			histTask.dispose()
+			await histTask.dispose()
 		})
 
-		it("leaves the override inactive for history items without a persisted effort", () => {
+		it("leaves the override inactive for history items without a persisted effort", async () => {
 			const histTask = makeHistoryTask({})
 
 			expect(histTask.getRuntimeThinkingEffort()).toEqual({ effort: undefined, source: undefined })
 			expect(histTask.apiConfiguration.reasoningEffort).toBe(SETTINGS_EFFORT)
-			histTask.dispose()
+			await histTask.dispose()
 		})
 
 		it("never calls the restore path when the history item has no persisted effort", () => {
