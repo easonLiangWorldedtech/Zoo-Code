@@ -245,7 +245,28 @@ function enqueueCheckpointSave<T>(taskId: string, operation: () => Promise<T>): 
 	return next
 }
 
-export async function checkpointSave(task: Task, force = false, suppressMessage = false) {
+/**
+ * Write metadata for the per-task change journal (B2).
+ *
+ * `path` is the file path as the tool knows it (relative to the task cwd),
+ * consistent with what the B1 per-write checkpoint hooks see. `diffStats` is
+ * the { additions, deletions } pair from the approval diff when it was
+ * computable; omitted otherwise. ApplyPatchTool passes one entry per file
+ * change of a fully successful patch (an array), all sharing the single
+ * checkpoint the patch's post-loop hook saves.
+ */
+export type CheckpointWriteInfo = {
+	path: string
+	operation: "create" | "update" | "delete"
+	diffStats?: { additions: number; deletions: number }
+}
+
+export async function checkpointSave(
+	task: Task,
+	force = false,
+	suppressMessage = false,
+	write?: CheckpointWriteInfo | CheckpointWriteInfo[],
+) {
 	const service = await getCheckpointService(task)
 
 	if (!service) {
@@ -254,14 +275,42 @@ export async function checkpointSave(task: Task, force = false, suppressMessage 
 
 	TelemetryService.instance.captureCheckpointCreated(task.taskId)
 
-	// Start the checkpoint process in the background, queued behind any save already
-	// running for this task so stageAll + commit never overlap.
-	return enqueueCheckpointSave(task.taskId, () =>
-		service.saveCheckpoint(`Task: ${task.taskId}, Time: ${Date.now()}`, { allowEmpty: force, suppressMessage }),
-	).catch((err) => {
-		console.error("[Task#checkpointSave] caught unexpected error, disabling checkpoints", err)
-		task.enableCheckpoints = false
-	})
+return enqueueCheckpointSave(task.taskId, () =>
+service
+.saveCheckpoint(`Task: ${task.taskId}, Time: ${Date.now()}`, { allowEmpty: force, suppressMessage })
+		.then(async (result) => {
+			// B2: record successful file writes in the per-task change journal.
+			// Only a real commit produces an entry (an empty or failed save
+			// resolves to undefined / rejects), and non-write checkpoint calls
+			// (e.g. the task-start baseline) pass no `write` value at all.
+			if (result?.commit && write) {
+				const globalStorageDir = task.providerRef.deref()?.context.globalStorageUri.fsPath
+				if (globalStorageDir) {
+					const writes = Array.isArray(write) ? write : [write]
+					// Append sequentially so journal lines preserve write order. A
+					// journal failure is logged here and never propagates to the
+					// checkpoint error handler (checkpoints stay enabled).
+					try {
+						for (const w of writes) {
+							await appendChange(globalStorageDir, task.taskId, {
+								path: w.path,
+								operation: w.operation,
+								checkpointId: result.commit,
+								...(w.diffStats ? { diffStats: w.diffStats } : {}),
+							})
+						}
+					} catch (err) {
+						console.error("[Task#checkpointSave] failed to append change journal entry", err)
+					}
+				}
+			}
+			return result
+		})
+		.catch((err) => {
+			console.error("[Task#checkpointSave] caught unexpected error, disabling checkpoints", err)
+			task.enableCheckpoints = false
+		})
+)
 }
 
 export type CheckpointRestoreOptions = {
@@ -332,7 +381,7 @@ export async function checkpointRestore(
 		// task flow and the communication between the webview and the
 		// `Task` instance.
 		provider?.cancelTask()
-	} catch {
+	} catch (err) {
 		provider?.log("[checkpointRestore] disabling checkpoints for this task")
 		task.enableCheckpoints = false
 	}
@@ -351,7 +400,7 @@ export type CheckpointDiffOptions = {
 	mode: "from-init" | "checkpoint" | "to-current" | "full"
 }
 
-export async function checkpointDiff(task: Task, { commitHash, mode }: CheckpointDiffOptions) {
+export async function checkpointDiff(task: Task, { ts, previousCommitHash, commitHash, mode }: CheckpointDiffOptions) {
 	const service = await getCheckpointService(task)
 
 	if (!service) {
@@ -421,7 +470,7 @@ export async function checkpointDiff(task: Task, { commitHash, mode }: Checkpoin
 				}),
 			]),
 		)
-	} catch {
+	} catch (err) {
 		const provider = task.providerRef.deref()
 		provider?.log("[checkpointDiff] disabling checkpoints for this task")
 		task.enableCheckpoints = false
