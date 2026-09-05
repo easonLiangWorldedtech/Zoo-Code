@@ -302,7 +302,7 @@ describe("Task runtime thinking effort (DTE series 2/5)", () => {
 	})
 
 	describe("dispose", () => {
-		it("clears the task-local override at task end", async () => {
+		it("clears the task-local override and restores the settings-derived API configuration at task end", async () => {
 			task.setRuntimeThinkingEffort("xhigh", "source")
 			await task.dispose()
 
@@ -311,6 +311,7 @@ describe("Task runtime thinking effort (DTE series 2/5)", () => {
 			expect(access.runtimeThinkingEffort).toBeUndefined()
 			expect(access.runtimeThinkingEffortSource).toBeUndefined()
 			expect(access.preOverrideReasoningEffort).toBeUndefined()
+			expect(task.apiConfiguration.reasoningEffort).toBe(SETTINGS_EFFORT)
 		})
 	})
 
