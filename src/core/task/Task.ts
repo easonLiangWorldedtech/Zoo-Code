@@ -378,6 +378,9 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private lastTelemetryFlushAt: number = Date.now()
 	private telemetryToolUsageBaseline: ToolUsage = {}
 	private telemetryMessageCountsBaseline: { user: number; assistant: number } = { user: 0, assistant: 0 }
+	private abortPromise?: Promise<void>
+	private disposalPromise?: Promise<void>
+	private diffReversionPromise: Promise<void> = Promise.resolve()
 
 	// Checkpoints
 	enableCheckpoints: boolean
@@ -2568,15 +2571,18 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		this.debouncedEmitTokenUsage.flush()
 	}
 
-	public async abortTask(isAbandoned = false) {
-		// Aborting task
-
-		// Will stop any autonomously running promises.
+	public abortTask(isAbandoned = false): Promise<void> {
 		if (isAbandoned) {
 			this.abandoned = true
 		}
 
 		this.abort = true
+		this.abortPromise ??= this.abortTaskOnce()
+		return this.abortPromise
+	}
+
+	private async abortTaskOnce(): Promise<void> {
+		// Aborting task
 
 		// Reset consecutive error counters on abort (manual intervention)
 		this.consecutiveNoToolUseCount = 0
@@ -2603,7 +2609,12 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		const effortAtAbort = this.getRuntimeThinkingEffort()
 
 		try {
-			this.dispose() // Call the centralized dispose method
+			void this.dispose().catch((error) => {
+				console.error(`Error during task ${this.taskId}.${this.instanceId} disposal:`, error)
+			})
+			// Reversion affects the user's workspace and must finish before the
+			// final task state is saved. Artifact deletion is drained separately.
+			await this.diffReversionPromise
 		} catch (error) {
 			console.error(`Error during task ${this.taskId}.${this.instanceId} disposal:`, error)
 			// Don't rethrow - we want abort to always succeed
@@ -2631,7 +2642,16 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	 * DTE series 2/5: also clears the task-local thinking effort override (the
 	 * `setRuntimeThinkingEffort` state) — the override never outlives the task.
 	 */
-	public dispose(): void {
+	public dispose(): Promise<void> {
+		if (this.disposalPromise) {
+			return this.disposalPromise
+		}
+
+		this.disposalPromise = this.disposeOnce()
+		return this.disposalPromise
+	}
+
+	private async disposeOnce(): Promise<void> {
 		console.log(`[Task#dispose] disposing task ${this.taskId}.${this.instanceId}`)
 
 		// DTE series 2/5: the task-local effort override is transient — clear it on
@@ -2686,7 +2706,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		}
 
 		// Cleanup command output artifacts
-		getTaskDirectoryPath(this.globalStoragePath, this.taskId)
+		const pendingCleanup = getTaskDirectoryPath(this.globalStoragePath, this.taskId)
 			.then((taskDir) => {
 				const outputDir = path.join(taskDir, "command-output")
 				return OutputInterceptor.cleanup(outputDir)
@@ -2714,11 +2734,14 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		try {
 			// If we're not streaming then `abortStream` won't be called.
 			if (this.isStreaming && this.diffViewProvider.isEditing) {
-				this.diffViewProvider.revertChanges().catch(console.error)
+				this.diffReversionPromise = this.diffViewProvider.revertChanges().catch(console.error)
 			}
 		} catch (error) {
 			console.error("Error reverting diff changes:", error)
 		}
+
+		await pendingCleanup
+		await this.diffReversionPromise
 	}
 
 	// Subtasks
