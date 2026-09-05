@@ -39,7 +39,10 @@ vi.mock("../../../utils/pathUtils", () => ({
 }))
 
 vi.mock("../../checkpoints", () => ({
+	getCheckpointService: vi.fn(),
 	checkpointSave: vi.fn().mockResolvedValue(undefined),
+	checkpointRestore: vi.fn(),
+	checkpointDiff: vi.fn(),
 }))
 
 describe("ApplyPatchTool.execute - delete file success path", () => {
@@ -144,6 +147,8 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 		const mockedCheckpointSave = checkpointSave as MockedFunction<typeof checkpointSave>
 
 		it("records one suppressed checkpoint for the whole patch (default-on)", async () => {
+			mockTask.consecutiveMistakeCount = 1
+
 			await tool.execute({ patch: deletePatch }, mockTask as Task, {
 				askApproval: mockAskApproval,
 				handleError: mockHandleError,
@@ -152,7 +157,13 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 
 			expect(mockPushToolResult).toHaveBeenCalledWith(expect.stringContaining("Successfully deleted"))
 			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
-			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true)
+			// B2: the delete patch produces one journal write, referencing the
+			// single checkpoint saved for the whole patch.
+			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
+				{ path: "src/obsolete.ts", operation: "delete" },
+			])
+			// A fully successful delete resets the consecutive-mistake counter.
+			expect(mockTask.consecutiveMistakeCount).toBe(0)
 		})
 
 		it("does not record a checkpoint when perWriteCheckpoints is disabled", async () => {
@@ -290,6 +301,7 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 
 		it("records a checkpoint when the add succeeds", async () => {
 			mockedFileExistsAtPath.mockResolvedValue(false)
+			mockTask.consecutiveMistakeCount = 1
 
 			await tool.execute({ patch: addPatch }, mockTask as Task, {
 				askApproval: mockAskApproval,
@@ -299,6 +311,12 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 
 			expect(mockPushToolResult).toHaveBeenCalledWith("File saved successfully")
 			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
+			// The journal entry documents exactly the file the add wrote.
+			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
+				{ path: "src/new.ts", operation: "create" },
+			])
+			// A fully successful add resets the consecutive-mistake counter.
+			expect(mockTask.consecutiveMistakeCount).toBe(0)
 		})
 
 		it("does not record a checkpoint when the file to update does not exist", async () => {
@@ -358,6 +376,66 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 			expect(mockedCheckpointSave).not.toHaveBeenCalled()
 		})
 
+		it("checkpoints the written subset when a later hunk is access-denied", async () => {
+			// Hunk 1 (src/first.ts) writes; hunk 2 (src/denied.ts) is rejected by
+			// validateAccess. The access-denied branch must not bypass the partial
+			// flush: the earlier write still receives the checkpoint/journal/card.
+			// Hunk 2's context matches the mocked file content so the patch
+			// passes pre-processing; the denial happens at the per-file access check.
+			const partialDenyPatch = `*** Begin Patch
+*** Add File: src/first.ts
++hello
+*** Update File: src/denied.ts
+@@
+-original file content
++new content
+*** End Patch`
+			const validateAccess = (
+				mockTask["rooIgnoreController"] as unknown as { validateAccess: MockedFunction<() => boolean> }
+			).validateAccess
+			validateAccess.mockReturnValueOnce(true).mockReturnValueOnce(false)
+			// The add target does not exist, so hunk 1 writes; fileExistsAtPath
+			// defaults to true and would otherwise reject the add.
+			mockedFileExistsAtPath.mockResolvedValueOnce(false)
+
+			await tool.execute({ patch: partialDenyPatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockTask.say).toHaveBeenCalledWith("rooignore_error", "src/denied.ts")
+			// Only the first (written) hunk is checkpointed.
+			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
+			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask, false, true, [
+				expect.objectContaining({ path: "src/first.ts", operation: "create" }),
+			])
+		})
+
+		it("does not record a checkpoint when the first hunk is access-denied", async () => {
+			// The denial happens before any hunk wrote, so the failed patch must
+			// leave no checkpoint behind: the partial flush has nothing to flush
+			// and the failure flag must not open the checkpoint gate.
+			const validateAccess = (
+				mockTask["rooIgnoreController"] as unknown as { validateAccess: MockedFunction<() => boolean> }
+			).validateAccess
+			validateAccess.mockReturnValueOnce(false)
+
+			const deniedFirstPatch = `*** Begin Patch
+*** Add File: src/denied.ts
++hello
+*** End Patch`
+
+			await tool.execute({ patch: deniedFirstPatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockTask.say).toHaveBeenCalledWith("rooignore_error", "src/denied.ts")
+			expect(mockedCheckpointSave).not.toHaveBeenCalled()
+		})
+
 		it("does not record a checkpoint when the move destination is write-protected", async () => {
 			// Source path check (execute loop) passes; the move destination fails.
 			const isWriteProtected = (
@@ -396,6 +474,38 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 			expect(mockedCheckpointSave).not.toHaveBeenCalled()
 		})
 
+		it("keeps the mistake count when a patch operation fails", async () => {
+			// Source path check (execute loop) passes; the move destination fails.
+			const isWriteProtected = (
+				mockTask["rooProtectedController"] as unknown as {
+					isWriteProtected: MockedFunction<(p: string) => boolean>
+				}
+			).isWriteProtected
+			isWriteProtected.mockReturnValueOnce(false).mockReturnValue(true)
+
+			await tool.execute({ patch: movePatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			// The failed operation incremented the counter; the end-of-loop reset
+			// must only run for a fully successful patch, so the count survives.
+			expect(mockTask.consecutiveMistakeCount).toBe(1)
+		})
+
+		it("clears the mistake count after a fully successful patch", async () => {
+			mockTask.consecutiveMistakeCount = 2
+
+			await tool.execute({ patch: movePatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockTask.consecutiveMistakeCount).toBe(0)
+		})
+
 		it("records a checkpoint when the move succeeds", async () => {
 			await tool.execute({ patch: movePatch }, mockTask as Task, {
 				askApproval: mockAskApproval,
@@ -422,6 +532,139 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 
 			expect(mockPushToolResult).toHaveBeenCalledWith("File saved successfully")
 			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
+		})
+
+		it("records one journal write per file change for a multi-file patch", async () => {
+			// src/a.ts does not exist (add); src/b.ts does (update).
+			mockedFileExistsAtPath.mockImplementation((filePath: string) =>
+				Promise.resolve(!String(filePath).toLowerCase().endsWith("a.ts")),
+			)
+			const multiPatch = [
+				"*** Begin Patch",
+				"*** Add File: src/a.ts",
+				"+alpha",
+				"*** Update File: src/b.ts",
+				"@@",
+				"-original file content",
+				"+second content",
+				"*** End Patch",
+			].join(String.fromCharCode(10))
+
+			await tool.execute({ patch: multiPatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
+			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
+				{ path: "src/a.ts", operation: "create" },
+				{ path: "src/b.ts", operation: "update" },
+			])
+		})
+
+		it("journals only the files actually written for a mixed no-op and write patch", async () => {
+			// src/same.ts exists and the hunk rewrites identical content (a
+			// no-op update); src/new.ts does not exist (a real write).
+			mockedFileExistsAtPath.mockImplementation((filePath: string) =>
+				Promise.resolve(!String(filePath).toLowerCase().endsWith("new.ts")),
+			)
+			const mixedPatch = [
+				"*** Begin Patch",
+				"*** Update File: src/same.ts",
+				"@@",
+				"-original file content",
+				"+original file content",
+				"*** Add File: src/new.ts",
+				"+fresh content",
+				"*** End Patch",
+			].join(String.fromCharCode(10))
+
+			await tool.execute({ patch: mixedPatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			// The no-op update is reported to the model...
+			expect(mockPushToolResult).toHaveBeenCalledWith("No changes needed for 'src/same.ts'")
+			// ...but the journal documents only the file that was actually
+			// written, even though the whole patch succeeded.
+			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
+			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
+				{ path: "src/new.ts", operation: "create" },
+			])
+		})
+
+		it("still checkpoints the successful subset when a later hunk fails", async () => {
+			// src/first.ts already exists (the add fails); src/second.ts does not
+			// (the add writes). The whole patch fails, but the written file is
+			// still documented by the checkpoint and journal.
+			mockedFileExistsAtPath.mockImplementation((filePath: string) =>
+				Promise.resolve(String(filePath).toLowerCase().endsWith("first.ts")),
+			)
+			const partialPatch = [
+				"*** Begin Patch",
+				"*** Add File: src/first.ts",
+				"+boom",
+				"*** Add File: src/second.ts",
+				"+fresh",
+				"*** End Patch",
+			].join(String.fromCharCode(10))
+
+			await tool.execute({ patch: partialPatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			// The failed operation is reported to the model...
+			expect(mockPushToolResult).toHaveBeenCalledWith(expect.stringContaining("File already exists"))
+			// ...and the successful subset is checkpointed and journaled.
+			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
+			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
+				{ path: "src/second.ts", operation: "create" },
+			])
+		})
+
+		it("reports a failed move when the original file cannot be deleted", async () => {
+			mockedFsPromises.default.unlink.mockRejectedValueOnce(new Error("EBUSY: resource busy"))
+			mockTask.consecutiveMistakeCount = 1
+			const movePatch = [
+				"*** Begin Patch",
+				"*** Update File: src/old.ts",
+				"*** Move to: src/new-location.ts",
+				"@@",
+				"-original file content",
+				"+new content",
+				"*** End Patch",
+			].join(String.fromCharCode(10))
+
+			await tool.execute({ patch: movePatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			// The copy succeeded but the source still exists, so the move is
+			// reported as a failed tool error - but the destination write was
+			// made on disk and must still be covered by the checkpoint/journal.
+			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
+			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
+				expect.objectContaining({ path: "src/new-location.ts", operation: "update" }),
+			])
+			expect(mockTask.recordToolError).toHaveBeenCalledWith("apply_patch")
+			// The failed move incremented the counter, and the failed move
+			// return must keep the patch from resetting it.
+			expect(mockTask.consecutiveMistakeCount).toBe(2)
+			// The error channel carries the exact move-failure message.
+			expect(mockTask.say).toHaveBeenCalledWith(
+				"error",
+				"Move of 'src/old.ts' to 'src/new-location.ts' failed: could not delete the original file.",
+			)
+			expect(mockPushToolResult).toHaveBeenCalledWith(
+				expect.stringContaining("could not delete the original file"),
+			)
 		})
 	})
 })
