@@ -547,6 +547,133 @@ describe("Cline", () => {
 				new Task({ provider: mockProvider, apiConfiguration: mockApiConfig })
 			}).toThrow("Either historyItem or task/images must be provided")
 		})
+
+		describe("nesting depth", () => {
+			it("assigns depth 0 and authoritative to a new root task", () => {
+				const task = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "root task",
+					startTask: false,
+				})
+
+				expect(task.depth).toBe(0)
+				expect(task.depthAuthoritative).toBe(true)
+			})
+
+			it("derives child depth from the live parent (parent.depth + 1)", () => {
+				const parent = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "parent task",
+					startTask: false,
+				})
+
+				const child = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "child task",
+					parentTask: parent,
+					startTask: false,
+				})
+
+				expect(parent.depth).toBe(0)
+				expect(child.depth).toBe(1)
+				expect(child.depthAuthoritative).toBe(true)
+				expect(child.parentTaskId).toBe(parent.taskId)
+			})
+
+			it("prefers a persisted depth over the live parent", () => {
+				const parent = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "parent task",
+					startTask: false,
+				})
+
+				const child = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "child task",
+					parentTask: parent,
+					historyItem: {
+						id: "persisted-child",
+						ts: Date.now(),
+						task: "child task",
+						number: 1,
+						tokensIn: 0,
+						tokensOut: 0,
+						cacheWrites: 0,
+						cacheReads: 0,
+						totalCost: 0,
+						parentTaskId: parent.taskId,
+						depth: 7,
+					},
+					startTask: false,
+				})
+
+				expect(child.depth).toBe(7)
+				expect(child.depthAuthoritative).toBe(true)
+			})
+
+			it("marks a legacy child resumed without its live parent as non-authoritative", () => {
+				const task = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					historyItem: {
+						id: "legacy-child",
+						ts: Date.now(),
+						task: "legacy child",
+						number: 1,
+						tokensIn: 0,
+						tokensOut: 0,
+						cacheWrites: 0,
+						cacheReads: 0,
+						totalCost: 0,
+						parentTaskId: "missing-parent",
+					},
+					startTask: false,
+				})
+
+				expect(task.depth).toBe(0)
+				expect(task.depthAuthoritative).toBe(false)
+			})
+
+			it("does not stamp a non-authoritative parent's placeholder depth onto the child", () => {
+				// Legacy parent: has a persisted parentTaskId but no live parent and no
+				// persisted depth, so it is itself non-authoritative (depth 0 placeholder).
+				const legacyParent = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					historyItem: {
+						id: "legacy-parent",
+						ts: Date.now(),
+						task: "legacy parent",
+						number: 1,
+						tokensIn: 0,
+						tokensOut: 0,
+						cacheWrites: 0,
+						cacheReads: 0,
+						totalCost: 0,
+						parentTaskId: "missing-grandparent",
+					},
+					startTask: false,
+				})
+
+				const child = new Task({
+					provider: mockProvider,
+					apiConfiguration: mockApiConfig,
+					task: "child of legacy parent",
+					parentTask: legacyParent,
+					startTask: false,
+				})
+
+				expect(child.depth).toBe(1)
+				// The child must inherit the parent's non-authoritative status so its
+				// placeholder depth is never persisted as a fact.
+				expect(child.depthAuthoritative).toBe(false)
+			})
+		})
 	})
 
 	describe("task-local configuration isolation", () => {
