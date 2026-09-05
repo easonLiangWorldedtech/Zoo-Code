@@ -2638,9 +2638,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	/**
 	 * Centralized task teardown: releases task resources and resets transient
 	 * task-local state.
-	 *
-	 * DTE series 2/5: also clears the task-local thinking effort override (the
-	 * `setRuntimeThinkingEffort` state) — the override never outlives the task.
 	 */
 	public dispose(): Promise<void> {
 		if (this.disposalPromise) {
@@ -2653,12 +2650,6 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	private async disposeOnce(): Promise<void> {
 		console.log(`[Task#dispose] disposing task ${this.taskId}.${this.instanceId}`)
-
-		// DTE series 2/5: the task-local effort override is transient — clear it on
-		// task end so a disposed task never carries it forward.
-		this.runtimeThinkingEffort = undefined
-		this.runtimeThinkingEffortSource = undefined
-		this.preOverrideReasoningEffort = undefined
 
 		// Stop the idle telemetry check and report any unflushed activity as a
 		// shutdown installment, so a task torn down mid-work (panel closed, task
