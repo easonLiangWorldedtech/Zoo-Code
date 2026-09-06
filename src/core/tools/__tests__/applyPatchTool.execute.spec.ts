@@ -311,9 +311,15 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 
 			expect(mockPushToolResult).toHaveBeenCalledWith("File saved successfully")
 			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
-			// The journal entry documents exactly the file the add wrote.
+			// The journal entry documents exactly the file the add wrote, with
+			// the approval diff/stats threaded for the change card (B3a).
 			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
-				{ path: "src/new.ts", operation: "create" },
+				{
+					path: "src/new.ts",
+					operation: "create",
+					diffStats: { additions: 2, deletions: 0 },
+					diff: expect.stringContaining("+hello"),
+				},
 			])
 			// A fully successful add resets the consecutive-mistake counter.
 			expect(mockTask.consecutiveMistakeCount).toBe(0)
@@ -412,27 +418,34 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 			])
 		})
 
-		it("does not record a checkpoint when the first hunk is access-denied", async () => {
-			// The denial happens before any hunk wrote, so the failed patch must
-			// leave no checkpoint behind: the partial flush has nothing to flush
-			// and the failure flag must not open the checkpoint gate.
-			const validateAccess = (
-				mockTask["rooIgnoreController"] as unknown as { validateAccess: MockedFunction<() => boolean> }
-			).validateAccess
-			validateAccess.mockReturnValueOnce(false)
+		it("does not record a checkpoint when the move destination is access denied (rooIgnore)", async () => {
+			// The rooIgnore guard runs before the write-protected/workspace
+			// checks, so an access-denied destination stops the move before any
+			// file is written and nothing is checkpointed.
+			// Structural cast for the test double (matches the mock style used for the controllers above).
+			const ref = (mockTask["providerRef"] as unknown as { deref: MockedFunction<() => unknown> }).deref
+			ref.mockReturnValue({
+				getState: vi.fn().mockResolvedValue({
+					rooIgnoreController: { isPathIgnored: vi.fn().mockReturnValue(true) },
+				}),
+			})
 
-			const deniedFirstPatch = `*** Begin Patch
-*** Add File: src/denied.ts
-+hello
-*** End Patch`
+			const movePatch = [
+				"*** Begin Patch",
+				"*** Update File: src/old.ts",
+				"*** Move to: src/ignored.ts",
+				"@@",
+				"-original",
+				"+modified",
+				"*** End Patch",
+			].join("\n")
 
-			await tool.execute({ patch: deniedFirstPatch }, mockTask as Task, {
+			await tool.execute({ patch: movePatch }, mockTask as Task, {
 				askApproval: mockAskApproval,
 				handleError: mockHandleError,
 				pushToolResult: mockPushToolResult,
 			})
 
-			expect(mockTask.say).toHaveBeenCalledWith("rooignore_error", "src/denied.ts")
 			expect(mockedCheckpointSave).not.toHaveBeenCalled()
 		})
 
@@ -523,6 +536,31 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
 		})
 
+		it("awaits the patch checkpoint before execute settles", async () => {
+			type SaveResult = Awaited<ReturnType<typeof checkpointSave>>
+			let resolveSave: (value: SaveResult | PromiseLike<SaveResult>) => void = () => {}
+			const saveDeferred = new Promise<SaveResult>((resolve) => (resolveSave = resolve))
+			mockedCheckpointSave.mockImplementationOnce(() => saveDeferred)
+
+			const executePromise = tool.execute({ patch: movePatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			// execute must not settle while the checkpoint is still in flight:
+			// a later write would otherwise interleave with this patch's staged work.
+			let settled = false
+			void executePromise.finally(() => (settled = true))
+			await new Promise((resolve) => setTimeout(resolve, 0))
+			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
+			expect(settled).toBe(false)
+
+			resolveSave()
+			await executePromise
+			expect(settled).toBe(true)
+		})
+
 		it("records a checkpoint when the in-place update succeeds", async () => {
 			await tool.execute({ patch: updatePatch }, mockTask as Task, {
 				askApproval: mockAskApproval,
@@ -557,9 +595,146 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 			})
 
 			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
+			// B3a: each write threads the approval diff and stats computed by its
+			// handler so the per-step change card can reuse them verbatim.
 			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
-				{ path: "src/a.ts", operation: "create" },
-				{ path: "src/b.ts", operation: "update" },
+				{
+					path: "src/a.ts",
+					operation: "create",
+					diffStats: { additions: 1, deletions: 0 },
+					diff: expect.stringContaining("+alpha"),
+				},
+				{
+					path: "src/b.ts",
+					operation: "update",
+					diffStats: { additions: 1, deletions: 1 },
+					diff: expect.stringContaining("+second content"),
+				},
+			])
+		})
+	})
+
+	describe("change-card threading (B3a)", () => {
+		const mockedCheckpointSave = checkpointSave as MockedFunction<typeof checkpointSave>
+		const deletePatch = `*** Begin Patch
+		*** Delete File: src/obsolete.ts
+		*** End Patch`
+
+		it("threads autoApproved into the checkpoint writes for auto-approved steps", async () => {
+			// B3a: auto-approved steps carry autoApproved on every write so
+			// checkpointSave can force the compact (summary) change card.
+			const ref = (mockTask["providerRef"] as unknown as { deref: MockedFunction<() => unknown> }).deref
+			ref.mockReturnValue({
+				getState: vi.fn().mockResolvedValue({ autoApprovalEnabled: true, alwaysAllowWrite: true }),
+			})
+
+			await tool.execute({ patch: deletePatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
+				{ path: "src/obsolete.ts", operation: "delete", autoApproved: true },
+			])
+		})
+
+		it("threads autoApproved into the add writes for auto-approved steps", async () => {
+			// B3a: the add branch consults auto-approval with the approval message,
+			// so an auto-approved add threads the compact-card flag into the journal.
+			mockedFileExistsAtPath.mockResolvedValue(false)
+			const ref = (mockTask["providerRef"] as unknown as { deref: MockedFunction<() => unknown> }).deref
+			ref.mockReturnValue({
+				getState: vi.fn().mockResolvedValue({ autoApprovalEnabled: true, alwaysAllowWrite: true }),
+			})
+			const addPatch = `*** Begin Patch
+*** Add File: src/new.ts
++hello
++world
+*** End Patch`
+
+			await tool.execute({ patch: addPatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
+			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
+				{
+					path: "src/new.ts",
+					operation: "create",
+					diffStats: { additions: 2, deletions: 0 },
+					diff: expect.stringContaining("+hello"),
+					autoApproved: true,
+				},
+			])
+		})
+
+		it("threads autoApproved into the update writes for auto-approved steps", async () => {
+			// B3a: the update handler (also used for moves) consults auto-approval
+			// with the approval message, so an auto-approved update threads the
+			// compact-card flag into the journal.
+			const ref = (mockTask["providerRef"] as unknown as { deref: MockedFunction<() => unknown> }).deref
+			ref.mockReturnValue({
+				getState: vi.fn().mockResolvedValue({ autoApprovalEnabled: true, alwaysAllowWrite: true }),
+			})
+			const updatePatch = `*** Begin Patch
+*** Update File: src/test.ts
+@@
+-original file content
++modified content
+*** End Patch`
+
+			await tool.execute({ patch: updatePatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
+			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
+				{
+					path: "src/test.ts",
+					operation: "update",
+					diffStats: { additions: 1, deletions: 1 },
+					diff: expect.stringContaining("+modified content"),
+					autoApproved: true,
+				},
+			])
+		})
+
+		it("records a checkpoint when the provider reference is unavailable", async () => {
+			// B3a: the delete branch re-fetches the provider state for the
+			// auto-approval probe; without a provider the probe yields no
+			// auto-approval, but the delete still records its checkpoint.
+			const ref = (mockTask["providerRef"] as unknown as { deref: MockedFunction<() => unknown> }).deref
+			ref.mockReturnValue(undefined)
+
+			await tool.execute({ patch: deletePatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockPushToolResult).toHaveBeenCalledWith(expect.stringContaining("Successfully deleted"))
+			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
+			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
+				{ path: "src/obsolete.ts", operation: "delete" },
+			])
+		})
+
+		it("omits autoApproved when the step is not auto-approved", async () => {
+			// The default provider state ({}) disables auto-approval, so no write
+			// carries the autoApproved flag and the card follows the user setting.
+			await tool.execute({ patch: deletePatch }, mockTask as Task, {
+				askApproval: mockAskApproval,
+				handleError: mockHandleError,
+				pushToolResult: mockPushToolResult,
+			})
+
+			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
+				{ path: "src/obsolete.ts", operation: "delete" },
 			])
 		})
 
@@ -592,7 +767,12 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 			// written, even though the whole patch succeeded.
 			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
 			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
-				{ path: "src/new.ts", operation: "create" },
+				{
+					path: "src/new.ts",
+					operation: "create",
+					diffStats: { additions: 1, deletions: 0 },
+					diff: expect.stringContaining("+fresh content"),
+				},
 			])
 		})
 
@@ -623,7 +803,12 @@ describe("ApplyPatchTool.execute - delete file success path", () => {
 			// ...and the successful subset is checkpointed and journaled.
 			expect(mockedCheckpointSave).toHaveBeenCalledOnce()
 			expect(mockedCheckpointSave).toHaveBeenCalledWith(mockTask as Task, false, true, [
-				{ path: "src/second.ts", operation: "create" },
+				{
+					path: "src/second.ts",
+					operation: "create",
+					diffStats: { additions: 1, deletions: 0 },
+					diff: expect.stringContaining("+fresh"),
+				},
 			])
 		})
 
