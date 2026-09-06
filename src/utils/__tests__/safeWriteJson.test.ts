@@ -4,6 +4,7 @@ import * as path from "path"
 import * as os from "os"
 
 import { safeWriteJson } from "../safeWriteJson"
+import { safeWriteText } from "../../services/file-safety/safeWriteText"
 
 // Capture actual implementations before the vi.mock factory runs,
 // so they are never wrapped by vi.fn() — avoids infinite recursion when
@@ -45,6 +46,18 @@ vi.mock("fs", async () => {
 	return {
 		...actualFs, // Spread actual implementations
 		createWriteStream: vi.fn(actualFs.createWriteStream) as any, // Default to actual, but mockable
+	}
+})
+
+// Spy the atomic-publish boundary: the wrapper delegates to the real
+// implementation, so every delegation still executes for real — the spy only
+// records the exact boundary arguments so the delegation contract (empty
+// content string + staged tempPath + backup) can be pinned.
+vi.mock("../../services/file-safety/safeWriteText", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../services/file-safety/safeWriteText")>()
+	return {
+		...actual,
+		safeWriteText: vi.fn(actual.safeWriteText),
 	}
 })
 
@@ -125,6 +138,44 @@ describe("safeWriteJson", () => {
 
 		const content = await readFileContent(currentTestFilePath)
 		expect(content).toEqual(newData)
+	})
+
+	test("should stage the serialized temp beside the target with a deterministic name", async () => {
+		// Pin the name inputs so the staged path is deterministic: the generated
+		// name must be exactly ".<name>.new_<ts>_<rand>.tmp" inside the target's
+		// own directory (same volume as the commit rename — no EXDEV).
+		vi.spyOn(Date, "now").mockReturnValue(1700000000000)
+		vi.spyOn(Math, "random").mockReturnValue(0.123456789)
+
+		await safeWriteJson(currentTestFilePath, { pinned: "name" })
+
+		// The implementation stages beside the *resolved* target (fs.realpath),
+		// so mirror that resolution when building the expectation: on Windows CI
+		// runners os.tmpdir() is the 8.3 short form (C:\Users\RUNNER~1\...) while
+		// realpath returns the long form (C:\Users\runneradmin\...).
+		const resolvedDir = path.dirname(await fs.realpath(currentTestFilePath))
+		const expectedTemp = path.join(resolvedDir, ".test-file.json.new_1700000000000_4fzzzxjylrx.tmp")
+		expect(vi.mocked(fsSyncActual.createWriteStream)).toHaveBeenCalledWith(expectedTemp, { encoding: "utf8" })
+	})
+
+	test("delegates the staged temp to safeWriteText with an empty content string", async () => {
+		// When tempPath is supplied, the primitive's content argument is not
+		// used — the staged file is the content source. Pin the exact boundary
+		// call so that contract (and the delegation itself) stays covered.
+		const spy = vi.mocked(safeWriteText)
+		spy.mockClear()
+
+		await safeWriteJson(currentTestFilePath, { delegated: true })
+
+		expect(spy).toHaveBeenCalledTimes(1)
+		expect(spy).toHaveBeenCalledWith(
+			path.resolve(currentTestFilePath),
+			"",
+			expect.objectContaining({
+				tempPath: expect.stringContaining(".new_"),
+				backup: true,
+			}),
+		)
 	})
 
 	// Failure Scenarios
@@ -312,8 +363,10 @@ describe("safeWriteJson", () => {
 		expect(content).toEqual(newData)
 	})
 
-	// Test for console error suppression during backup deletion
-	test("should suppress console.error when backup deletion fails", async () => {
+	// Backup cleanup is delegated to safeWriteText, which swallows a
+	// non-fatal backup-deletion failure silently (the content is already
+	// committed; an orphaned backup is acceptable) — no console.error here.
+	test("should not log when delegated backup deletion fails", async () => {
 		const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {}) // Suppress console.error
 		const initialData = { message: "Initial" }
 		const newData = { message: "New" }
@@ -321,17 +374,17 @@ describe("safeWriteJson", () => {
 		await fsPromisesActuals.writeFile!(currentTestFilePath, JSON.stringify(initialData))
 
 		// fs.unlink is already vi.fn() — use vi.mocked to avoid double-wrapping via vi.spyOn
-		vi.mocked(fs.unlink).mockImplementation(async (filePath: any) => {
-			if (filePath.toString().includes(".bak_")) {
-				throw new Error("Backup deletion failed")
-			}
-			return fsPromisesActuals.unlink!(filePath)
+		vi.mocked(fs.unlink).mockImplementationOnce(async () => {
+			throw new Error("Backup deletion failed")
 		})
 
 		await safeWriteJson(currentTestFilePath, newData)
 
-		// Verify console.error was called with the expected message
-		expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Successfully wrote"), expect.any(Error))
+		// The write succeeds and the new content is in place...
+		const content = await readFileContent(currentTestFilePath)
+		expect(content).toEqual(newData)
+		// ...and the delegated cleanup failure is silent.
+		expect(consoleErrorSpy).not.toHaveBeenCalled()
 
 		consoleErrorSpy.mockRestore()
 		vi.mocked(fs.unlink).mockRestore()
@@ -434,8 +487,11 @@ describe("safeWriteJson", () => {
 		expect(vi.mocked(fs.access)).toHaveBeenCalled()
 	})
 
-	// Test for rollback failure scenario
-	test("should log error and re-throw original if rollback fails", async () => {
+	// Test for rollback failure scenario. The rollback rename happens inside
+	// safeWriteText, which swallows a failed rollback silently so the original
+	// error is never masked — but the original content then only exists under
+	// the (orphaned) backup name.
+	test("should re-throw original error if rollback fails (backup is orphaned)", async () => {
 		const initialData = { message: "Initial, should be lost if rollback fails" }
 		const newData = { message: "New content" }
 
@@ -460,11 +516,12 @@ describe("safeWriteJson", () => {
 		// Should throw the original error, not the rollback error
 		await expect(safeWriteJson(currentTestFilePath, newData)).rejects.toThrow("Primary rename failed")
 
-		// Verify console.error was called for the rollback failure
-		expect(consoleErrorSpy).toHaveBeenCalledWith(
-			expect.stringContaining("Failed to restore backup"),
-			expect.objectContaining({ message: "Rollback rename failed" }),
-		)
+		// The outer handler still logs the original error (loud failure)...
+		expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Operation failed for"), expect.any(Error))
+		// ...and the target path is gone: the original file was renamed to the
+		// backup, the commit failed, and the rollback rename failed too, leaving
+		// the backup orphaned at its generated name.
+		await expect(fs.access(currentTestFilePath)).rejects.toThrow()
 
 		consoleErrorSpy.mockRestore()
 	})
