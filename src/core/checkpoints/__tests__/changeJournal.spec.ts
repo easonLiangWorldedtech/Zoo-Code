@@ -2,7 +2,7 @@ import fs from "fs/promises"
 import os from "os"
 import path from "path"
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { appendChange, journalPath, loadChanges, type ChangeJournalEntry } from "../changeJournal"
 
@@ -68,6 +68,29 @@ describe("changeJournal", () => {
 			await fs.writeFile(journalPath(tmpRoot, taskId), "")
 
 			expect(await loadChanges(tmpRoot, taskId)).toEqual([])
+		})
+
+		it("propagates non-ENOENT read failures instead of reporting an empty journal", async () => {
+			// A directory at the journal path makes readFile fail with EISDIR —
+			// a stand-in for any permission or I/O failure (EACCES etc.). Such a
+			// failure must not be swallowed into "no changes": it would let a
+			// rollback report a no-op success without reading the history.
+			await fs.mkdir(journalPath(tmpRoot, taskId), { recursive: true })
+
+			await expect(loadChanges(tmpRoot, taskId)).rejects.toMatchObject({ code: "EISDIR" })
+		})
+
+		it("rethrows a nullish rejection from the journal read unchanged", async () => {
+			// The ENOENT guard must keep its optional chaining: a nullish
+			// rejection value has no `code` property, and reading one would
+			// throw a TypeError of its own instead of rethrowing the original
+			// failure.
+			const readFileSpy = vi.spyOn(fs, "readFile").mockRejectedValueOnce(undefined)
+			try {
+				await expect(loadChanges(tmpRoot, taskId)).rejects.toBeUndefined()
+			} finally {
+				readFileSpy.mockRestore()
+			}
 		})
 
 		it("parses all entries in order with a clean tail", async () => {

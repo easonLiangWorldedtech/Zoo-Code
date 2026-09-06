@@ -11,6 +11,16 @@ export default {
 	},
 	testFiles,
 	incremental: false,
+	// Stryker 10: module-scope code (e.g. the const error-message
+	// declarations in core/checkpoints/rollback.ts) executes once when the
+	// vitest runner's long-lived environment loads the module. On-the-fly
+	// mutant activation cannot re-run it per mutant, so those mutants are
+	// unobservable at test time (static: true, coveredBy: []) and would
+	// always report "Survived" regardless of test quality. Report them as
+	// Ignored instead. perTest coverage is required for ignoreStatic and is
+	// the v10 default; set it explicitly to keep the pairing intentional.
+	coverageAnalysis: "perTest",
+	ignoreStatic: true,
 	inPlace: process.env.STRYKER_IN_PLACE === "true",
 	concurrency: 2,
 	timeoutMS: 5_000,
