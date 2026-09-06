@@ -146,6 +146,13 @@ export const ChangeCard = ({ message }: { message: ClineMessage }) => {
 		setStepRollback({ status: "pending" })
 	}
 
+	// Open the changed file in the editor. The extension host resolves relative
+	// paths against the current cwd (webviewMessageHandler "openFile"), so
+	// normalize the "./" prefix the same way FileChangesPanel does.
+	const openFileInEditor = (path: string) => {
+		vscode.postMessage({ type: "openFile", text: path.startsWith("./") ? path : "./" + path })
+	}
+
 	const diffBadges = (additions: number, deletions: number) =>
 		additions > 0 || deletions > 0 ? (
 			<span className="flex items-center gap-2 shrink-0" aria-hidden>
@@ -306,6 +313,7 @@ export const ChangeCard = ({ message }: { message: ClineMessage }) => {
 									language="diff"
 									isExpanded={expandedFiles.has(file.path)}
 									onToggleExpand={() => toggleFile(file.path)}
+									onJumpToFile={() => openFileInEditor(file.path)}
 									diffStats={{ added: file.additions, removed: file.deletions }}
 								/>
 							) : (
@@ -315,6 +323,22 @@ export const ChangeCard = ({ message }: { message: ClineMessage }) => {
 									</span>
 									<span className="grow" />
 									{diffBadges(file.additions, file.deletions)}
+									{/* Native button (not a span) so keyboard users can open the
+									file from a compact row: Enter/Space activate it for free. */}
+									<Button
+										variant="ghost"
+										size="icon"
+										aria-label={t("chat:changeCard.openFile")}
+										title={t("chat:changeCard.openFile")}
+										data-testid={`change-card-file-open-${index}`}
+										onClick={() => openFileInEditor(file.path)}>
+										<span
+											className="codicon codicon-link-external"
+											// Stryker disable next-line ObjectLiteral : decorative icon font size; the open-file affordance is asserted via tagName/aria-label/title and covered by visual-regression baselines
+											style={{ fontSize: 13.5 }}
+											aria-hidden
+										/>
+									</Button>
 								</div>
 							)}
 						</div>

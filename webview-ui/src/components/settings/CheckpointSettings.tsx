@@ -1,4 +1,4 @@
-import { HTMLAttributes } from "react"
+import { HTMLAttributes, type FormEvent } from "react"
 import { useAppTranslation } from "@/i18n/TranslationContext"
 import { VSCodeCheckbox, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import { Trans } from "react-i18next"
@@ -17,6 +17,14 @@ import {
 	DEFAULT_CHANGE_CARD_DETAIL,
 	type ChangeCardDetail,
 } from "@roo-code/types"
+
+/**
+ * The `checked` state of a VSCodeCheckbox change event. The real toolkit
+ * dispatches a native `Event` whose current target is the web component;
+ * the test mock forwards a synthetic event on the underlying input. Both
+ * expose a boolean `checked` on the current target.
+ */
+type CheckboxEventTarget = { checked?: boolean }
 
 type CheckpointSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	enableCheckpoints?: boolean
@@ -47,9 +55,12 @@ export const CheckpointSettings = ({
 					section="checkpoints"
 					label={t("settings:checkpoints.perWrite.label")}>
 					<VSCodeCheckbox
+						data-testid="per-write-checkbox"
 						checked={perWriteCheckpoints ?? DEFAULT_PER_WRITE_CHECKPOINTS}
-						onChange={(e: any) => {
-							setCachedStateField("perWriteCheckpoints", e.target.checked)
+						onChange={(e: Event | FormEvent<HTMLElement>) => {
+							const target = e.currentTarget as CheckboxEventTarget | null
+							// Stryker disable next-line OptionalChaining : currentTarget is non-null for every dispatched change event; the ?. guard covers pre-React-17 pooled-event semantics only, unobservable in tests
+							setCachedStateField("perWriteCheckpoints", target?.checked === true)
 						}}>
 						<span className="font-medium">{t("settings:checkpoints.perWrite.label")}</span>
 					</VSCodeCheckbox>
@@ -64,8 +75,10 @@ export const CheckpointSettings = ({
 					label={t("settings:checkpoints.changeCardDetail.label")}>
 					<VSCodeCheckbox
 						checked={(changeCardDetail ?? DEFAULT_CHANGE_CARD_DETAIL) === "full"}
-						onChange={(e: any) => {
-							setCachedStateField("changeCardDetail", e.target.checked ? "full" : "summary")
+						onChange={(e: Event | FormEvent<HTMLElement>) => {
+							const target = e.currentTarget as CheckboxEventTarget | null
+							// Stryker disable next-line OptionalChaining : currentTarget is non-null for every dispatched change event; the ?. guard covers pre-React-17 pooled-event semantics only, unobservable in tests
+							setCachedStateField("changeCardDetail", target?.checked === true ? "full" : "summary")
 						}}
 						data-testid="change-card-detail-checkbox">
 						<span className="font-medium">{t("settings:checkpoints.changeCardDetail.label")}</span>
@@ -81,8 +94,10 @@ export const CheckpointSettings = ({
 					label={t("settings:checkpoints.enable.label")}>
 					<VSCodeCheckbox
 						checked={enableCheckpoints}
-						onChange={(e: any) => {
-							setCachedStateField("enableCheckpoints", e.target.checked)
+						onChange={(e: Event | FormEvent<HTMLElement>) => {
+							const target = e.currentTarget as CheckboxEventTarget | null
+							// Stryker disable next-line OptionalChaining : currentTarget is non-null for every dispatched change event; the ?. guard covers pre-React-17 pooled-event semantics only, unobservable in tests
+							setCachedStateField("enableCheckpoints", target?.checked === true)
 						}}>
 						<span className="font-medium">{t("settings:checkpoints.enable.label")}</span>
 					</VSCodeCheckbox>
