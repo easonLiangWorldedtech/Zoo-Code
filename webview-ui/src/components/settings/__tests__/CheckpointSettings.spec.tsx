@@ -20,6 +20,9 @@ vi.mock("@/i18n/TranslationContext", () => ({
 			if (key === "settings:checkpoints.changeCardDetail.description") {
 				return "Include the full unified diff inline for every file in per-step change cards"
 			}
+			if (key === "settings:checkpoints.enable.label") {
+				return "Enable automatic checkpoints"
+			}
 			return key
 		},
 	}),
@@ -244,5 +247,21 @@ describe("CheckpointSettings", () => {
 		expect(
 			screen.getByText("Include the full unified diff inline for every file in per-step change cards"),
 		).toBeInTheDocument()
+	})
+
+	it("caches the enableCheckpoints value when the user checks the enable checkbox", () => {
+		render(<CheckpointSettings enableCheckpoints={false} setCachedStateField={setCachedStateField} />)
+
+		const checkbox = screen.getByRole("checkbox", { name: "Enable automatic checkpoints" })
+		fireEvent.click(checkbox)
+		expect(setCachedStateField).toHaveBeenCalledWith("enableCheckpoints", true)
+	})
+
+	it("caches the enableCheckpoints false value when the user unchecks the enable checkbox", () => {
+		render(<CheckpointSettings enableCheckpoints={true} setCachedStateField={setCachedStateField} />)
+
+		const checkbox = screen.getByRole("checkbox", { name: "Enable automatic checkpoints" })
+		fireEvent.click(checkbox)
+		expect(setCachedStateField).toHaveBeenCalledWith("enableCheckpoints", false)
 	})
 })
