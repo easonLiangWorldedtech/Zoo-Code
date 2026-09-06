@@ -11,7 +11,7 @@ import { fileExistsAtPath } from "../../../utils/fs"
 import * as fileSearch from "../../../services/search/file-search"
 
 import { RepoPerTaskCheckpointService } from "../RepoPerTaskCheckpointService"
-import { BLOCKED_ENV_KEYS } from "../ShadowCheckpointService"
+import { BLOCKED_ENV_KEYS, isRealPathContained } from "../ShadowCheckpointService"
 
 const tmpDir = path.join(os.tmpdir(), "CheckpointService")
 
@@ -162,6 +162,245 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 				expect(change).toBeDefined()
 				expect(change!.content.before).toBe("New file content")
 				expect(change!.content.after).toBe("")
+			})
+		})
+
+		describe(`${klass.name}#restoreFile`, () => {
+			it("restores a modified file to a previous checkpoint without touching other files", async () => {
+				await fs.writeFile(testFile, "Ahoy, world!")
+				const commit1 = await service.saveCheckpoint("First checkpoint")
+				expect(commit1?.commit).toBeTruthy()
+
+				const newFile = path.join(service.workspaceDir, "new.txt")
+				await fs.writeFile(newFile, "New file content")
+				const commit2 = await service.saveCheckpoint("Second checkpoint")
+				expect(commit2?.commit).toBeTruthy()
+
+				// Drift both files, then roll back only test.txt to commit 1.
+				await fs.writeFile(testFile, "Changed after checkpoint")
+				await fs.writeFile(newFile, "Also changed")
+
+				await service.restoreFile(commit1!.commit, "test.txt")
+
+				expect(await fs.readFile(testFile, "utf-8")).toBe("Ahoy, world!")
+				// new.txt is not part of the restore and keeps its drifted content.
+				expect(await fs.readFile(newFile, "utf-8")).toBe("Also changed")
+			})
+
+			it("recreates a file that was deleted after the checkpoint", async () => {
+				// Rolling a file back to a checkpoint that still contains it must
+				// re-create the file when the working copy is gone. The target is
+				// absent here, so the destructive-realpath guard is skipped and the
+				// restore goes straight to the checkout branch.
+				await fs.writeFile(testFile, "Ahoy, world!")
+				const commit1 = await service.saveCheckpoint("First checkpoint")
+				expect(commit1?.commit).toBeTruthy()
+
+				await fs.unlink(testFile)
+
+				await service.restoreFile(commit1!.commit, "test.txt")
+
+				expect(await fs.readFile(testFile, "utf-8")).toBe("Ahoy, world!")
+			})
+
+			it("deletes a file that did not exist at the checkpoint", async () => {
+				await fs.writeFile(testFile, "Ahoy, world!")
+				const commit1 = await service.saveCheckpoint("First checkpoint")
+				expect(commit1?.commit).toBeTruthy()
+
+				const newFile = path.join(service.workspaceDir, "new.txt")
+				await fs.writeFile(newFile, "Created after the checkpoint")
+
+				await service.restoreFile(commit1!.commit, "new.txt")
+
+				expect(await fileExistsAtPath(newFile)).toBe(false)
+				// The untouched file keeps its checkpoint-1 content.
+				expect(await fs.readFile(testFile, "utf-8")).toBe("Ahoy, world!")
+			})
+
+			it("succeeds when the file is absent both at the checkpoint and in the workspace", async () => {
+				// A stale journal entry can reference a file that was never in the
+				// checkpoint and is also gone from the working tree. The delete
+				// branch must be a no-op (rm with force) instead of rejecting with
+				// ENOENT: rolling back a write that left no trace is a success.
+				await expect(service.restoreFile(service.baseHash!, "never-existed.txt")).resolves.toBeUndefined()
+				expect(await fileExistsAtPath(path.join(service.workspaceDir, "never-existed.txt"))).toBe(false)
+			})
+
+			it("accepts a native backslashed path on Windows (git pathspecs are POSIX)", async () => {
+				if (process.platform !== "win32") {
+					// Off-Windows the journal paths are already POSIX, so there is
+					// nothing to normalize; the toPosix() call is still exercised
+					// as a no-op by every other restoreFile test.
+					return
+				}
+
+				// A nested file, so the relative path actually contains a
+				// separator that Windows writes as a backslash.
+				const subFile = path.join(path.dirname(testFile), "subdir", "inner.txt")
+				await fs.mkdir(path.dirname(subFile), { recursive: true })
+				await fs.writeFile(subFile, "Ahoy, world!")
+				const commit1 = await service.saveCheckpoint("First checkpoint")
+				expect(commit1?.commit).toBeTruthy()
+
+				await fs.writeFile(subFile, "Drifted")
+
+				// The change journal and the webview hand backslashed paths to the
+				// rollback service on Windows; restoreFile must normalize them for
+				// the git calls. Without the normalization, `cat-file -e` would
+				// never match and the delete branch would remove a file the
+				// checkpoint actually contains.
+				await service.restoreFile(commit1!.commit, "subdir" + path.sep + "inner.txt")
+
+				expect(await fs.readFile(subFile, "utf-8")).toBe("Ahoy, world!")
+			})
+
+			it("rejects a restore target that escapes the workspace", async () => {
+				// `..` segments must be normalized and contained, so neither the
+				// checkout nor the delete branch can touch a file outside the
+				// workspace (CWE-22).
+				await fs.writeFile(testFile, "Ahoy, world!")
+				const commit1 = await service.saveCheckpoint("First checkpoint")
+				expect(commit1?.commit).toBeTruthy()
+
+				await expect(service.restoreFile(commit1!.commit, path.join("..", "escape.txt"))).rejects.toThrow(
+					/outside the workspace/,
+				)
+			})
+
+			it("rejects an unavailable checkpoint instead of deleting the live file", async () => {
+				// A corrupt journal entry can hand the rollback service a checkpoint
+				// id that does not resolve to a shadow-repo object. The lookup
+				// failure must not be read as "file absent at the checkpoint" —
+				// that would route the restore into the delete branch and remove a
+				// live file. The restore must fail loudly and leave the file intact.
+				await fs.writeFile(testFile, "Ahoy, world!")
+				await service.saveCheckpoint("First checkpoint")
+
+				await expect(
+					service.restoreFile("0000000000000000000000000000000000000000", "test.txt"),
+				).rejects.toThrow("Checkpoint unavailable")
+
+				expect(await fileExistsAtPath(testFile)).toBe(true)
+				expect(await fs.readFile(testFile, "utf-8")).toBe("Ahoy, world!")
+			})
+
+			it("rejects a target that escapes the workspace through a symlinked ancestor", async () => {
+				// A lexical prefix check passes for a path that goes through a
+				// symlink inside the workspace pointing outside it; the resolved
+				// (real) target must be contained as well, or the delete/checkout
+				// branch would mutate a file the task never owned (CWE-22).
+				// On Windows a directory junction provides the same escape vector
+				// without elevated privileges (true symlinks need them).
+				await fs.writeFile(testFile, "Ahoy, world!")
+				const commit1 = await service.saveCheckpoint("First checkpoint")
+				expect(commit1?.commit).toBeTruthy()
+
+				const outsideDir = path.join(tmpDir, `outside-${Date.now()}`)
+				await fs.mkdir(outsideDir, { recursive: true })
+				const outsideFile = path.join(outsideDir, "sneaky.txt")
+				await fs.writeFile(outsideFile, "outside")
+
+				// A directory link inside the workspace pointing at the outside dir:
+				// lexically `link/sneaky.txt` is inside the workspace.
+				await fs.symlink(
+					outsideDir,
+					path.join(service.workspaceDir, "link"),
+					process.platform === "win32" ? "junction" : "dir",
+				)
+
+				// "resolves outside the workspace" is the real-path (symlink)
+				// guard's message; the bare "outside the workspace" would also
+				// match the lexical guard's error.
+				await expect(service.restoreFile(commit1!.commit, path.join("link", "sneaky.txt"))).rejects.toThrow(
+					/resolves outside the workspace/,
+				)
+
+				// The outside file survives: the restore failed before any mutation.
+				expect(await fileExistsAtPath(outsideFile)).toBe(true)
+				expect(await fs.readFile(outsideFile, "utf-8")).toBe("outside")
+			})
+
+			it("emits a restore event when a file is restored", async () => {
+				const restoreListener = vi.fn()
+				service.on("restore", restoreListener)
+
+				await fs.writeFile(testFile, "Ahoy, world!")
+				const commit1 = await service.saveCheckpoint("First checkpoint")
+				expect(commit1?.commit).toBeTruthy()
+
+				await fs.writeFile(testFile, "Drifted")
+				await service.restoreFile(commit1!.commit, "test.txt")
+
+				const event = restoreListener.mock.calls.at(-1)![0]
+				expect(event.type).toBe("restore")
+				expect(event.commitHash).toBe(commit1!.commit)
+				// duration is Date.now() - start of the restore: a non-negative
+				// small number, never a timestamp sum (which would be ~1e12).
+				expect(typeof event.duration).toBe("number")
+				expect(event.duration).toBeGreaterThanOrEqual(0)
+				expect(event.duration).toBeLessThan(60_000)
+			})
+
+			it("throws and emits an error event when the shadow repo is not initialized", async () => {
+				// A service that never ran initShadowGit has no git handle; restoreFile
+				// must fail cleanly and surface the error event.
+				const raw = await klass.create({
+					taskId,
+					shadowDir: path.join(tmpDir, `noinit-${Date.now()}`),
+					workspaceDir: path.join(tmpDir, `ws-noinit-${Date.now()}`),
+					log: () => {},
+				})
+
+				const errorListener = vi.fn()
+				raw.on("error", errorListener)
+
+				await expect(raw.restoreFile("sha-x", "test.txt")).rejects.toThrow("Shadow git repo not initialized")
+				expect(errorListener).toHaveBeenCalledWith(expect.objectContaining({ type: "error" }))
+			})
+
+			it("logs the failure with the underlying error message", async () => {
+				// The catch block must surface the real error (e.g. "Checkpoint
+				// unavailable: …") in its log line; a regression that drops the
+				// interpolation would leave operators with an empty failure log.
+				const logSpy = vi.fn()
+				const workspaceDir = path.join(tmpDir, `ws-logfail-${Date.now()}`)
+				await initWorkspaceRepo({ workspaceDir })
+				const fresh = await klass.create({
+					taskId,
+					shadowDir: path.join(tmpDir, `logfail-${Date.now()}`),
+					workspaceDir,
+					log: logSpy,
+				})
+				await fresh.initShadowGit()
+
+				await expect(fresh.restoreFile("0000000000000000000000000000000000000000", "test.txt")).rejects.toThrow(
+					"Checkpoint unavailable",
+				)
+
+				expect(logSpy).toHaveBeenCalledWith(
+					expect.stringMatching(/failed to restore file: Checkpoint unavailable/),
+				)
+			})
+
+			it("logs the success with the restored file and duration", async () => {
+				// The success log must name the file and the measured duration; a
+				// regression that empties the template would leave operators with
+				// an unattributable success line.
+				const logSpy = vi.fn()
+				const workspaceDir = path.join(tmpDir, `ws-logok-${Date.now()}`)
+				await initWorkspaceRepo({ workspaceDir })
+				const fresh = await klass.create({
+					taskId,
+					shadowDir: path.join(tmpDir, `logok-${Date.now()}`),
+					workspaceDir,
+					log: logSpy,
+				})
+				await fresh.initShadowGit()
+
+				await fresh.restoreFile(fresh.baseHash!, "test.txt")
+
+				expect(logSpy).toHaveBeenCalledWith(expect.stringMatching(/restored test\.txt in \d+ms/))
 			})
 		})
 
@@ -1109,5 +1348,35 @@ describe("worktree path comparison", () => {
 			await fs.rm(shadowDir, { recursive: true, force: true })
 			await fs.rm(workspaceDir, { recursive: true, force: true })
 		}
+	})
+})
+
+describe("isRealPathContained", () => {
+	const root = path.resolve("ws")
+
+	it("reports a nested real path as contained", () => {
+		expect(isRealPathContained(root, path.join(root, "sub", "file.txt"))).toBe(true)
+	})
+
+	it("reports the root itself as contained", () => {
+		expect(isRealPathContained(root, root)).toBe(true)
+	})
+
+	it("rejects a sibling whose name extends the root name", () => {
+		// `/ws2/file.txt` shares the root's prefix without the separator: a
+		// trailing-separator startsWith prefix check would accept it.
+		expect(isRealPathContained(root, path.join(path.resolve("ws2"), "file.txt"))).toBe(false)
+	})
+
+	it("rejects the parent of the root", () => {
+		const nested = path.resolve("a", "ws")
+		expect(isRealPathContained(nested, path.dirname(nested))).toBe(false)
+	})
+
+	it("rejects a real path on another drive", () => {
+		if (process.platform !== "win32") {
+			return
+		}
+		expect(isRealPathContained("C:\\ws", "D:\\other\\file.txt")).toBe(false)
 	})
 })
