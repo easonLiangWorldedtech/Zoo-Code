@@ -1,5 +1,6 @@
 // npx vitest src/components/settings/__tests__/CheckpointSettings.spec.tsx
 
+import type { CSSProperties, ReactNode } from "react"
 import { render, screen, fireEvent } from "@/utils/test-utils"
 import { CheckpointSettings } from "../CheckpointSettings"
 
@@ -13,6 +14,12 @@ vi.mock("@/i18n/TranslationContext", () => ({
 			if (key === "settings:checkpoints.perWrite.description") {
 				return "Record a checkpoint snapshot after every successful file write by the agent"
 			}
+			if (key === "settings:checkpoints.changeCardDetail.label") {
+				return "Show full diff in change cards"
+			}
+			if (key === "settings:checkpoints.changeCardDetail.description") {
+				return "Include the full unified diff inline for every file in per-step change cards"
+			}
 			return key
 		},
 	}),
@@ -23,7 +30,17 @@ vi.mock("@/components/ui", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("@/components/ui")>()
 	return {
 		...actual,
-		Slider: ({ defaultValue, onValueChange, "data-testid": dataTestId }: any) => (
+		// Narrow typed double: only the props CheckpointSettings consumes, so
+		// drift in the Slider contract is a compile error here, not `any`.
+		Slider: ({
+			defaultValue,
+			onValueChange,
+			"data-testid": dataTestId,
+		}: {
+			defaultValue?: number[]
+			onValueChange?: (value: number[]) => void
+			"data-testid"?: string
+		}) => (
 			<input
 				type="range"
 				value={defaultValue?.[0] ?? 0}
@@ -43,21 +60,48 @@ vi.mock("@/utils/vscode", () => ({
 }))
 
 // Mock VSCode components to behave like standard HTML elements
-vi.mock("@vscode/webview-ui-toolkit/react", () => ({
-	VSCodeCheckbox: ({ checked, onChange, children, ...props }: any) => (
-		<label {...props}>
-			<input
-				type="checkbox"
-				role="checkbox"
-				checked={checked || false}
-				aria-checked={checked || false}
-				onChange={(e: any) => onChange?.({ target: { checked: e.target.checked } })}
-			/>
-			{children}
-		</label>
-	),
-	VSCodeLink: ({ children, ...props }: any) => <a {...props}>{children}</a>,
-}))
+vi.mock("@vscode/webview-ui-toolkit/react", () => {
+	// Narrow event double: the real toolkit dispatches a native Event whose
+	// currentTarget is the web component with a boolean `checked`; the mock
+	// forwards the input's checked state on both target and currentTarget so
+	// handlers can be typed against either surface.
+	type CheckboxChangeEvent = {
+		target: { checked: boolean }
+		currentTarget: { checked: boolean }
+	}
+	return {
+		VSCodeCheckbox: ({
+			checked,
+			onChange,
+			children,
+			"data-testid": dataTestId,
+		}: {
+			checked?: boolean
+			onChange?: (e: CheckboxChangeEvent) => void
+			children?: ReactNode
+			"data-testid"?: string
+		}) => (
+			<label data-testid={dataTestId}>
+				<input
+					type="checkbox"
+					role="checkbox"
+					checked={checked || false}
+					aria-checked={checked || false}
+					onChange={(e) => {
+						const value = e.currentTarget.checked
+						onChange?.({ target: { checked: value }, currentTarget: { checked: value } })
+					}}
+				/>
+				{children}
+			</label>
+		),
+		VSCodeLink: ({ children, href, style }: { children?: ReactNode; href?: string; style?: CSSProperties }) => (
+			<a href={href} style={style}>
+				{children}
+			</a>
+		),
+	}
+})
 
 describe("CheckpointSettings", () => {
 	const setCachedStateField = vi.fn()
@@ -121,5 +165,84 @@ describe("CheckpointSettings", () => {
 		fireEvent.click(checkbox)
 
 		expect(setCachedStateField).toHaveBeenCalledWith("perWriteCheckpoints", false)
+	})
+
+	it("renders the change card detail checkbox unchecked by default when the value is unset", () => {
+		render(<CheckpointSettings enableCheckpoints={false} setCachedStateField={setCachedStateField} />)
+
+		const checkbox = screen.getByRole("checkbox", { name: "Show full diff in change cards" })
+		expect(checkbox).not.toBeChecked()
+	})
+
+	it("renders the change card detail checkbox checked when the saved value is full", () => {
+		render(
+			<CheckpointSettings
+				enableCheckpoints={false}
+				changeCardDetail="full"
+				setCachedStateField={setCachedStateField}
+			/>,
+		)
+
+		const checkbox = screen.getByRole("checkbox", { name: "Show full diff in change cards" })
+		expect(checkbox).toBeChecked()
+	})
+
+	it("renders the change card detail checkbox unchecked when the saved value is summary", () => {
+		render(
+			<CheckpointSettings
+				enableCheckpoints={false}
+				changeCardDetail="summary"
+				setCachedStateField={setCachedStateField}
+			/>,
+		)
+
+		const checkbox = screen.getByRole("checkbox", { name: "Show full diff in change cards" })
+		expect(checkbox).not.toBeChecked()
+	})
+
+	it("caches the changeCardDetail full value when the user checks the box", () => {
+		render(
+			<CheckpointSettings
+				enableCheckpoints={false}
+				changeCardDetail="summary"
+				setCachedStateField={setCachedStateField}
+			/>,
+		)
+
+		const checkbox = screen.getByRole("checkbox", { name: "Show full diff in change cards" })
+		fireEvent.click(checkbox)
+
+		expect(setCachedStateField).toHaveBeenCalledWith("changeCardDetail", "full")
+	})
+
+	it("caches the changeCardDetail summary value when the user unchecks the box", () => {
+		render(
+			<CheckpointSettings
+				enableCheckpoints={false}
+				changeCardDetail="full"
+				setCachedStateField={setCachedStateField}
+			/>,
+		)
+
+		const checkbox = screen.getByRole("checkbox", { name: "Show full diff in change cards" })
+		fireEvent.click(checkbox)
+
+		expect(setCachedStateField).toHaveBeenCalledWith("changeCardDetail", "summary")
+	})
+
+	it("indexes the change card detail setting with its translated label for search", () => {
+		render(<CheckpointSettings enableCheckpoints={false} setCachedStateField={setCachedStateField} />)
+
+		const setting = document.querySelector('[data-setting-id="checkpoints-changeCardDetail"]')
+		expect(setting).not.toBeNull()
+		expect(setting?.getAttribute("data-setting-label")).toBe("Show full diff in change cards")
+	})
+
+	it("shows the change card detail description text", () => {
+		render(<CheckpointSettings enableCheckpoints={false} setCachedStateField={setCachedStateField} />)
+
+		expect(
+			screen.getByText("Include the full unified diff inline for every file in per-step change cards"),
+		).toBeInTheDocument()
 	})
 })

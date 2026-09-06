@@ -707,6 +707,10 @@
 		"perWrite": {
 			"label": "Checkpoint na elke bestandsschrijving",
 			"description": "Neemt een checkpoint-snapshot op na elke succesvolle bestandsschrijving door de agent"
+		},
+		"changeCardDetail": {
+			"label": "Volledige diff tonen in wijzigingskaarten",
+			"description": "Bevat de volledige unified diff inline voor elk bestand in wijzigingskaarten per stap. Wanneer deze optie is uitgeschakeld, tonen de kaarten alleen de bestandslijst met toegevoegde/verwijderde regels."
 		}
 	},
 	"notifications": {
