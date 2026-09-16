@@ -23,7 +23,7 @@ import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { handleOpenAIError } from "./utils/error-handler"
 import { applyRouterToolPreferences } from "./utils/router-tool-preferences"
-import { createAbortError, isRequestAborted, rejectOnAbort } from "./utils/abort-signal"
+import { createAbortError, isRequestAborted, resolveModelWithAbort } from "./utils/abort-signal"
 import { extractReasoningFromDelta } from "./utils/extract-reasoning"
 
 // Unbound usage includes extra fields for Anthropic cache tokens.
@@ -126,33 +126,13 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
-		// Fail fast when the task is already cancelled before any model-catalog
-		// work starts: the standardized AbortError wins over any failure the
-		// fallible resolution could raise.
+		// Establish the cancellation scope around model resolution: a
+		// pre-aborted signal rejects before the lookup starts, and a signal
+		// that fires while model metadata is loading settles on the
+		// standardized AbortError; any other resolution failure propagates
+		// unchanged.
 		const externalAbortSignal = metadata?.abortSignal
-		if (externalAbortSignal?.aborted) {
-			throw createAbortError("Unbound")
-		}
-
-		// Establish the cancellation scope before model resolution: a call
-		// aborted while model metadata is loading must reject promptly instead
-		// of waiting for the catalog lookup to settle. Abort failures from the
-		// lookup itself are normalized to the provider AbortError; any other
-		// resolution failure propagates unchanged.
-		let resolved: Awaited<ReturnType<UnboundHandler["fetchModel"]>>
-		try {
-			if (externalAbortSignal) {
-				// Stryker disable next-line StringLiteral: the raw rejectOnAbort rejection is re-stamped by the catch's createAbortError below (its name "AbortError" always matches isRequestAborted), so this provider-name literal is unobservable
-				resolved = await rejectOnAbort(this.fetchModel(), externalAbortSignal, "Unbound")
-			} else {
-				resolved = await this.fetchModel()
-			}
-		} catch (error) {
-			if (isRequestAborted(error, externalAbortSignal)) {
-				throw createAbortError("Unbound")
-			}
-			throw error
-		}
+		const resolved = await resolveModelWithAbort(() => this.fetchModel(), externalAbortSignal, "Unbound")
 		const {
 			id: model,
 			info,

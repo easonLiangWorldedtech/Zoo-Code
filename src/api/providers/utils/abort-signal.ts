@@ -109,3 +109,38 @@ export function rejectOnAbort<T>(pending: Promise<T>, signal: AbortSignal, provi
 		)
 	})
 }
+
+/**
+ * Resolve a provider's model metadata inside a cancellation scope.
+ *
+ * A pre-aborted signal rejects immediately with the standardized AbortError
+ * before any lookup starts; a signal that fires while the lookup is pending
+ * settles via {@link rejectOnAbort} instead of waiting for the catalog to
+ * resolve. Abort failures from the lookup itself are normalized to the
+ * provider AbortError; any other resolution failure propagates unchanged.
+ *
+ * Providers pass their own resolution step, so the entry guard, the race, and
+ * the normalization logic exist once and are exercised through every
+ * provider's spec.
+ */
+export async function resolveModelWithAbort<T>(
+	fetchModel: () => Promise<T>,
+	abortSignal: AbortSignal | undefined,
+	providerName: string,
+): Promise<T> {
+	if (abortSignal?.aborted) {
+		throw createAbortError(providerName)
+	}
+
+	try {
+		if (abortSignal) {
+			return await rejectOnAbort(fetchModel(), abortSignal, providerName)
+		}
+		return await fetchModel()
+	} catch (error) {
+		if (isRequestAborted(error, abortSignal)) {
+			throw createAbortError(providerName)
+		}
+		throw error
+	}
+}

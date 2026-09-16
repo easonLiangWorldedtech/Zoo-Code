@@ -36,7 +36,7 @@ import {
 	convertOpenAIToolsToAnthropic,
 	convertOpenAIToolChoiceToAnthropic,
 } from "../../core/prompts/tools/native-tools/converters"
-import { createAbortError, isRequestAborted, rejectOnAbort } from "./utils/abort-signal"
+import { createAbortError, isRequestAborted, resolveModelWithAbort } from "./utils/abort-signal"
 
 /**
  * The wire formats exposed by the Opencode Go gateway:
@@ -203,33 +203,13 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
-		// Fail fast when the task is already cancelled before any model-catalog
-		// work starts: the standardized AbortError must win over any failure the
-		// fallible resolution could raise.
+		// Establish the cancellation scope around model resolution: a
+		// pre-aborted signal rejects before the lookup starts, and a signal
+		// that fires while model metadata is loading settles on the
+		// standardized AbortError; any other resolution failure propagates
+		// unchanged.
 		const externalAbortSignal = metadata?.abortSignal
-		if (externalAbortSignal?.aborted) {
-			throw createAbortError("Opencode Go")
-		}
-
-		// Establish the cancellation scope before model resolution: a pre-aborted
-		// call, or one aborted while model metadata is loading, must reject
-		// promptly instead of waiting for the catalog lookup to settle. Abort
-		// failures from the lookup itself are normalized to the provider
-		// AbortError; any other resolution failure propagates unchanged.
-		let resolved: Awaited<ReturnType<OpencodeGoHandler["resolveModel"]>>
-		try {
-			if (externalAbortSignal) {
-				// Stryker disable next-line StringLiteral: the raw rejectOnAbort rejection is re-stamped by the catch's createAbortError below (its name "AbortError" always matches isRequestAborted), so this provider-name literal is unobservable
-				resolved = await rejectOnAbort(this.resolveModel(), externalAbortSignal, "Opencode Go")
-			} else {
-				resolved = await this.resolveModel()
-			}
-		} catch (error) {
-			if (isRequestAborted(error, externalAbortSignal)) {
-				throw createAbortError("Opencode Go")
-			}
-			throw error
-		}
+		const resolved = await resolveModelWithAbort(() => this.resolveModel(), externalAbortSignal, "Opencode Go")
 		const { id: modelId, info, format, temperature, reasoningEffort, maxTokens } = resolved
 
 		// Per-request controller so an external abort signal (e.g. task
@@ -493,11 +473,10 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 				headers: metadata?.taskId ? { "x-opencode-session": metadata.taskId } : undefined,
 			})
 		} catch (error) {
-			if (
-				abortSignal.aborted ||
-				error instanceof APIUserAbortError ||
-				(error instanceof Error && error.name === "AbortError")
-			) {
+			// isRequestAborted covers the signal-aborted case plus the OpenAI
+			// SDK's APIUserAbortError (name "APIUserAbortError" / "Request was
+			// aborted.").
+			if (isRequestAborted(error, abortSignal)) {
 				throw createAbortError("Opencode Go")
 			}
 			if (error instanceof Error) {
@@ -635,12 +614,9 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 		} catch (error) {
 			// Preserve abort identity (series standard): a cancelled request
 			// must surface as a DOM-standard AbortError, not a wrapped
-			// completion error.
-			if (
-				abortSignal.aborted ||
-				error instanceof AnthropicAbortError ||
-				(error instanceof Error && error.name === "AbortError")
-			) {
+			// completion error. isRequestAborted also covers the Anthropic
+			// SDK's APIUserAbortError (name "APIUserAbortError").
+			if (isRequestAborted(error, abortSignal)) {
 				throw createAbortError("Opencode Go")
 			}
 			if (error instanceof Error) {
@@ -831,12 +807,9 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 				// timeoutMs <= 0 means "no explicit timeout": omit the SDK timeout
 				// option entirely — the SDKs treat timeout: 0 as an immediate
 				// abort, which would cancel the request right away.
-				const requestOptions: Anthropic.RequestOptions = {}
-				if (options?.abortSignal) {
-					requestOptions.signal = options.abortSignal
-				}
-				if (options?.timeoutMs !== undefined && options.timeoutMs > 0) {
-					requestOptions.timeout = options.timeoutMs
+				const requestOptions: Anthropic.RequestOptions = {
+					...(options?.abortSignal && { signal: options.abortSignal }),
+					...(options?.timeoutMs !== undefined && options.timeoutMs > 0 && { timeout: options.timeoutMs }),
 				}
 
 				const message = await this.anthropicClient.messages.create(
@@ -887,12 +860,9 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 				// standard): timeoutMs <= 0 means "no explicit timeout" — the
 				// OpenAI SDK treats timeout: 0 as an immediate abort, so the SDK
 				// timeout option is omitted unless the value is positive.
-				const createOptions: OpenAI.RequestOptions = {}
-				if (options?.abortSignal) {
-					createOptions.signal = options.abortSignal
-				}
-				if (options?.timeoutMs !== undefined && options.timeoutMs > 0) {
-					createOptions.timeout = options.timeoutMs
+				const createOptions: OpenAI.RequestOptions = {
+					...(options?.abortSignal && { signal: options.abortSignal }),
+					...(options?.timeoutMs !== undefined && options.timeoutMs > 0 && { timeout: options.timeoutMs }),
 				}
 
 				const response = await this.client.responses.create(
@@ -967,12 +937,9 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 			// timeoutMs <= 0 means "no explicit timeout": omit the SDK timeout
 			// option entirely — the OpenAI SDK treats timeout: 0 as an immediate
 			// abort, which would cancel the request right away.
-			const createOptions: OpenAI.RequestOptions = {}
-			if (options?.abortSignal) {
-				createOptions.signal = options.abortSignal
-			}
-			if (options?.timeoutMs !== undefined && options.timeoutMs > 0) {
-				createOptions.timeout = options.timeoutMs
+			const createOptions: OpenAI.RequestOptions = {
+				...(options?.abortSignal && { signal: options.abortSignal }),
+				...(options?.timeoutMs !== undefined && options.timeoutMs > 0 && { timeout: options.timeoutMs }),
 			}
 
 			const response = await this.client.chat.completions.create(requestOptions, createOptions)

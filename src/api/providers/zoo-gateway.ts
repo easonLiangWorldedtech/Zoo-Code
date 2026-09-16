@@ -22,7 +22,7 @@ import { addCacheBreakpoints } from "../transform/caching/vercel-ai-gateway"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { NOT_PROVIDED } from "./constants"
 import { RouterProvider } from "./router-provider"
-import { createAbortError, isRequestAborted, rejectOnAbort } from "./utils/abort-signal"
+import { createAbortError, isRequestAborted, resolveModelWithAbort } from "./utils/abort-signal"
 
 function getApiErrorStatus(error: unknown): number | undefined {
 	if (typeof error === "object" && error !== null && "status" in error) {
@@ -192,25 +192,11 @@ export class ZooGatewayHandler extends RouterProvider implements SingleCompletio
 
 		this.ensureAuthenticated()
 
-		// Establish the cancellation scope before model resolution: a call
-		// aborted while model metadata is loading must reject promptly instead
-		// of waiting for the catalog lookup to settle. Abort failures from the
-		// lookup itself are normalized to the provider AbortError; any other
-		// resolution failure propagates unchanged.
-		let resolved: Awaited<ReturnType<ZooGatewayHandler["fetchModel"]>>
-		try {
-			if (externalAbortSignal) {
-				// Stryker disable next-line StringLiteral: the raw rejectOnAbort rejection is re-stamped by the catch's createAbortError below (its name "AbortError" always matches isRequestAborted), so this provider-name literal is unobservable
-				resolved = await rejectOnAbort(this.fetchModel(), externalAbortSignal, "Zoo Gateway")
-			} else {
-				resolved = await this.fetchModel()
-			}
-		} catch (error) {
-			if (isRequestAborted(error, externalAbortSignal)) {
-				throw createAbortError("Zoo Gateway")
-			}
-			throw error
-		}
+		// Establish the cancellation scope around model resolution: a signal
+		// that fires while model metadata is loading settles on the
+		// standardized AbortError; any other resolution failure propagates
+		// unchanged.
+		const resolved = await resolveModelWithAbort(() => this.fetchModel(), externalAbortSignal, "Zoo Gateway")
 		const { id: modelId, info } = resolved
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
