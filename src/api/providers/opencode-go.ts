@@ -264,6 +264,14 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 					controller.signal,
 					metadata,
 				)
+			} catch (error) {
+				// Preserve abort identity (series standard): a cancellation that
+				// surfaces mid-stream must normalize to the provider AbortError,
+				// matching the OpenAI streaming branch.
+				if (isRequestAborted(error, controller.signal)) {
+					throw createAbortError("Opencode Go")
+				}
+				throw error
 			} finally {
 				externalAbortSignal?.removeEventListener("abort", abortListener)
 			}
@@ -280,8 +288,17 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 					reasoningEffort,
 					systemPrompt,
 					messages,
+					controller.signal,
 					metadata,
 				)
+			} catch (error) {
+				// Preserve abort identity (series standard): a cancellation that
+				// surfaces mid-stream must normalize to the provider AbortError,
+				// matching the OpenAI streaming branch.
+				if (isRequestAborted(error, controller.signal)) {
+					throw createAbortError("Opencode Go")
+				}
+				throw error
 			} finally {
 				externalAbortSignal?.removeEventListener("abort", abortListener)
 			}
@@ -363,7 +380,7 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 			// Preserve abort identity (series standard): surface a cancelled
 			// request as a DOM-standard AbortError rather than leaking the
 			// raw SDK abort error.
-			if (controller.signal.aborted) {
+			if (isRequestAborted(error, controller.signal)) {
 				throw createAbortError("Opencode Go")
 			}
 			throw error
@@ -397,6 +414,7 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 		reasoningEffort: ReasoningEffortExtended | undefined,
 		systemPrompt: string,
 		messages: Anthropic.Messages.MessageParam[],
+		abortSignal: AbortSignal,
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
 		const input = convertToResponsesApiInput(messages)
@@ -462,13 +480,26 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 				: {}),
 		}
 
+		// Wrap pre-stream errors with the same "Opencode Go completion error:"
+		// prefix used by completePrompt so the Responses-format path surfaces
+		// failures consistently. Abort identity is preserved first (series
+		// standard): a cancelled request must surface as a DOM-standard
+		// AbortError, not a wrapped completion error. Mid-stream errors
+		// propagate unchanged, matching the other streaming paths.
 		let stream: AsyncIterable<OpenAI.Responses.ResponseStreamEvent>
 		try {
 			stream = await this.client.responses.create(requestBody, {
-				signal: metadata?.abortSignal,
+				signal: abortSignal,
 				headers: metadata?.taskId ? { "x-opencode-session": metadata.taskId } : undefined,
 			})
 		} catch (error) {
+			if (
+				abortSignal.aborted ||
+				error instanceof APIUserAbortError ||
+				(error instanceof Error && error.name === "AbortError")
+			) {
+				throw createAbortError("Opencode Go")
+			}
 			if (error instanceof Error) {
 				throw new Error(`Opencode Go completion error: ${error.message}`)
 			}
@@ -852,6 +883,18 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 
 		if (format === "responses") {
 			try {
+				// Build request options with abortSignal and/or timeout (series
+				// standard): timeoutMs <= 0 means "no explicit timeout" — the
+				// OpenAI SDK treats timeout: 0 as an immediate abort, so the SDK
+				// timeout option is omitted unless the value is positive.
+				const createOptions: OpenAI.RequestOptions = {}
+				if (options?.abortSignal) {
+					createOptions.signal = options.abortSignal
+				}
+				if (options?.timeoutMs !== undefined && options.timeoutMs > 0) {
+					createOptions.timeout = options.timeoutMs
+				}
+
 				const response = await this.client.responses.create(
 					{
 						model: modelId,
@@ -879,10 +922,21 @@ export class OpencodeGoHandler extends RouterProvider implements SingleCompletio
 								}
 							: {}),
 					},
-					{ signal: options?.abortSignal },
+					createOptions,
 				)
 				return response.output_text || ""
 			} catch (error) {
+				// Preserve abort identity (series standard): caller-initiated
+				// cancellations and request timeouts must surface as a
+				// DOM-standard AbortError, not a wrapped completion error. The
+				// OpenAI SDK reports both with messages ending in a period
+				// ("Request was aborted.", "Request timed out."), which would not
+				// match task-level abort detection (message ending in "aborted").
+				// SDK request timeouts are not aborts, but the series standard
+				// maps them to the same AbortError identity as caller cancellations.
+				if (isRequestAborted(error, options?.abortSignal) || error instanceof APIConnectionTimeoutError) {
+					throw createAbortError("Opencode Go")
+				}
 				if (error instanceof Error) {
 					throw new Error(`Opencode Go completion error: ${error.message}`)
 				}

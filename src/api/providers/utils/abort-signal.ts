@@ -37,23 +37,6 @@ export function mergeAbortSignals(primarySignal: AbortSignal, secondarySignal?: 
 }
 
 /**
- * Throw an AbortError if the given signal is already aborted.
- *
- * Use as a fast-fail guard at the top of request-building code paths so
- * callers receive a consistent `name === "AbortError"` when the operation
- * was cancelled before it started, without building or issuing the request.
- */
-export function throwIfAborted(signal?: AbortSignal): void {
-	if (!signal?.aborted) {
-		return
-	}
-
-	const abortError = new Error("This operation was aborted")
-	abortError.name = "AbortError"
-	throw abortError
-}
-
-/**
  * Request options this series passes to the OpenAI SDK call. The SDK's
  * `RequestOptions` declares `signal` as `AbortSignal | null | undefined`,
  * which does not satisfy the builder's base constraint, so the builder is
@@ -66,19 +49,20 @@ export type OpenAiRequestOptions = {
 
 /**
  * Whether a failure indicates an aborted request: the caller's signal fired,
- * the SDK raised a native abort error, or the error carries the OpenAI SDK
- * abort error message (exactly "Request was aborted."). The message check
- * is an exact match on purpose: a substring match would misclassify
- * unrelated errors that merely mention aborting.
+ * an `Error` carries a native abort error name (`AbortError`,
+ * `APIUserAbortError`), or an `Error` carries the OpenAI SDK abort error
+ * message (exactly "Request was aborted.").
+ *
+ * The name and message checks require an `Error` instance on purpose: a
+ * plain object that merely looks like an abort must propagate unchanged so
+ * callers can inspect the real failure shape. The message check is an exact
+ * match on purpose: a substring match would misclassify unrelated errors
+ * that merely mention aborting.
  */
 export function isRequestAborted(error: unknown, signal?: AbortSignal): boolean {
-	const candidate = error as { name?: string; message?: string }
-	return (
-		Boolean(signal?.aborted) ||
-		candidate?.name === "AbortError" ||
-		candidate?.name === "APIUserAbortError" ||
-		candidate?.message === "Request was aborted."
-	)
+	const hasAbortName = error instanceof Error && (error.name === "AbortError" || error.name === "APIUserAbortError")
+	const hasSdkAbortMessage = error instanceof Error && error.message === "Request was aborted."
+	return Boolean(signal?.aborted) || hasAbortName || hasSdkAbortMessage
 }
 
 /**

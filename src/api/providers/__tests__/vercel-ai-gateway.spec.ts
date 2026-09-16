@@ -13,6 +13,7 @@ import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI, { APIConnectionTimeoutError, APIUserAbortError } from "openai"
 
 import { VercelAiGatewayHandler } from "../vercel-ai-gateway"
+import { getModels } from "../fetchers/modelCache"
 import { makeApiHandlerOptions, makeCreateMessageMetadata } from "../../../test-utils/api"
 import { asyncStreamFrom, collectStream } from "../../../test-utils/stream"
 import { clearAllMocks } from "../../../test-utils/reset"
@@ -986,7 +987,10 @@ describe("VercelAiGatewayHandler", () => {
 	})
 
 	describe("createMessage abort signal bridging", () => {
-		it("rejects with an AbortError when the external signal is already aborted", async () => {
+		it("rejects with the standardized AbortError before any request work when the external signal is already aborted", async () => {
+			// A pre-aborted request must fail fast before any model-catalog or
+			// SDK work starts: the standardized AbortError wins over any
+			// resolution failure, and the request itself never begins.
 			let capturedSignal: AbortSignal | undefined
 			mockCreate.mockImplementation(async (_params: unknown, options: { signal?: AbortSignal }) => {
 				capturedSignal = options?.signal
@@ -1003,15 +1007,76 @@ describe("VercelAiGatewayHandler", () => {
 				makeCreateMessageMetadata({ abortSignal: controller.signal }),
 			)
 
-			// An already-aborted external signal must abort the INTERNAL
-			// controller before the request starts.
 			const error = await collectStream(stream).then(
 				() => undefined,
 				(e: unknown) => e,
 			)
-			expect(capturedSignal?.aborted).toBe(true)
+			// The fast-fail guard rejects before the request starts.
+			expect(mockCreate).not.toHaveBeenCalled()
+			// Pre-flight cancellation must skip the model catalog entirely:
+			// the getModels mock must remain uncalled, not just the SDK create.
+			expect(getModels).not.toHaveBeenCalled()
+			expect(capturedSignal).toBeUndefined()
 			expect(error).toMatchObject({ name: "AbortError" })
 			expect((error as Error).message).toBe("The Vercel AI Gateway request was aborted")
+		})
+
+		it("rejects with the standardized AbortError when the external signal aborts while model resolution is pending", async () => {
+			// The model catalog stays pending while the external signal aborts:
+			// the resolution race must settle with the standardized AbortError
+			// before the lookup is released, and the request itself must never
+			// start. A bridge-only fix would let the lookup finish and abort the
+			// internal controller after the fact; this gate proves the prompt
+			// settles on the abort itself.
+			let releaseResolution!: () => void
+			const resolutionGate = new Promise<void>((resolve) => {
+				releaseResolution = resolve
+			})
+			vitest.mocked(getModels).mockImplementationOnce(async () => {
+				await resolutionGate
+				return {
+					"anthropic/claude-sonnet-4": {
+						maxTokens: 64000,
+						contextWindow: 200000,
+						supportsImages: true,
+						supportsPromptCache: true,
+						inputPrice: 3,
+						outputPrice: 15,
+						description: "Claude Sonnet 4",
+					},
+				}
+			})
+
+			const handler = new VercelAiGatewayHandler(mockOptions)
+			const controller = new AbortController()
+
+			const consumed = collectStream(
+				handler.createMessage(
+					"test prompt",
+					[{ role: "user", content: "hello" }],
+					makeCreateMessageMetadata({ abortSignal: controller.signal }),
+				),
+			)
+
+			// Let the lookup park on the gate, then abort while it is still pending.
+			await new Promise((resolve) => setTimeout(resolve, 10))
+			controller.abort()
+
+			const error = await consumed.then(
+				() => undefined,
+				(e: unknown) => e,
+			)
+			// The catalog lookup was attempted but the prompt must have settled
+			// on the abort itself, before the lookup was released: no SDK call.
+			expect(getModels).toHaveBeenCalledTimes(1)
+			expect(mockCreate).not.toHaveBeenCalled()
+			expect(error).toMatchObject({ name: "AbortError" })
+			expect((error as Error).message).toBe("The Vercel AI Gateway request was aborted")
+
+			// Releasing the lookup afterwards must not start a late request.
+			releaseResolution()
+			await new Promise((resolve) => setTimeout(resolve, 10))
+			expect(mockCreate).not.toHaveBeenCalled()
 		})
 
 		it("aborts the in-flight request when the external signal fires mid-stream", async () => {
@@ -1088,11 +1153,21 @@ describe("VercelAiGatewayHandler", () => {
 
 			const chunks = await collectStream(stream)
 			expect(chunks).toContainEqual({ type: "text", text: "ok" })
-			expect(removeListenerSpy).toHaveBeenCalledWith("abort", expect.any(Function))
+			// Assert the exact listener reference so a bridge that removes a
+			// different callback than the one it registered cannot pass.
+			// The rejectOnAbort race registers its own "abort" listener on the
+			// same external signal during model resolution, so the first "abort"
+			// registration is the race's, not the bridge's. Target the last
+			// registration so the options/removal assertions below cannot be
+			// satisfied by the race's listener.
+			const abortAddCalls = addEventListenerSpy.mock.calls.filter(([event]) => event === "abort")
+			const addedListener = abortAddCalls[abortAddCalls.length - 1]?.[1]
+			expect(typeof addedListener).toBe("function")
 			// The listener is registered with { once: true } — assert the exact
 			// options so a bridge that drops them (and relies on the finally
 			// block alone for single-shot semantics) is caught.
-			expect(addEventListenerSpy).toHaveBeenCalledWith("abort", expect.any(Function), { once: true })
+			expect(addEventListenerSpy).toHaveBeenCalledWith("abort", addedListener, { once: true })
+			expect(removeListenerSpy).toHaveBeenCalledWith("abort", addedListener)
 			expect(controller.signal.aborted).toBe(false)
 		})
 	})

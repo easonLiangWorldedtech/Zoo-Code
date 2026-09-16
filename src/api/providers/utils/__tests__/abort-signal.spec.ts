@@ -4,7 +4,6 @@ import {
 	mergeAbortSignalAndTimeout,
 	mergeAbortSignals,
 	rejectOnAbort,
-	throwIfAborted,
 } from "../abort-signal"
 import { withSettleGuard } from "../../../../test-utils/settle-guard"
 
@@ -195,34 +194,6 @@ describe("abort-signal utilities", () => {
 		})
 	})
 
-	describe("throwIfAborted", () => {
-		it("does not throw when signal is undefined", () => {
-			expect(() => throwIfAborted()).not.toThrow()
-		})
-
-		it("does not throw when signal is not aborted", () => {
-			const controller = new AbortController()
-
-			expect(() => throwIfAborted(controller.signal)).not.toThrow()
-		})
-
-		it("throws an AbortError when signal is already aborted", () => {
-			const controller = new AbortController()
-			controller.abort()
-
-			let caught: unknown
-			try {
-				throwIfAborted(controller.signal)
-			} catch (error) {
-				caught = error
-			}
-
-			expect(caught).toBeInstanceOf(Error)
-			expect((caught as Error).name).toBe("AbortError")
-			expect((caught as Error).message).toBe("This operation was aborted")
-		})
-	})
-
 	describe("isRequestAborted", () => {
 		it("returns true when the caller signal is aborted", () => {
 			const controller = new AbortController()
@@ -255,6 +226,16 @@ describe("abort-signal utilities", () => {
 
 			const controller = new AbortController()
 			expect(isRequestAborted(new Error("boom"), controller.signal)).toBe(false)
+		})
+
+		it("requires an Error instance for the name and message checks", () => {
+			// A plain object that merely looks like an abort must not be
+			// classified as one: the instanceof guard keeps such failures
+			// propagating unchanged so callers can inspect the real shape.
+			const fakeAbort = { name: "AbortError", message: "Request was aborted." }
+			expect(isRequestAborted(fakeAbort)).toBe(false)
+			expect(isRequestAborted(Object.assign(Object.create(null), { name: "APIUserAbortError" }))).toBe(false)
+			expect(isRequestAborted("Request was aborted.")).toBe(false)
 		})
 	})
 

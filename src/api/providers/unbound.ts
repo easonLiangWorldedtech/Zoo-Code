@@ -1,5 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import OpenAI, { APIConnectionTimeoutError, APIUserAbortError } from "openai"
+import OpenAI, { APIConnectionTimeoutError } from "openai"
 
 import {
 	type ModelInfo,
@@ -23,7 +23,7 @@ import { BaseProvider } from "./base-provider"
 import type { SingleCompletionHandler, ApiHandlerCreateMessageMetadata, CompletePromptOptions } from "../index"
 import { handleOpenAIError } from "./utils/error-handler"
 import { applyRouterToolPreferences } from "./utils/router-tool-preferences"
-import { createAbortError } from "./utils/abort-signal"
+import { createAbortError, isRequestAborted, rejectOnAbort } from "./utils/abort-signal"
 import { extractReasoningFromDelta } from "./utils/extract-reasoning"
 
 // Unbound usage includes extra fields for Anthropic cache tokens.
@@ -126,6 +126,33 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 		messages: Anthropic.Messages.MessageParam[],
 		metadata?: ApiHandlerCreateMessageMetadata,
 	): ApiStream {
+		// Fail fast when the task is already cancelled before any model-catalog
+		// work starts: the standardized AbortError wins over any failure the
+		// fallible resolution could raise.
+		const externalAbortSignal = metadata?.abortSignal
+		if (externalAbortSignal?.aborted) {
+			throw createAbortError("Unbound")
+		}
+
+		// Establish the cancellation scope before model resolution: a call
+		// aborted while model metadata is loading must reject promptly instead
+		// of waiting for the catalog lookup to settle. Abort failures from the
+		// lookup itself are normalized to the provider AbortError; any other
+		// resolution failure propagates unchanged.
+		let resolved: Awaited<ReturnType<UnboundHandler["fetchModel"]>>
+		try {
+			if (externalAbortSignal) {
+				// Stryker disable next-line StringLiteral: the raw rejectOnAbort rejection is re-stamped by the catch's createAbortError below (its name "AbortError" always matches isRequestAborted), so this provider-name literal is unobservable
+				resolved = await rejectOnAbort(this.fetchModel(), externalAbortSignal, "Unbound")
+			} else {
+				resolved = await this.fetchModel()
+			}
+		} catch (error) {
+			if (isRequestAborted(error, externalAbortSignal)) {
+				throw createAbortError("Unbound")
+			}
+			throw error
+		}
 		const {
 			id: model,
 			info,
@@ -133,7 +160,7 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 			temperature,
 			reasoningEffort: reasoning_effort,
 			reasoning: thinking,
-		} = await this.fetchModel()
+		} = resolved
 
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [
 			{ role: "system", content: systemPrompt },
@@ -168,10 +195,11 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 		// { once: true } only removes it on abort, so a task-scoped signal
 		// would otherwise accumulate one listener per request.
 		const controller = new AbortController()
-		const externalAbortSignal = metadata?.abortSignal
 		const abortListener = () => controller.abort()
 		if (externalAbortSignal) {
+			// Stryker disable next-line ConditionalExpression: externalAbortSignal.aborted can never be true here - the entry guard rejects a pre-aborted signal and the rejectOnAbort race rejects an abort during model resolution, and no await sits between the race settling and this bridge, so the branch is unreachable
 			if (externalAbortSignal.aborted) {
+				// Stryker disable next-line CallExpression: unreachable branch body - a pre-aborted external signal is rejected by the entry guard (and a mid-resolution abort by the race) before this bridge registers
 				controller.abort()
 			} else {
 				externalAbortSignal.addEventListener("abort", abortListener, { once: true })
@@ -186,11 +214,7 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 				// Preserve abort identity (series standard): a cancelled request
 				// must surface as a DOM-standard AbortError, not a wrapped
 				// completion error.
-				if (
-					controller.signal.aborted ||
-					error instanceof APIUserAbortError ||
-					(error instanceof Error && error.name === "AbortError")
-				) {
+				if (isRequestAborted(error, externalAbortSignal)) {
 					throw createAbortError("Unbound")
 				}
 				throw handleOpenAIError(error, this.providerName)
@@ -235,11 +259,7 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 				// Preserve abort identity (series standard): a cancellation that
 				// surfaces after the stream has started must also normalize to
 				// the standardized AbortError, not the raw SDK rejection.
-				if (
-					controller.signal.aborted ||
-					error instanceof APIUserAbortError ||
-					(error instanceof Error && error.name === "AbortError")
-				) {
+				if (isRequestAborted(error, externalAbortSignal)) {
 					throw createAbortError("Unbound")
 				}
 				throw error
@@ -282,12 +302,9 @@ export class UnboundHandler extends BaseProvider implements SingleCompletionHand
 			// OpenAI SDK reports both with messages ending in a period
 			// ("Request was aborted.", "Request timed out."), which would not
 			// match task-level abort detection (message ending in "aborted").
-			if (
-				options?.abortSignal?.aborted ||
-				error instanceof APIUserAbortError ||
-				error instanceof APIConnectionTimeoutError ||
-				(error instanceof Error && error.name === "AbortError")
-			) {
+			// SDK request timeouts are not aborts, but the series standard maps
+			// them to the same AbortError identity as caller cancellations.
+			if (isRequestAborted(error, options?.abortSignal) || error instanceof APIConnectionTimeoutError) {
 				throw createAbortError("Unbound")
 			}
 			throw handleOpenAIError(error, this.providerName)
