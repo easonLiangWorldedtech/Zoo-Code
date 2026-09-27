@@ -3,6 +3,7 @@ import { RooCodeEventName, ProviderSettings, TokenUsage, ToolUsage } from "@roo-
 import { Task } from "../Task"
 import { ClineProvider } from "../../webview/ClineProvider"
 import { hasToolUsageChanged, hasTokenUsageChanged } from "../../../shared/getApiMetrics"
+import { providerIdentifiers } from "@roo-code/types/provider-identifiers"
 
 // Mock dependencies
 vi.mock("../../webview/ClineProvider")
@@ -86,7 +87,7 @@ describe("Task token usage throttling", () => {
 
 		// Mock API configuration
 		mockApiConfiguration = {
-			apiProvider: "anthropic",
+			apiProvider: providerIdentifiers.anthropic,
 			apiKey: "test-key",
 		} as ProviderSettings
 
@@ -98,10 +99,10 @@ describe("Task token usage throttling", () => {
 		})
 	})
 
-	afterEach(() => {
+	afterEach(async () => {
 		vi.useRealTimers()
 		if (task && !task.abort) {
-			task.dispose()
+			await task.dispose()
 		}
 	})
 
