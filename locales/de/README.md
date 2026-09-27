@@ -47,13 +47,11 @@ Zoo Code baut auf dem von Roo Code geschaffenen Fundament auf und erweitert es f
 - **Zuverlässigere Terminal- und Bearbeitungsabläufe** — Korrekturen für vorzeitige Terminalabschlüsse, Race Conditions beim Aufgabenstatus, Kontextverwaltung, diff-Bearbeitung und anbieterspezifische Tool-Nutzung.
 - **Mehr Kontrolle über deinen Workspace** — Regelverwaltung, MCP-Beschränkungen pro Modus, Pfadsteuerung für Multi-Root-Workspaces, Reasoning-Optionen für Modelle und Aktionen zur Prüfung von Änderungen nach Abschluss.
 
-## Neu in v3.78.0
+## Neu in v3.84.0
 
-- **Drei bedeutende neue Modelle sind da** — nutze die brandneuen Modelle Gemini 3.7 Flash, GLM 5.3 und Qwen3.8 Max sowie aktualisiertes Reasoning, Preise und Anbieterabdeckung für DeepSeek V4.
-- **Verbinde dich mit NanoGPT** — nutze dynamische Modellerkennung, Streaming und Prompt-Vervollständigung sowie Routing-Einstellungen für Geschwindigkeit, Preis, Latenz, Durchsatz, Tool-Unterstützung und Caching.
-- **Zuverlässigere Anbieter und Aufgaben** — Korrekturen verbessern die Einrichtung von Azure-OpenAI-Endpunkten, Kimi-Code-Ausgabelimits, die Beibehaltung von Titeln im Aufgabenverlauf sowie den Import und Export von Zoo-Einstellungen.
-- Destructive Command Guard unterstützt jetzt Intel-basierte Macs.
-- Sicherheitsupdates beheben Schwachstellen in `undici` und Mermaid.
+- ✨ **Neue SOTA-Modelle hinzugefügt:** Nutze GPT-6 Sol, GPT-6 Luna und Claude Opus 5.5 bei unterstützten Anbietern.
+- 🧭 **Zuverlässigere Aufgaben und Unteraufgaben:** Halte delegierte Modi getrennt, bewahre Verknüpfungen zu Unteraufgaben nach wiederholtem Stoppen und schütze die Orchestrator-Einstellungen, wenn Slash-Befehle den Modus wechseln.
+- 🛠️ **Zuverlässigeres Verhalten von Terminal, Anbietern und Codesuche:** Verbessere das Terminal unter Windows und in nicht englischsprachigen Umgebungen, stärke Anbieterantworten und Abbrüche und sorge dafür, dass die Codesuche konsistenter den richtigen Workspace verwendet.
 
 ## Was kann Zoo Code für DICH tun?
 

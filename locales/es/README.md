@@ -47,13 +47,11 @@ Zoo Code parte de los cimientos creados por Roo Code y continúa ampliándolos c
 - **Flujos de terminal y edición más fiables** — correcciones para la finalización prematura del terminal, las condiciones de carrera del estado de las tareas, la gestión del contexto, la edición de diff y el uso de herramientas específicas de cada proveedor.
 - **Más control sobre tu espacio de trabajo** — gestión de reglas, restricciones de MCP por modo, controles de rutas multirraíz, opciones de razonamiento de modelos y acciones para revisar los cambios al completar una tarea.
 
-## Novedades de la v3.78.0
+## Novedades de la v3.84.0
 
-- **Han llegado tres importantes modelos nuevos** — usa los flamantes Gemini 3.7 Flash, GLM 5.3 y Qwen3.8 Max, además de mejoras en el razonamiento, los precios y la cobertura de proveedores de DeepSeek V4.
-- **Conéctate a NanoGPT** — usa descubrimiento dinámico de modelos, streaming y completado de prompts, y preferencias de enrutamiento por velocidad, precio, latencia, rendimiento, compatibilidad con herramientas y caché.
-- **Proveedores y tareas más fiables** — las correcciones mejoran la configuración de endpoints de Azure OpenAI, los límites de salida de Kimi Code, la conservación de títulos del historial de tareas y la importación/exportación de ajustes de Zoo.
-- Destructive Command Guard ahora es compatible con Macs basados en Intel.
-- Las actualizaciones de seguridad corrigen vulnerabilidades en `undici` y Mermaid.
+- ✨ **Nuevos modelos SOTA añadidos:** Usa GPT-6 Sol, GPT-6 Luna y Claude Opus 5.5 con los proveedores compatibles.
+- 🧭 **Tareas y subtareas más fiables:** Mantén aislados los modos delegados, conserva los enlaces de las subtareas después de detenerlas varias veces y protege la configuración del orquestador cuando los comandos con barra cambien de modo.
+- 🛠️ **Comportamiento más fiable del terminal, los proveedores y la búsqueda de código:** Mejora el terminal en Windows y en entornos que no están en inglés, refuerza las respuestas y la cancelación de los proveedores y haz que la búsqueda de código use el espacio de trabajo correcto de forma más consistente.
 
 ## ¿Qué puede hacer Zoo Code por TI?
 
