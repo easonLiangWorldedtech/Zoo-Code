@@ -350,9 +350,9 @@
 		"support": "Apoya a Zoo Code dándonos una estrella en <githubLink>GitHub</githubLink>.",
 		"release": {
 			"heading": "Novedades:",
-			"highlight1": "Han llegado tres importantes modelos nuevos — usa los flamantes Gemini 3.7 Flash, GLM 5.3 y Qwen3.8 Max, además de mejoras en el razonamiento, los precios y la cobertura de proveedores de DeepSeek V4.",
-			"highlight2": "Conéctate a NanoGPT — usa descubrimiento dinámico de modelos, streaming y completado de prompts, y preferencias de enrutamiento por velocidad, precio, latencia, rendimiento, compatibilidad con herramientas y caché.",
-			"highlight3": "Proveedores y tareas más fiables — las correcciones mejoran la configuración de endpoints de Azure OpenAI, los límites de salida de Kimi Code, la conservación de títulos del historial de tareas y la importación/exportación de ajustes de Zoo."
+			"highlight1": "✨ Nuevos modelos SOTA añadidos: Usa GPT-6 Sol, GPT-6 Luna y Claude Opus 5.5 con los proveedores compatibles.",
+			"highlight2": "🧭 Tareas y subtareas más fiables: Mantén aislados los modos delegados, conserva los enlaces de las subtareas después de detenerlas varias veces y protege la configuración del orquestador cuando los comandos con barra cambien de modo.",
+			"highlight3": "🛠️ Comportamiento más fiable del terminal, los proveedores y la búsqueda de código: Mejora el terminal en Windows y en entornos que no están en inglés, refuerza las respuestas y la cancelación de los proveedores y haz que la búsqueda de código use el espacio de trabajo correcto de forma más consistente."
 		},
 		"cloudAgents": {
 			"heading": "Novedades en la Nube:",

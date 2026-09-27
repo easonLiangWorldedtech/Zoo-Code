@@ -19,6 +19,7 @@ import { TelemetryService } from "@roo-code/telemetry"
 
 import { Task } from "../Task"
 import { ClineProvider } from "../../webview/ClineProvider"
+import { providerIdentifiers } from "@roo-code/types/provider-identifiers"
 
 // ─── Hoisted mocks ───────────────────────────────────────────────────────────
 
@@ -161,7 +162,7 @@ describe("Task resume/eviction race (Work #1 (no message) regression)", () => {
 		}
 
 		mockApiConfig = {
-			apiProvider: "anthropic",
+			apiProvider: providerIdentifiers.anthropic,
 			apiModelId: "claude-3-5-sonnet-20241022",
 			apiKey: "test-api-key",
 		}
@@ -184,9 +185,7 @@ describe("Task resume/eviction race (Work #1 (no message) regression)", () => {
 		// Hold the disk read open so the task is aborted while clineMessages is
 		// still empty — the same window a user hits by navigating away quickly.
 		const readDeferred = createDeferred<ClineMessage[]>()
-		mockReadTaskMessages
-			.mockReturnValueOnce(readDeferred.promise) // first read: held open to simulate the race window
-			.mockResolvedValue([]) // second read (resumeTaskFromHistory:2023): post-abort, safe fallback
+		mockReadTaskMessages.mockReturnValueOnce(readDeferred.promise)
 
 		const updateTaskHistory = vi.fn().mockResolvedValue([])
 		const mockProvider = makeMockProvider(updateTaskHistory)
@@ -221,5 +220,10 @@ describe("Task resume/eviction race (Work #1 (no message) regression)", () => {
 			{ ts: historyItem.ts + 1, type: "say", say: "completion_result", text: "Done." },
 		])
 		await runPromise
+
+		// The abandoned hydration must not resume and persist after its read settles.
+		expect(mockSaveTaskMessages).not.toHaveBeenCalled()
+		expect(updateTaskHistory).not.toHaveBeenCalled()
+		expect(mockReadTaskMessages).toHaveBeenCalledTimes(1)
 	})
 })
