@@ -468,6 +468,33 @@ describe("getEnvironmentDetails", () => {
 		expect(result).toContain("File listing unavailable: unexpected string rejection")
 	})
 
+	it("should surface task nesting depth for a root task", async () => {
+		mockCline = { ...mockCline, depth: 0 }
+
+		const result = await getEnvironmentDetails(mockCline as Task)
+
+		expect(result).toContain("# Task Context")
+		expect(result).toContain("Nesting depth: 0 (root = 0)")
+		expect(result).not.toContain("Parent task:")
+	})
+
+	it("should surface nesting depth and parent id for a child task", async () => {
+		mockCline = { ...mockCline, depth: 2, parentTaskId: "parent-task-id" }
+
+		const result = await getEnvironmentDetails(mockCline as Task)
+
+		expect(result).toContain("# Task Context")
+		expect(result).toContain("Nesting depth: 2 (root = 0)")
+		expect(result).toContain("Parent task: parent-task-id")
+	})
+
+	it("should omit the task context section when depth is unknown", async () => {
+		const result = await getEnvironmentDetails(mockCline as Task)
+
+		expect(result).not.toContain("# Task Context")
+		expect(result).not.toContain("Nesting depth:")
+	})
+
 	// Regression for issue #1623.
 	// Before the fix, the Current Mode block read the shared provider mode.
 	// A child delegated to "architect" mode would report "orchestrator" instead.
