@@ -46,13 +46,11 @@ Zoo Code phát triển trên nền tảng do Roo Code tạo ra và tiếp tục 
 - **Workflow terminal và chỉnh sửa đáng tin cậy hơn** — sửa lỗi terminal hoàn tất quá sớm, xung đột trạng thái tác vụ, quản lý ngữ cảnh, chỉnh sửa diff và sử dụng công cụ riêng của từng provider.
 - **Kiểm soát workspace tốt hơn** — quản lý quy tắc, giới hạn MCP theo từng chế độ, kiểm soát đường dẫn multi-root, tùy chọn reasoning của model và thao tác xem lại thay đổi khi hoàn tất.
 
-## Điểm mới trong v3.78.0
+## Điểm mới trong v3.84.0
 
-- **Ba model mới quan trọng đã xuất hiện** — sử dụng các model hoàn toàn mới Gemini 3.7 Flash, GLM 5.3 và Qwen3.8 Max, cùng reasoning, giá và phạm vi provider được cập nhật cho DeepSeek V4.
-- **Kết nối với NanoGPT** — sử dụng khám phá model động, streaming và hoàn thành Prompt, cùng tùy chọn định tuyến theo tốc độ, giá, độ trễ, throughput, hỗ trợ tool và caching.
-- **Provider và task đáng tin cậy hơn** — các bản sửa lỗi cải thiện thiết lập endpoint Azure OpenAI, giới hạn đầu ra Kimi Code, giữ nguyên tiêu đề lịch sử task và nhập/xuất cài đặt Zoo.
-- Destructive Command Guard hiện hỗ trợ máy Mac dùng chip Intel.
-- Các bản cập nhật bảo mật khắc phục lỗ hổng trong `undici` và Mermaid.
+- ✨ **Đã thêm các model SOTA mới:** Dùng GPT-6 Sol, GPT-6 Luna và Claude Opus 5.5 trên các provider được hỗ trợ.
+- 🧭 **Task và subtask đáng tin cậy hơn:** Giữ các mode được ủy quyền tách biệt, duy trì liên kết subtask sau nhiều lần Stop và bảo vệ cài đặt orchestrator khi slash command chuyển mode.
+- 🛠️ **Terminal, provider và tìm kiếm code đáng tin cậy hơn:** Cải thiện hoạt động terminal trên Windows và môi trường không dùng tiếng Anh, tăng độ ổn định của phản hồi và thao tác hủy từ provider, đồng thời giúp tìm kiếm code sử dụng đúng workspace nhất quán hơn.
 
 ## Zoo Code có thể làm gì cho BẠN?
 
