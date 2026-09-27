@@ -47,13 +47,11 @@ Zoo Code, Roo Code'un oluşturduğu temel üzerine inşa ediliyor ve bu temeli �
 - **Daha güvenilir terminal ve düzenleme iş akışları** — terminalin erken tamamlanması, görev durumu yarış koşulları, bağlam yönetimi, diff düzenleme ve sağlayıcıya özel araç kullanımı için düzeltmeler.
 - **Çalışma alanın üzerinde daha fazla kontrol** — kural yönetimi, mod başına MCP kısıtlamaları, çok köklü yol denetimleri, model reasoning seçenekleri ve tamamlanan değişiklikleri inceleme eylemleri.
 
-## v3.78.0'daki Yenilikler
+## v3.84.0'daki Yenilikler
 
-- **Üç önemli yeni model geldi** — yepyeni Gemini 3.7 Flash, GLM 5.3 ve Qwen3.8 Max modellerini, ayrıca güncellenmiş DeepSeek V4 reasoning, fiyatlandırma ve sağlayıcı kapsamını kullan.
-- **NanoGPT'ye bağlan** — dinamik model keşfi, streaming ve Prompt tamamlama ile hız, fiyat, gecikme, throughput, araç desteği ve caching için yönlendirme tercihlerini kullan.
-- **Daha güvenilir sağlayıcılar ve görevler** — düzeltmeler Azure OpenAI endpoint kurulumunu, Kimi Code çıktı sınırlarını, görev geçmişi başlıklarının korunmasını ve Zoo ayarlarının içe/dışa aktarımını iyileştiriyor.
-- Destructive Command Guard artık Intel tabanlı Mac'leri destekliyor.
-- Güvenlik güncellemeleri `undici` ve Mermaid'deki güvenlik açıklarını gideriyor.
+- ✨ **Yeni SOTA modelleri eklendi:** Desteklenen sağlayıcılarda GPT-6 Sol, GPT-6 Luna ve Claude Opus 5.5 kullan.
+- 🧭 **Daha güvenilir görevler ve alt görevler:** Devredilen modları yalıtılmış tut, tekrarlanan Stop işlemlerinden sonra alt görev bağlantılarını koru ve slash komutları mod değiştirdiğinde orchestrator ayarlarını güvenceye al.
+- 🛠️ **Daha güvenilir terminal, sağlayıcı ve kod arama davranışı:** Windows ve İngilizce olmayan ortamlarda terminal davranışını iyileştir, sağlayıcı yanıtlarını ve iptal işlemlerini güçlendir ve kod aramanın doğru workspace'i daha tutarlı kullanmasını sağla.
 
 ## Zoo Code SİZİN İçin Ne Yapabilir?
 

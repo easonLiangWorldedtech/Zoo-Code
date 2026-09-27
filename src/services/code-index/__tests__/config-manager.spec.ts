@@ -13,6 +13,7 @@ vi.mock("../../../shared/embeddingModels")
 
 // Import mocked functions
 import { getDefaultModelId, getModelDimension, getModelScoreThreshold } from "../../../shared/embeddingModels"
+import { providerIdentifiers } from "@roo-code/types/provider-identifiers"
 
 // Type the mocked functions
 const mockedGetDefaultModelId = vi.mocked(getDefaultModelId)
@@ -58,6 +59,26 @@ describe("CodeIndexConfigManager", () => {
 			expect(configManager.isFeatureEnabled).toBe(false)
 			expect(configManager.currentEmbedderProvider).toBe("openai")
 		})
+
+		it("loads Bedrock as the embedder provider with its optional profile", () => {
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexEmbedderProvider: providerIdentifiers.bedrock,
+				codebaseIndexEmbedderModelId: "amazon.titan-embed-text-v2:0",
+				codebaseIndexBedrockRegion: "eu-west-1",
+				codebaseIndexBedrockProfile: "development",
+				codebaseIndexQdrantUrl: "http://localhost:6333",
+			})
+
+			configManager = new CodeIndexConfigManager(mockContextProxy)
+
+			expect(configManager.getConfig()).toMatchObject({
+				embedderProvider: providerIdentifiers.bedrock,
+				modelId: "amazon.titan-embed-text-v2:0",
+				bedrockOptions: { region: "eu-west-1", profile: "development" },
+				isConfigured: true,
+			})
+		})
 	})
 
 	describe("isFeatureEnabled", () => {
@@ -94,6 +115,67 @@ describe("CodeIndexConfigManager", () => {
 	})
 
 	describe("loadConfiguration", () => {
+		it("does not mark the synchronous constructor snapshot as loaded", () => {
+			expect(configManager.isConfigurationLoaded).toBe(false)
+		})
+
+		it("marks disabled configuration loaded only after secrets refresh completes", async () => {
+			let finishRefresh!: () => void
+			mockContextProxy.refreshSecrets.mockReturnValue(
+				new Promise<void>((resolve) => {
+					finishRefresh = resolve
+				}),
+			)
+
+			const loading = configManager.loadConfiguration()
+			expect(configManager.isConfigurationLoaded).toBe(false)
+			finishRefresh()
+			await loading
+			expect(configManager.isConfigurationLoaded).toBe(true)
+			expect(configManager.isFeatureEnabled).toBe(false)
+		})
+
+		it("marks enabled but unconfigured settings as loaded", async () => {
+			mockContextProxy.getGlobalState.mockReturnValue({ codebaseIndexEnabled: true })
+			await configManager.loadConfiguration()
+			expect(configManager.isConfigurationLoaded).toBe(true)
+			expect(configManager.isFeatureEnabled).toBe(true)
+			expect(configManager.isFeatureConfigured).toBe(false)
+		})
+
+		it.each(["secrets", "configuration", "restart", "payload"] as const)(
+			"retains the last successful load state when %s fails",
+			async (stage) => {
+				const error = new Error(`${stage} failed`)
+				const failNextLoad = () => {
+					if (stage === "secrets") {
+						mockContextProxy.refreshSecrets.mockRejectedValueOnce(error)
+					} else if (stage === "configuration") {
+						mockContextProxy.getGlobalState.mockImplementationOnce(() => {
+							throw error
+						})
+					} else if (stage === "restart") {
+						vi.spyOn(configManager, "doesConfigChangeRequireRestart").mockImplementationOnce(() => {
+							throw error
+						})
+					} else {
+						vi.spyOn(configManager, "currentSearchMinScore", "get").mockImplementationOnce(() => {
+							throw error
+						})
+					}
+				}
+
+				failNextLoad()
+				await expect(configManager.loadConfiguration()).rejects.toThrow(error)
+				expect(configManager.isConfigurationLoaded).toBe(false)
+				await configManager.loadConfiguration()
+				expect(configManager.isConfigurationLoaded).toBe(true)
+				failNextLoad()
+				await expect(configManager.loadConfiguration()).rejects.toThrow(error)
+				expect(configManager.isConfigurationLoaded).toBe(true)
+			},
+		)
+
 		it("should load default configuration when no state exists", async () => {
 			mockContextProxy.getGlobalState.mockReturnValue(undefined)
 			mockContextProxy.getSecret.mockReturnValue(undefined)
@@ -102,7 +184,7 @@ describe("CodeIndexConfigManager", () => {
 
 			expect(result.currentConfig).toEqual({
 				isConfigured: false,
-				embedderProvider: "openai",
+				embedderProvider: providerIdentifiers.openai,
 				modelId: undefined,
 				openAiOptions: { openAiNativeApiKey: "" },
 				ollamaOptions: { ollamaBaseUrl: "" },
@@ -118,7 +200,7 @@ describe("CodeIndexConfigManager", () => {
 			const mockGlobalState = {
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexEmbedderBaseUrl: "",
 				codebaseIndexEmbedderModelId: "text-embedding-3-large",
 			}
@@ -134,7 +216,7 @@ describe("CodeIndexConfigManager", () => {
 
 			expect(result.currentConfig).toMatchObject({
 				isConfigured: true,
-				embedderProvider: "openai",
+				embedderProvider: providerIdentifiers.openai,
 				modelId: "text-embedding-3-large",
 				openAiOptions: { openAiNativeApiKey: "test-openai-key" },
 				ollamaOptions: { ollamaBaseUrl: "" },
@@ -301,7 +383,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexEmbedderModelId: "text-embedding-3-large",
 			})
 			setupSecretMocks({
@@ -314,7 +396,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "ollama",
+				codebaseIndexEmbedderProvider: providerIdentifiers.ollama,
 				codebaseIndexEmbedderBaseUrl: "http://ollama.local",
 				codebaseIndexEmbedderModelId: "nomic-embed-text",
 			})
@@ -328,7 +410,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexEmbedderModelId: "text-embedding-3-small",
 			})
 			setupSecretMocks({
@@ -342,7 +424,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexEmbedderModelId: "text-embedding-3-large",
 			})
 
@@ -363,7 +445,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexEmbedderModelId: "text-embedding-3-small",
 			})
 			setupSecretMocks({
@@ -376,7 +458,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexEmbedderModelId: "text-embedding-ada-002",
 			})
 
@@ -396,7 +478,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexEmbedderModelId: "text-embedding-3-small",
 			})
 			setupSecretMocks({
@@ -414,7 +496,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					codebaseIndexEmbedderModelId: "text-embedding-3-small",
 				})
 				setupSecretMocks({
@@ -439,7 +521,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://old-qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					codebaseIndexEmbedderModelId: "text-embedding-3-small",
 				})
 				setupSecretMocks({
@@ -453,7 +535,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://new-qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					codebaseIndexEmbedderModelId: "text-embedding-3-small",
 				})
 
@@ -466,7 +548,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					codebaseIndexEmbedderModelId: "text-embedding-3-small",
 				})
 				setupSecretMocks({
@@ -480,7 +562,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					codebaseIndexEmbedderModelId: "unknown-model",
 				})
 
@@ -493,7 +575,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "ollama",
+					codebaseIndexEmbedderProvider: providerIdentifiers.ollama,
 					codebaseIndexEmbedderBaseUrl: "http://old-ollama.local",
 					codebaseIndexEmbedderModelId: "nomic-embed-text",
 				})
@@ -504,7 +586,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "ollama",
+					codebaseIndexEmbedderProvider: providerIdentifiers.ollama,
 					codebaseIndexEmbedderBaseUrl: "http://new-ollama.local",
 					codebaseIndexEmbedderModelId: "nomic-embed-text",
 				})
@@ -753,7 +835,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				})
 				setupSecretMocks({})
 
@@ -763,7 +845,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "ollama",
+					codebaseIndexEmbedderProvider: providerIdentifiers.ollama,
 					codebaseIndexEmbedderBaseUrl: "http://ollama.local",
 				})
 
@@ -777,7 +859,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				})
 				setupSecretMocks({})
 
@@ -787,7 +869,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					codebaseIndexEmbedderModelId: "text-embedding-3-large",
 				})
 
@@ -800,7 +882,7 @@ describe("CodeIndexConfigManager", () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 						codebaseIndexEmbedderModelId: "text-embedding-3-small",
 						codebaseIndexSearchMinScore: 0.8, // User setting
 					})
@@ -816,7 +898,7 @@ describe("CodeIndexConfigManager", () => {
 				it("should fall back to model-specific threshold when user setting is undefined", async () => {
 					// Mock the model score threshold
 					mockedGetModelScoreThreshold.mockImplementation((provider, modelId) => {
-						if (provider === "ollama" && modelId === "nomic-embed-code") {
+						if (provider === providerIdentifiers.ollama && modelId === "nomic-embed-code") {
 							return 0.15
 						}
 						return undefined
@@ -825,7 +907,7 @@ describe("CodeIndexConfigManager", () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "ollama",
+						codebaseIndexEmbedderProvider: providerIdentifiers.ollama,
 						codebaseIndexEmbedderModelId: "nomic-embed-code",
 						// No codebaseIndexSearchMinScore - user hasn't configured it
 					})
@@ -839,7 +921,7 @@ describe("CodeIndexConfigManager", () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 						codebaseIndexEmbedderModelId: "unknown-model", // Model not in profiles
 						// No codebaseIndexSearchMinScore
 					})
@@ -857,7 +939,7 @@ describe("CodeIndexConfigManager", () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "ollama",
+						codebaseIndexEmbedderProvider: providerIdentifiers.ollama,
 						codebaseIndexEmbedderModelId: "nomic-embed-code",
 						codebaseIndexSearchMinScore: 0, // User explicitly sets 0
 					})
@@ -903,7 +985,7 @@ describe("CodeIndexConfigManager", () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 						// No modelId specified
 						// No codebaseIndexSearchMinScore
 					})
@@ -920,7 +1002,7 @@ describe("CodeIndexConfigManager", () => {
 				it("should handle priority correctly: user > model > default", async () => {
 					// Mock the model score threshold
 					mockedGetModelScoreThreshold.mockImplementation((provider, modelId) => {
-						if (provider === "ollama" && modelId === "nomic-embed-code") {
+						if (provider === providerIdentifiers.ollama && modelId === "nomic-embed-code") {
 							return 0.15
 						}
 						return undefined
@@ -930,7 +1012,7 @@ describe("CodeIndexConfigManager", () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "ollama",
+						codebaseIndexEmbedderProvider: providerIdentifiers.ollama,
 						codebaseIndexEmbedderModelId: "nomic-embed-code", // Has 0.15 threshold
 						codebaseIndexSearchMinScore: 0.9, // User overrides
 					})
@@ -942,7 +1024,7 @@ describe("CodeIndexConfigManager", () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "ollama",
+						codebaseIndexEmbedderProvider: providerIdentifiers.ollama,
 						codebaseIndexEmbedderModelId: "nomic-embed-code",
 						// No user setting
 					})
@@ -955,7 +1037,7 @@ describe("CodeIndexConfigManager", () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 						codebaseIndexEmbedderModelId: "custom-unknown-model",
 						// No user setting, unknown model
 					})
@@ -972,7 +1054,7 @@ describe("CodeIndexConfigManager", () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 						codebaseIndexEmbedderModelId: "text-embedding-3-small",
 						codebaseIndexSearchMaxResults: 150, // User setting
 					})
@@ -984,7 +1066,7 @@ describe("CodeIndexConfigManager", () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 						codebaseIndexEmbedderModelId: "text-embedding-3-small",
 						// No user setting
 					})
@@ -997,7 +1079,7 @@ describe("CodeIndexConfigManager", () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 						codebaseIndexEmbedderModelId: "text-embedding-3-small",
 						codebaseIndexSearchMaxResults: 10, // Minimum allowed
 					})
@@ -1010,7 +1092,7 @@ describe("CodeIndexConfigManager", () => {
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "openai",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 						codebaseIndexEmbedderModelId: "text-embedding-3-small",
 						codebaseIndexSearchMaxResults: 200, // Maximum allowed
 					})
@@ -1028,7 +1110,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					codebaseIndexEmbedderModelId: "text-embedding-3-small",
 				})
 				setupSecretMocks({})
@@ -1039,7 +1121,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					codebaseIndexEmbedderModelId: "text-embedding-3-small",
 					codebaseIndexSearchMinScore: 0.5, // Changed unrelated setting
 				})
@@ -1054,7 +1136,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true, // Always enabled now
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				})
 				setupSecretMocks({})
 
@@ -1076,7 +1158,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				})
 				setupSecretMocks({
 					codeIndexOpenAiKey: "",
@@ -1103,7 +1185,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					codebaseIndexEmbedderModelId: "text-embedding-3-small",
 				})
 				setupSecretMocks({
@@ -1117,7 +1199,7 @@ describe("CodeIndexConfigManager", () => {
 				const mockPrevConfig = {
 					enabled: true,
 					configured: true,
-					embedderProvider: "openai" as const,
+					embedderProvider: providerIdentifiers.openai,
 					modelId: "text-embedding-3-large", // Different model with different dimensions
 					openAiKey: "test-key",
 					ollamaBaseUrl: undefined,
@@ -1149,7 +1231,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					codebaseIndexEmbedderModelId: "text-embedding-3-small",
 				})
 				setupSecretMocks({
@@ -1183,7 +1265,7 @@ describe("CodeIndexConfigManager", () => {
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
 					codebaseIndexQdrantUrl: "http://qdrant.local",
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					codebaseIndexEmbedderModelId: "text-embedding-3-small",
 				})
 				setupSecretMocks({
@@ -1216,7 +1298,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 			})
 			setupSecretMocks({
 				codeIndexOpenAiKey: "test-key",
@@ -1231,7 +1313,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "ollama",
+				codebaseIndexEmbedderProvider: providerIdentifiers.ollama,
 				codebaseIndexEmbedderBaseUrl: "http://ollama.local",
 			})
 
@@ -1306,7 +1388,7 @@ describe("CodeIndexConfigManager", () => {
 					return {
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "gemini",
+						codebaseIndexEmbedderProvider: providerIdentifiers.gemini,
 					}
 				}
 				return undefined
@@ -1326,7 +1408,7 @@ describe("CodeIndexConfigManager", () => {
 					return {
 						codebaseIndexEnabled: true,
 						codebaseIndexQdrantUrl: "http://qdrant.local",
-						codebaseIndexEmbedderProvider: "gemini",
+						codebaseIndexEmbedderProvider: providerIdentifiers.gemini,
 					}
 				}
 				return undefined
@@ -1343,7 +1425,7 @@ describe("CodeIndexConfigManager", () => {
 		it("should return false when required values are missing", async () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 			})
 
 			await configManager.loadConfiguration()
@@ -1356,7 +1438,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexEmbedderModelId: "text-embedding-3-large",
 			})
 			setupSecretMocks({
@@ -1371,7 +1453,7 @@ describe("CodeIndexConfigManager", () => {
 			const config = configManager.getConfig()
 			expect(config).toMatchObject({
 				isConfigured: true,
-				embedderProvider: "openai",
+				embedderProvider: providerIdentifiers.openai,
 				modelId: "text-embedding-3-large",
 				openAiOptions: { openAiNativeApiKey: "test-openai-key" },
 				ollamaOptions: { ollamaBaseUrl: undefined },
@@ -1410,7 +1492,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexEmbedderModelId: "text-embedding-3-small",
 			})
 			setupSecretMocks({
@@ -1430,7 +1512,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true, // Always enabled now
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexEmbedderModelId: "text-embedding-3-small",
 			})
 			setupSecretMocks({
@@ -1453,7 +1535,7 @@ describe("CodeIndexConfigManager", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
 				codebaseIndexQdrantUrl: "http://qdrant.local",
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexEmbedderModelId: "text-embedding-3-small",
 			})
 			setupSecretMocks({
@@ -1475,7 +1557,7 @@ describe("CodeIndexConfigManager", () => {
 			// Initial state: disabled
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: false,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 			})
 			mockContextProxy.getSecret.mockReturnValue(undefined)
@@ -1487,7 +1569,7 @@ describe("CodeIndexConfigManager", () => {
 			// Update the internal state to enabled with proper configuration
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 			})
 			mockContextProxy.getSecret.mockImplementation((key: string) => {
@@ -1505,7 +1587,7 @@ describe("CodeIndexConfigManager", () => {
 			// Initial state: enabled and configured
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 			})
 			mockContextProxy.getSecret.mockImplementation((key: string) => {
@@ -1517,7 +1599,7 @@ describe("CodeIndexConfigManager", () => {
 			const previousSnapshot: PreviousConfigSnapshot = {
 				enabled: true,
 				configured: true,
-				embedderProvider: "openai",
+				embedderProvider: providerIdentifiers.openai,
 				openAiKey: "test-key",
 				qdrantUrl: "http://localhost:6333",
 			}
@@ -1525,7 +1607,7 @@ describe("CodeIndexConfigManager", () => {
 			// Update to disabled
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: false,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 			})
 			mockContextProxy.getSecret.mockImplementation((key: string) => {
@@ -1543,7 +1625,7 @@ describe("CodeIndexConfigManager", () => {
 			// Initial state: enabled and configured
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 			})
 			mockContextProxy.getSecret.mockImplementation((key: string) => {
@@ -1572,7 +1654,7 @@ describe("CodeIndexConfigManager", () => {
 			const previousSnapshot: PreviousConfigSnapshot = {
 				enabled: false,
 				configured: false,
-				embedderProvider: "openai",
+				embedderProvider: providerIdentifiers.openai,
 			}
 
 			// Same config, still disabled
@@ -1584,7 +1666,7 @@ describe("CodeIndexConfigManager", () => {
 			// Initial state: enabled with openai
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
-				codebaseIndexEmbedderProvider: "ollama",
+				codebaseIndexEmbedderProvider: providerIdentifiers.ollama,
 				codebaseIndexOllamaBaseUrl: "http://localhost:11434",
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 			})
@@ -1594,7 +1676,7 @@ describe("CodeIndexConfigManager", () => {
 			const previousSnapshot: PreviousConfigSnapshot = {
 				enabled: true,
 				configured: true,
-				embedderProvider: "openai",
+				embedderProvider: providerIdentifiers.openai,
 				openAiKey: "test-key",
 				qdrantUrl: "http://localhost:6333",
 			}
@@ -1607,7 +1689,7 @@ describe("CodeIndexConfigManager", () => {
 			// Initial state: disabled with openai
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: false,
-				codebaseIndexEmbedderProvider: "ollama",
+				codebaseIndexEmbedderProvider: providerIdentifiers.ollama,
 			})
 			mockContextProxy.getSecret.mockReturnValue(undefined)
 			configManager = new CodeIndexConfigManager(mockContextProxy)
@@ -1615,7 +1697,7 @@ describe("CodeIndexConfigManager", () => {
 			const previousSnapshot: PreviousConfigSnapshot = {
 				enabled: false,
 				configured: false,
-				embedderProvider: "openai",
+				embedderProvider: providerIdentifiers.openai,
 			}
 
 			// Provider changed but feature is disabled
@@ -1635,7 +1717,7 @@ describe("CodeIndexConfigManager", () => {
 		it("should load configuration and return proper structure", async () => {
 			const mockConfigValues = {
 				codebaseIndexEnabled: true,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexEmbedderModelId: "text-embedding-ada-002",
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 				codebaseIndexSearchMinScore: 0.5,
@@ -1665,7 +1747,7 @@ describe("CodeIndexConfigManager", () => {
 			// Initial state: disabled
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: false,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 			})
 			mockContextProxy.getSecret.mockReturnValue(undefined)
@@ -1677,7 +1759,7 @@ describe("CodeIndexConfigManager", () => {
 			// Change to enabled with proper configuration
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 			})
 			mockContextProxy.getSecret.mockImplementation((key: string) => {
@@ -1694,7 +1776,7 @@ describe("CodeIndexConfigManager", () => {
 		it("should return the current configuration", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 			})
 			mockContextProxy.getSecret.mockImplementation((key: string) => {
@@ -1715,7 +1797,7 @@ describe("CodeIndexConfigManager", () => {
 		it("should return true when OpenAI provider is properly configured", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 			})
 			mockContextProxy.getSecret.mockImplementation((key: string) => {
@@ -1730,7 +1812,7 @@ describe("CodeIndexConfigManager", () => {
 		it("should return false when OpenAI provider is missing API key", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 			})
 			mockContextProxy.getSecret.mockReturnValue(undefined)
@@ -1742,7 +1824,7 @@ describe("CodeIndexConfigManager", () => {
 		it("should return true when Ollama provider is properly configured", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
-				codebaseIndexEmbedderProvider: "ollama",
+				codebaseIndexEmbedderProvider: providerIdentifiers.ollama,
 				codebaseIndexEmbedderBaseUrl: "http://localhost:11434",
 				codebaseIndexQdrantUrl: "http://localhost:6333",
 			})
@@ -1755,7 +1837,7 @@ describe("CodeIndexConfigManager", () => {
 		it("should return false when Qdrant URL is missing", () => {
 			mockContextProxy.getGlobalState.mockReturnValue({
 				codebaseIndexEnabled: true,
-				codebaseIndexEmbedderProvider: "openai",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 			})
 			mockContextProxy.getSecret.mockImplementation((key: string) => {
 				if (key === "codeIndexOpenAiKey") return "test-key"
@@ -1801,7 +1883,7 @@ describe("CodeIndexConfigManager", () => {
 
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					codebaseIndexEmbedderModelId: "text-embedding-3-small",
 					codebaseIndexEmbedderModelDimension: 2048, // Custom dimension should be ignored
 					codebaseIndexQdrantUrl: "http://localhost:6333",
@@ -1874,7 +1956,7 @@ describe("CodeIndexConfigManager", () => {
 
 				mockContextProxy.getGlobalState.mockReturnValue({
 					codebaseIndexEnabled: true,
-					codebaseIndexEmbedderProvider: "openai",
+					codebaseIndexEmbedderProvider: providerIdentifiers.openai,
 					// No modelId specified
 					codebaseIndexQdrantUrl: "http://localhost:6333",
 				})
@@ -1919,7 +2001,7 @@ describe("CodeIndexConfigManager", () => {
 				it("should correctly handle OpenRouter mistral model dimensions across restarts", async () => {
 					// Mock getModelDimension to return correct dimensions for OpenRouter models
 					mockedGetModelDimension.mockImplementation((provider, modelId) => {
-						if (provider === "openrouter") {
+						if (provider === providerIdentifiers.openrouter) {
 							if (modelId === "mistralai/codestral-embed-2505") return 1536
 							if (modelId === "mistralai/mistral-embed-2312") return 1024
 							if (modelId === "openai/text-embedding-3-large") return 3072
@@ -1930,7 +2012,7 @@ describe("CodeIndexConfigManager", () => {
 					// Initial configuration with OpenRouter and Mistral model
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
-						codebaseIndexEmbedderProvider: "openrouter",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openrouter,
 						codebaseIndexEmbedderModelId: "mistralai/codestral-embed-2505",
 						codebaseIndexQdrantUrl: "http://localhost:6333",
 					})
@@ -1959,7 +2041,7 @@ describe("CodeIndexConfigManager", () => {
 				it("should not require restart for OpenRouter when same model dimensions are used", async () => {
 					// Mock both models to have same dimension
 					mockedGetModelDimension.mockImplementation((provider, modelId) => {
-						if (provider === "openrouter") {
+						if (provider === providerIdentifiers.openrouter) {
 							if (modelId === "mistralai/codestral-embed-2505") return 1536
 							if (modelId === "openai/text-embedding-3-small") return 1536
 						}
@@ -1969,7 +2051,7 @@ describe("CodeIndexConfigManager", () => {
 					// Initial state with OpenRouter and Mistral model
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
-						codebaseIndexEmbedderProvider: "openrouter",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openrouter,
 						codebaseIndexEmbedderModelId: "mistralai/codestral-embed-2505",
 						codebaseIndexQdrantUrl: "http://localhost:6333",
 					})
@@ -1984,7 +2066,7 @@ describe("CodeIndexConfigManager", () => {
 					// Change to another model with same dimension
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
-						codebaseIndexEmbedderProvider: "openrouter",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openrouter,
 						codebaseIndexEmbedderModelId: "openai/text-embedding-3-small", // Same 1536 dimension
 						codebaseIndexQdrantUrl: "http://localhost:6333",
 					})
@@ -1997,7 +2079,7 @@ describe("CodeIndexConfigManager", () => {
 				it("should require restart for OpenRouter when model dimensions change", async () => {
 					// Mock models with different dimensions
 					mockedGetModelDimension.mockImplementation((provider, modelId) => {
-						if (provider === "openrouter") {
+						if (provider === providerIdentifiers.openrouter) {
 							if (modelId === "mistralai/codestral-embed-2505") return 1536
 							if (modelId === "mistralai/mistral-embed-2312") return 1024
 						}
@@ -2007,7 +2089,7 @@ describe("CodeIndexConfigManager", () => {
 					// Initial state with 1536-dimension model
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
-						codebaseIndexEmbedderProvider: "openrouter",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openrouter,
 						codebaseIndexEmbedderModelId: "mistralai/codestral-embed-2505",
 						codebaseIndexQdrantUrl: "http://localhost:6333",
 					})
@@ -2022,7 +2104,7 @@ describe("CodeIndexConfigManager", () => {
 					// Change to model with different dimension
 					mockContextProxy.getGlobalState.mockReturnValue({
 						codebaseIndexEnabled: true,
-						codebaseIndexEmbedderProvider: "openrouter",
+						codebaseIndexEmbedderProvider: providerIdentifiers.openrouter,
 						codebaseIndexEmbedderModelId: "mistralai/mistral-embed-2312", // Different 1024 dimension
 						codebaseIndexQdrantUrl: "http://localhost:6333",
 					})
@@ -2032,6 +2114,192 @@ describe("CodeIndexConfigManager", () => {
 					expect(result.requiresRestart).toBe(true)
 				})
 			})
+		})
+	})
+
+	describe("mistral, vercel-ai-gateway, bedrock and openrouter provider configuration", () => {
+		it("should load Mistral provider configuration and mark it configured", async () => {
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: providerIdentifiers.mistral,
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codebaseIndexMistralApiKey") return "test-mistral-key"
+				return undefined
+			})
+
+			const result = await configManager.loadConfiguration()
+
+			expect(result.currentConfig.embedderProvider).toBe(providerIdentifiers.mistral)
+			expect(result.currentConfig.mistralOptions).toEqual({ apiKey: "test-mistral-key" })
+			expect(result.currentConfig.isConfigured).toBe(true)
+			expect(configManager.currentEmbedderProvider).toBe("mistral")
+		})
+
+		it("should return false from isConfigured for Mistral when the API key is missing", () => {
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: providerIdentifiers.mistral,
+			})
+			mockContextProxy.getSecret.mockReturnValue(undefined)
+
+			configManager = new CodeIndexConfigManager(mockContextProxy)
+			expect(configManager.isConfigured()).toBe(false)
+		})
+
+		it("should return false from isConfigured for Mistral when the Qdrant URL is missing", () => {
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexEmbedderProvider: providerIdentifiers.mistral,
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codebaseIndexMistralApiKey") return "test-mistral-key"
+				return undefined
+			})
+
+			configManager = new CodeIndexConfigManager(mockContextProxy)
+			expect(configManager.isConfigured()).toBe(false)
+		})
+
+		it("should load Vercel AI Gateway provider configuration and mark it configured", async () => {
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: providerIdentifiers.vercelAiGateway,
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codebaseIndexVercelAiGatewayApiKey") return "test-vercel-key"
+				return undefined
+			})
+
+			const result = await configManager.loadConfiguration()
+
+			expect(result.currentConfig.embedderProvider).toBe(providerIdentifiers.vercelAiGateway)
+			expect(result.currentConfig.vercelAiGatewayOptions).toEqual({ apiKey: "test-vercel-key" })
+			expect(result.currentConfig.isConfigured).toBe(true)
+			expect(configManager.currentEmbedderProvider).toBe("vercel-ai-gateway")
+		})
+
+		it("should return false from isConfigured for Vercel AI Gateway when the API key is missing", () => {
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: providerIdentifiers.vercelAiGateway,
+			})
+			mockContextProxy.getSecret.mockReturnValue(undefined)
+
+			configManager = new CodeIndexConfigManager(mockContextProxy)
+			expect(configManager.isConfigured()).toBe(false)
+		})
+
+		it("should return false from isConfigured for Vercel AI Gateway when the Qdrant URL is missing", () => {
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexEmbedderProvider: providerIdentifiers.vercelAiGateway,
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codebaseIndexVercelAiGatewayApiKey") return "test-vercel-key"
+				return undefined
+			})
+
+			configManager = new CodeIndexConfigManager(mockContextProxy)
+			expect(configManager.isConfigured()).toBe(false)
+		})
+
+		it("should load Bedrock provider configuration with region and profile and mark it configured", async () => {
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: providerIdentifiers.bedrock,
+				codebaseIndexBedrockRegion: "eu-west-1",
+				codebaseIndexBedrockProfile: "test-profile",
+			})
+			mockContextProxy.getSecret.mockReturnValue(undefined)
+
+			const result = await configManager.loadConfiguration()
+
+			expect(result.currentConfig.embedderProvider).toBe(providerIdentifiers.bedrock)
+			expect(result.currentConfig.bedrockOptions).toEqual({ region: "eu-west-1", profile: "test-profile" })
+			expect(result.currentConfig.isConfigured).toBe(true)
+			expect(configManager.currentEmbedderProvider).toBe("bedrock")
+		})
+
+		it("should default Bedrock region to us-east-1 when no region is configured", async () => {
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: providerIdentifiers.bedrock,
+			})
+			mockContextProxy.getSecret.mockReturnValue(undefined)
+
+			const result = await configManager.loadConfiguration()
+
+			expect(result.currentConfig.bedrockOptions).toEqual({ region: "us-east-1", profile: undefined })
+			expect(result.currentConfig.isConfigured).toBe(true)
+		})
+
+		it("should return false from isConfigured for Bedrock when the Qdrant URL is missing", () => {
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexEmbedderProvider: providerIdentifiers.bedrock,
+				codebaseIndexBedrockRegion: "us-east-1",
+			})
+			mockContextProxy.getSecret.mockReturnValue(undefined)
+
+			configManager = new CodeIndexConfigManager(mockContextProxy)
+			expect(configManager.isConfigured()).toBe(false)
+		})
+
+		it("should return false from isConfigured for OpenRouter when the Qdrant URL is missing", () => {
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexEmbedderProvider: providerIdentifiers.openrouter,
+			})
+			mockContextProxy.getSecret.mockImplementation((key: string) => {
+				if (key === "codebaseIndexOpenRouterApiKey") return "test-openrouter-key"
+				return undefined
+			})
+
+			configManager = new CodeIndexConfigManager(mockContextProxy)
+			expect(configManager.isConfigured()).toBe(false)
+		})
+
+		it("should return false from isConfigured for OpenRouter when the API key is missing", () => {
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+				codebaseIndexQdrantUrl: "http://qdrant.local",
+				codebaseIndexEmbedderProvider: providerIdentifiers.openrouter,
+			})
+			mockContextProxy.getSecret.mockReturnValue(undefined)
+
+			configManager = new CodeIndexConfigManager(mockContextProxy)
+			expect(configManager.isConfigured()).toBe(false)
+		})
+	})
+
+	describe("isConfigured defensive fallback", () => {
+		it("should return false when the provider is not a recognized embedder provider", () => {
+			// The isConfigured() switch lists every EmbedderProvider member explicitly and
+			// ends in a defensive `return false` ("Should not happen if embedderProvider is
+			// always set correctly"). That fallback is unreachable through the public API
+			// because EmbedderProvider is a closed union, so exercise it by forcing the
+			// private field to a value outside the union.
+			mockContextProxy.getGlobalState.mockReturnValue({
+				codebaseIndexEnabled: true,
+			})
+			mockContextProxy.getSecret.mockReturnValue(undefined)
+
+			configManager = new CodeIndexConfigManager(mockContextProxy)
+			// The defensive `return false` is unreachable through the public API because
+			// EmbedderProvider is a closed union, so exercise it by forcing the private field
+			// to a value outside the union. `embedderProvider` is TypeScript `private`, not
+			// `#`-private, so a runtime property write reaches it. The double assertion is a
+			// last resort: the private field is not part of the public type surface, and
+			// `as any` is avoided to keep the file's no-explicit-any suppression budget flat.
+			;(configManager as unknown as Record<string, unknown>)["embedderProvider"] = "not-a-provider"
+			expect(configManager.isConfigured()).toBe(false)
 		})
 	})
 })

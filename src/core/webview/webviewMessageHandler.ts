@@ -23,6 +23,7 @@ import {
 	checkoutRestorePayloadSchema,
 	getCompletionCheckpoint,
 	providerIdentifiers,
+	retiredProviderIdentifiers,
 	LmStudioModelsMessageType,
 	OllamaModelsMessageType,
 	OpenAiModelsMessageType,
@@ -30,6 +31,7 @@ import {
 	VsCodeLmModelsMessageType,
 	DEFAULT_MAX_NESTING_DEPTH,
 	DEFAULT_AUTO_FLATTEN_ON_LIMIT,
+	isTelemetryOptedIn,
 } from "@roo-code/types"
 import { customToolRegistry } from "@roo-code/core"
 import { CloudService } from "@roo-code/cloud"
@@ -62,7 +64,7 @@ import { Package } from "../../shared/package"
 import { type RouterName, toRouterName } from "../../shared/api"
 import { MessageEnhancer } from "./messageEnhancer"
 
-import { CodeIndexManager } from "../../services/code-index/manager"
+import { CodeIndexManagerRegistry } from "../../services/code-index/code-index-manager-registry"
 import { checkExistKey } from "../../shared/checkExistApiConfig"
 import { getRouterRemovalMessage, getRouterUnavailableSignInMessage } from "../config/routerRemoval"
 import { experimentDefault } from "../../shared/experiments"
@@ -83,7 +85,7 @@ import { openMention } from "../mentions"
 import { resolveImageMentions } from "../mentions/resolveImageMentions"
 import { RooIgnoreController } from "../ignore/RooIgnoreController"
 import { getWorkspacePath } from "../../utils/path"
-import { isPathOutsideWorkspace } from "../../utils/pathUtils"
+import { isPathOutsideWorkspace, decodeUntrustedPathToStable, isRealPathOutsideWorkspace } from "../../utils/pathUtils"
 import { Mode, defaultModeSlug } from "../../shared/modes"
 import { getModels, flushModels } from "../../api/providers/fetchers/modelCache"
 import { GetModelsOptions } from "../../shared/api"
@@ -93,6 +95,15 @@ import { getCommand } from "../../utils/commands"
 import { getLMStudioModels } from "../../api/providers/fetchers/lmstudio"
 
 const ALLOWED_VSCODE_SETTINGS = new Set(["terminal.integrated.inheritEnv"])
+
+// Serializes handling of "telemetrySetting" messages. Each invocation reads the previous
+// setting, awaits a persistence write, then applies the new live telemetry state -- with no
+// serialization, two rapid messages (e.g. a fast toggle) can interleave across those awaits:
+// each invocation captures its own isOptedIn in a closure, so whichever invocation's tail end
+// (TelemetryService.instance.updateTelemetryState) happens to resolve *last* wins, regardless
+// of which message the user sent last. Chaining onto this promise ensures a given invocation's
+// entire read-write-apply sequence completes before the next one starts.
+let telemetrySettingQueue: Promise<void> = Promise.resolve()
 
 import { MarketplaceManager, MarketplaceItemType } from "../../services/marketplace"
 import { setPendingTodoList } from "../tools/UpdateTodoListTool"
@@ -565,6 +576,11 @@ export const webviewMessageHandler = async (
 	}
 
 	switch (message.type) {
+		case "themeFixtureProbeResponse":
+			if (process.env.ROO_CODE_THEME_FIXTURE_PROBE === "1" && message.requestId && message.themeFixture) {
+				provider.resolveWebviewThemeFixtureProbe(message.requestId, message.themeFixture)
+			}
+			break
 		case "webviewDidLaunch":
 			// Load custom modes first
 			const customModes = await provider.customModesManager.getCustomModes()
@@ -640,12 +656,37 @@ export const webviewMessageHandler = async (
 					),
 				)
 
-			// Enable telemetry by default (when unset) or when explicitly enabled
-			await provider.getStateToPostToWebview().then((state) => {
-				const { telemetrySetting } = state
-				const isOptedIn = telemetrySetting !== "disabled"
-				TelemetryService.instance.updateTelemetryState(isOptedIn)
-			})
+			// Telemetry is on by disclosed default: "unset" (no choice made yet) leaves that
+			// default in effect, same as "enabled". Only an explicit "disabled" opts out.
+			// vscode.env.isTelemetryEnabled is ANDed in (matching extension.ts's
+			// onDidChangeTelemetryEnabled listener) so a webview reload can't re-enable
+			// telemetry while VS Code's global toggle is off.
+			//
+			// Read the setting synchronously via getGlobalState (same as the "telemetrySetting"
+			// handler below) rather than awaiting provider.getStateToPostToWebview() -- that
+			// async gap let this continuation resolve after a concurrent "telemetrySetting"
+			// message's queued update and clobber it with a stale value, the same interleaving
+			// class of bug telemetrySettingQueue exists to prevent. Routing through the queue
+			// here too means webviewDidLaunch can't race a concurrent telemetrySetting message
+			// either.
+			telemetrySettingQueue = telemetrySettingQueue
+				.catch(() => undefined)
+				.then(async () => {
+					if (!TelemetryService.hasInstance()) {
+						return
+					}
+
+					const telemetrySetting = getGlobalState("telemetrySetting") || "unset"
+					TelemetryService.instance.updateTelemetryState(
+						isTelemetryOptedIn(telemetrySetting) && vscode.env.isTelemetryEnabled,
+					)
+				})
+
+			await telemetrySettingQueue.catch((error) =>
+				provider.log(
+					`Error initializing telemetry state on launch: ${error instanceof Error ? error.message : String(error)}`,
+				),
+			)
 
 			provider.isViewLaunched = true
 			break
@@ -732,6 +773,17 @@ export const webviewMessageHandler = async (
 						await vscode.workspace
 							.getConfiguration(Package.name)
 							.update("deniedCommands", newValue, vscode.ConfigurationTarget.Global)
+					} else if (key === "allowedReadFiles" || key === "allowedWriteFiles") {
+						const patterns = value ?? []
+
+						// Blank lines, which the textarea editor produces freely,
+						// name no file and are dropped here. Patterns are
+						// otherwise not `.trim()`ed: leading whitespace is
+						// significant in gitignore syntax, and trailing
+						// whitespace has to be escaped by the user to be kept.
+						newValue = Array.isArray(patterns)
+							? patterns.filter((pattern) => typeof pattern === "string" && pattern.trim().length > 0)
+							: []
 					} else if (key === "ttsEnabled") {
 						newValue = value ?? true
 						setTtsEnabled(newValue as boolean)
@@ -1019,7 +1071,6 @@ export const webviewMessageHandler = async (
 				// so a retry after a partial-copy failure still reconciles the store.
 				await provider.taskHistoryStore.invalidateAll()
 				await provider.taskHistoryStore.reconcile()
-				await provider.taskHistoryStore.flushIndex()
 				await provider.postStateToWebview()
 				await provider.postMessageToWebview({
 					type: "rooHistoryImportProgress",
@@ -1085,21 +1136,21 @@ export const webviewMessageHandler = async (
 			const routerModels: Record<RouterName, ModelRecord> = providerFilter
 				? ({} as Record<RouterName, ModelRecord>)
 				: {
-						openrouter: {},
-						"vercel-ai-gateway": {},
-						"zoo-gateway": {},
-						litellm: {},
-						requesty: {},
-						unbound: {},
-						ollama: {},
-						lmstudio: {},
-						poe: {},
-						deepseek: {},
-						moonshot: {},
-						"opencode-go": {},
-						kenari: {},
-						nanogpt: {},
-						"kimi-code": {},
+						[providerIdentifiers.openrouter]: {},
+						[providerIdentifiers.vercelAiGateway]: {},
+						[providerIdentifiers.zooGateway]: {},
+						[providerIdentifiers.litellm]: {},
+						[providerIdentifiers.requesty]: {},
+						[providerIdentifiers.unbound]: {},
+						[providerIdentifiers.ollama]: {},
+						[providerIdentifiers.lmstudio]: {},
+						[providerIdentifiers.poe]: {},
+						[providerIdentifiers.deepseek]: {},
+						[providerIdentifiers.moonshot]: {},
+						[providerIdentifiers.opencodeGo]: {},
+						[providerIdentifiers.kenari]: {},
+						[providerIdentifiers.nanogpt]: {},
+						[providerIdentifiers.kimiCode]: {},
 					}
 
 			const safeGetModels = async (options: GetModelsOptions): Promise<ModelRecord> => {
@@ -1117,27 +1168,33 @@ export const webviewMessageHandler = async (
 
 			// Base candidates (only those handled by this aggregate fetcher)
 			const candidates: { key: RouterName; options: GetModelsOptions }[] = [
-				{ key: "openrouter", options: { provider: "openrouter" } },
 				{
-					key: "requesty",
+					key: providerIdentifiers.openrouter,
+					options: { provider: providerIdentifiers.openrouter },
+				},
+				{
+					key: providerIdentifiers.requesty,
 					options: {
-						provider: "requesty",
+						provider: providerIdentifiers.requesty,
 						apiKey: apiConfiguration.requestyApiKey,
 						baseUrl: apiConfiguration.requestyBaseUrl,
 					},
 				},
 				{
-					key: "unbound",
+					key: providerIdentifiers.unbound,
 					options: {
-						provider: "unbound",
+						provider: providerIdentifiers.unbound,
 						apiKey: apiConfiguration.unboundApiKey,
 					},
 				},
-				{ key: "vercel-ai-gateway", options: { provider: "vercel-ai-gateway" } },
 				{
-					key: "zoo-gateway",
+					key: providerIdentifiers.vercelAiGateway,
+					options: { provider: providerIdentifiers.vercelAiGateway },
+				},
+				{
+					key: providerIdentifiers.zooGateway,
 					options: {
-						provider: "zoo-gateway",
+						provider: providerIdentifiers.zooGateway,
 						apiKey: apiConfiguration.zooSessionToken,
 						baseUrl: apiConfiguration.zooGatewayBaseUrl,
 					},
@@ -1154,12 +1211,15 @@ export const webviewMessageHandler = async (
 				// If explicit credentials are provided in message.values (from Refresh Models button),
 				// flush the cache first to ensure we fetch fresh data with the new credentials
 				if (message?.values?.litellmApiKey || message?.values?.litellmBaseUrl) {
-					await flushModels({ provider: "litellm", apiKey: litellmApiKey, baseUrl: litellmBaseUrl }, true)
+					await flushModels(
+						{ provider: providerIdentifiers.litellm, apiKey: litellmApiKey, baseUrl: litellmBaseUrl },
+						true,
+					)
 				}
 
 				candidates.push({
-					key: "litellm",
-					options: { provider: "litellm", apiKey: litellmApiKey, baseUrl: litellmBaseUrl },
+					key: providerIdentifiers.litellm,
+					options: { provider: providerIdentifiers.litellm, apiKey: litellmApiKey, baseUrl: litellmBaseUrl },
 				})
 			}
 
@@ -1169,12 +1229,15 @@ export const webviewMessageHandler = async (
 
 			if (poeApiKey) {
 				if (message?.values?.poeApiKey || message?.values?.poeBaseUrl) {
-					await flushModels({ provider: "poe", apiKey: poeApiKey, baseUrl: poeBaseUrl }, true)
+					await flushModels(
+						{ provider: providerIdentifiers.poe, apiKey: poeApiKey, baseUrl: poeBaseUrl },
+						true,
+					)
 				}
 
 				candidates.push({
-					key: "poe",
-					options: { provider: "poe", apiKey: poeApiKey, baseUrl: poeBaseUrl },
+					key: providerIdentifiers.poe,
+					options: { provider: providerIdentifiers.poe, apiKey: poeApiKey, baseUrl: poeBaseUrl },
 				})
 			}
 
@@ -1184,12 +1247,19 @@ export const webviewMessageHandler = async (
 
 			if (deepSeekApiKey) {
 				if (message?.values?.deepSeekApiKey || message?.values?.deepSeekBaseUrl) {
-					await flushModels({ provider: "deepseek", apiKey: deepSeekApiKey, baseUrl: deepSeekBaseUrl }, true)
+					await flushModels(
+						{ provider: providerIdentifiers.deepseek, apiKey: deepSeekApiKey, baseUrl: deepSeekBaseUrl },
+						true,
+					)
 				}
 
 				candidates.push({
-					key: "deepseek",
-					options: { provider: "deepseek", apiKey: deepSeekApiKey, baseUrl: deepSeekBaseUrl },
+					key: providerIdentifiers.deepseek,
+					options: {
+						provider: providerIdentifiers.deepseek,
+						apiKey: deepSeekApiKey,
+						baseUrl: deepSeekBaseUrl,
+					},
 				})
 			}
 
@@ -1199,12 +1269,19 @@ export const webviewMessageHandler = async (
 
 			if (moonshotApiKey) {
 				if (message?.values?.moonshotApiKey || message?.values?.moonshotBaseUrl) {
-					await flushModels({ provider: "moonshot", apiKey: moonshotApiKey, baseUrl: moonshotBaseUrl }, true)
+					await flushModels(
+						{ provider: providerIdentifiers.moonshot, apiKey: moonshotApiKey, baseUrl: moonshotBaseUrl },
+						true,
+					)
 				}
 
 				candidates.push({
-					key: "moonshot",
-					options: { provider: "moonshot", apiKey: moonshotApiKey, baseUrl: moonshotBaseUrl },
+					key: providerIdentifiers.moonshot,
+					options: {
+						provider: providerIdentifiers.moonshot,
+						apiKey: moonshotApiKey,
+						baseUrl: moonshotBaseUrl,
+					},
 				})
 			}
 
@@ -1217,12 +1294,12 @@ export const webviewMessageHandler = async (
 
 			// Refresh the cache when a new key is explicitly provided (e.g. the Refresh Models button).
 			if (message?.values?.opencodeGoApiKey) {
-				await flushModels({ provider: "opencode-go", apiKey: opencodeGoApiKey }, true)
+				await flushModels({ provider: providerIdentifiers.opencodeGo, apiKey: opencodeGoApiKey }, true)
 			}
 
 			candidates.push({
-				key: "opencode-go",
-				options: { provider: "opencode-go", apiKey: opencodeGoApiKey },
+				key: providerIdentifiers.opencodeGo,
+				options: { provider: providerIdentifiers.opencodeGo, apiKey: opencodeGoApiKey },
 			})
 
 			// Kenari's /models endpoint is public — it returns the full model list with no
@@ -1234,12 +1311,12 @@ export const webviewMessageHandler = async (
 
 			// Refresh the cache when a new key is explicitly provided (e.g. the Refresh Models button).
 			if (message?.values?.kenariApiKey) {
-				await flushModels({ provider: "kenari", apiKey: kenariApiKey }, true)
+				await flushModels({ provider: providerIdentifiers.kenari, apiKey: kenariApiKey }, true)
 			}
 
 			candidates.push({
-				key: "kenari",
-				options: { provider: "kenari", apiKey: kenariApiKey },
+				key: providerIdentifiers.kenari,
+				options: { provider: providerIdentifiers.kenari, apiKey: kenariApiKey },
 			})
 
 			// NanoGPT's detailed catalog is public, while an optional key can expose a
@@ -1255,7 +1332,7 @@ export const webviewMessageHandler = async (
 				options: { provider: providerIdentifiers.nanogpt, apiKey: nanoGptApiKey },
 			})
 
-			if (!providerFilter || providerFilter === "kimi-code") {
+			if (!providerFilter || providerFilter === providerIdentifiers.kimiCode) {
 				const { kimiCodeOAuthManager } = await import("../../integrations/kimi-code/oauth")
 				const kimiCodeAuthMethod =
 					message?.values?.kimiCodeAuthMethod ?? apiConfiguration.kimiCodeAuthMethod ?? "oauth"
@@ -1265,8 +1342,8 @@ export const webviewMessageHandler = async (
 						: await kimiCodeOAuthManager.getAccessToken()
 				if (kimiCodeApiKey) {
 					candidates.push({
-						key: "kimi-code",
-						options: { provider: "kimi-code", apiKey: kimiCodeApiKey },
+						key: providerIdentifiers.kimiCode,
+						options: { provider: providerIdentifiers.kimiCode, apiKey: kimiCodeApiKey },
 					})
 				}
 			}
@@ -1330,7 +1407,7 @@ export const webviewMessageHandler = async (
 			const apiKey = message.values?.apiKey ?? ollamaApiConfig.ollamaApiKey
 			const logBaseUrl = baseUrl || "http://localhost:11434"
 			const ollamaOptions = {
-				provider: "ollama" as const,
+				provider: providerIdentifiers.ollama,
 				baseUrl,
 				apiKey,
 			}
@@ -1378,7 +1455,7 @@ export const webviewMessageHandler = async (
 					lmStudioModels = await getLMStudioModels(requestedBaseUrl)
 				} else {
 					const lmStudioOptions = {
-						provider: "lmstudio" as const,
+						provider: providerIdentifiers.lmstudio,
 						baseUrl: lmStudioApiConfig.lmStudioBaseUrl,
 					}
 					// Flush cache and refresh to ensure fresh models.
@@ -1403,7 +1480,7 @@ export const webviewMessageHandler = async (
 				type: RouterModelsMessageType.singleRouterModelFetchResponse,
 				success: false,
 				error: getRouterRemovalMessage(),
-				values: { provider: "roo" },
+				values: { provider: retiredProviderIdentifiers.roo },
 			})
 			break
 		}
@@ -1455,13 +1532,70 @@ export const webviewMessageHandler = async (
 				}
 			}
 			break
-		case "openFile":
-			let filePath: string = message.text!
-			if (!path.isAbsolute(filePath)) {
-				filePath = path.join(getCurrentCwd(), filePath)
+		case "openFile": {
+			const rawPath = message.text || ""
+			if (!rawPath) {
+				break
 			}
-			await openFile(filePath, message.values as { create?: boolean; content?: string; line?: number })
+			// Task markdown links are untrusted, so markdown-sourced openFile
+			// requests (flagged by the webview with fromMarkdown) must resolve
+			// inside the current workspace. First-party callers (modes, MCP,
+			// slash-command settings) may legitimately open global config files
+			// outside the workspace, so they keep the previous behavior.
+			const fromMarkdown = message.values?.fromMarkdown === true
+			const rejectOutsideWorkspace = () => {
+				void vscode.window.showErrorMessage(
+					t("common:errors.cannot_access_path", {
+						path: rawPath,
+						error: t("common:errors.path_outside_workspace"),
+					}),
+				)
+			}
+			let filePath = rawPath
+			// Markdown link targets are URL syntax: percent-decode to a fixed point
+			// here, at the containment boundary. openFile decodes AFTER this check,
+			// so a request like `%2e%2e/%2e%2e/.env` would otherwise pass
+			// containment as a literal and escape only after that later decode.
+			if (fromMarkdown) {
+				const decoded = decodeUntrustedPathToStable(rawPath)
+				// Stryker disable next-line ConditionalExpression,BlockStatement: hostile non-stabilizing encodings are unreachable from the webview (its posts are plain link targets); the bound is defensive
+				if (decoded === null) {
+					// Stryker disable next-line CallExpression: hostile non-stabilizing encodings are pinned by the direct decodeUntrustedPathToStable bound test; the webview never posts such values
+					rejectOutsideWorkspace()
+					break
+				}
+				filePath = decoded
+			}
+			if (!path.isAbsolute(filePath)) {
+				const cwd = getCurrentCwd()
+				if (!cwd) {
+					void vscode.window.showErrorMessage(
+						t("common:errors.could_not_open_file", { errorMessage: t("common:errors.no_workspace") }),
+					)
+					break
+				}
+				filePath = path.resolve(cwd, filePath)
+			}
+			// Workspace-boundary validation (defense in depth): the webview already
+			// rejects traversal in markdown anchors, but refuse any markdown path
+			// that still resolves outside the workspace.
+			if (fromMarkdown && isPathOutsideWorkspace(filePath)) {
+				rejectOutsideWorkspace()
+				break
+			}
+			// Lexical containment cannot see symlinks: a link inside a workspace
+			// folder may resolve to a target outside the workspace. Re-check the
+			// real filesystem path (failing closed) before opening.
+			if (fromMarkdown && (await isRealPathOutsideWorkspace(filePath))) {
+				rejectOutsideWorkspace()
+				break
+			}
+			await openFile(
+				filePath,
+				message.values as { create?: boolean; content?: string; line?: number; fromMarkdown?: boolean },
+			)
 			break
+		}
 		case "readFileContent": {
 			const relPath = message.text || ""
 			if (!relPath) {
@@ -2603,29 +2737,46 @@ export const webviewMessageHandler = async (
 			}
 			break
 		case "telemetrySetting": {
-			const telemetrySetting = message.text as TelemetrySetting
-			const previousSetting = getGlobalState("telemetrySetting") || "unset"
-			const isOptedIn = telemetrySetting !== "disabled"
-			const wasPreviouslyOptedIn = previousSetting !== "disabled"
+			// Chain onto the shared queue so a concurrent "telemetrySetting" message (e.g. a
+			// rapid toggle) can't interleave its read-write-apply sequence with this one -- see
+			// the telemetrySettingQueue comment above for why that matters. Swallow a prior
+			// link's rejection before chaining (rather than letting .then() propagate it) so one
+			// failed update can't permanently poison every subsequent telemetrySetting message
+			// for the rest of the session.
+			const thisUpdate = telemetrySettingQueue
+				.catch(() => undefined)
+				.then(async () => {
+					const telemetrySetting = message.text as TelemetrySetting
+					const previousSetting = getGlobalState("telemetrySetting") || "unset"
+					const isOptedIn = isTelemetryOptedIn(telemetrySetting)
+					const wasPreviouslyOptedIn = isTelemetryOptedIn(previousSetting)
 
-			// If turning telemetry OFF, fire event BEFORE disabling
-			if (wasPreviouslyOptedIn && !isOptedIn && TelemetryService.hasInstance()) {
-				TelemetryService.instance.captureTelemetrySettingsChanged(previousSetting, telemetrySetting)
-			}
+					// If turning telemetry OFF, fire event BEFORE disabling
+					if (wasPreviouslyOptedIn && !isOptedIn && TelemetryService.hasInstance()) {
+						TelemetryService.instance.captureTelemetrySettingsChanged(previousSetting, telemetrySetting)
+					}
 
-			// Update the telemetry state
-			await updateGlobalState("telemetrySetting", telemetrySetting)
+					// Update the telemetry state. vscode.env.isTelemetryEnabled is ANDed in
+					// (matching extension.ts's onDidChangeTelemetryEnabled listener) so this can't
+					// re-enable telemetry while VS Code's global toggle is off -- the
+					// captureTelemetrySettingsChanged calls above/below still track the user's
+					// stored preference transition on its own, independent of that live toggle.
+					await updateGlobalState("telemetrySetting", telemetrySetting)
 
-			if (TelemetryService.hasInstance()) {
-				TelemetryService.instance.updateTelemetryState(isOptedIn)
-			}
+					if (TelemetryService.hasInstance()) {
+						TelemetryService.instance.updateTelemetryState(isOptedIn && vscode.env.isTelemetryEnabled)
+					}
 
-			// If turning telemetry ON, fire event AFTER enabling
-			if (!wasPreviouslyOptedIn && isOptedIn && TelemetryService.hasInstance()) {
-				TelemetryService.instance.captureTelemetrySettingsChanged(previousSetting, telemetrySetting)
-			}
+					// If turning telemetry ON, fire event AFTER enabling
+					if (!wasPreviouslyOptedIn && isOptedIn && TelemetryService.hasInstance()) {
+						TelemetryService.instance.captureTelemetrySettingsChanged(previousSetting, telemetrySetting)
+					}
 
-			await provider.postStateToWebview()
+					await provider.postStateToWebview()
+				})
+			telemetrySettingQueue = thisUpdate
+
+			await thisUpdate
 			break
 		}
 		case "debugSetting": {
@@ -3234,7 +3385,7 @@ export const webviewMessageHandler = async (
 					return
 				}
 				// Capture prior state for every manager before persisting the global change
-				const allManagers = CodeIndexManager.getAllInstances()
+				const allManagers = CodeIndexManagerRegistry.getAllInstances()
 				const priorStates = new Map(allManagers.map((m) => [m, m.isWorkspaceEnabled]))
 				await manager.setAutoEnableDefault(message.bool ?? true)
 				// Apply stop/start to every affected manager
