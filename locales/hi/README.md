@@ -46,13 +46,11 @@ Zoo Code, Roo Code की बनाई नींव पर आगे बढ़�
 - **ज़्यादा भरोसेमंद terminal और editing workflows** — terminal के समय से पहले पूरा होने, task-state race conditions, context management, diff editing और provider-specific tool use से जुड़ी समस्याओं के fixes।
 - **अपने workspace पर ज़्यादा control** — rules management, हर mode के लिए MCP restrictions, multi-root path controls, model reasoning options और completion changes की review actions।
 
-## v3.78.0 में नया क्या है
+## v3.84.0 में नया क्या है
 
-- **तीन बड़े नए models आ गए हैं** — बिल्कुल नए Gemini 3.7 Flash, GLM 5.3 और Qwen3.8 Max models का उपयोग करो, साथ ही DeepSeek V4 के updated reasoning, pricing और provider coverage का लाभ लो।
-- **NanoGPT से connect करो** — dynamic model discovery, streaming और prompt completions के साथ speed, price, latency, throughput, tool support और caching के लिए routing preferences का उपयोग करो।
-- **अधिक reliable providers और tasks** — fixes Azure OpenAI endpoint setup, Kimi Code output limits, task-history title preservation और Zoo settings import/export को बेहतर बनाते हैं।
-- Destructive Command Guard अब Intel-आधारित Macs को support करता है।
-- Security updates `undici` और Mermaid की vulnerabilities को ठीक करते हैं।
+- ✨ **नए SOTA models जोड़े गए:** Supported providers पर GPT-6 Sol, GPT-6 Luna और Claude Opus 5.5 इस्तेमाल करें।
+- 🧭 **ज़्यादा भरोसेमंद tasks और subtasks:** Delegated modes को अलग रखें, बार-बार Stop करने के बाद भी subtask links बचाएं और slash commands से mode बदलते समय orchestrator settings को सुरक्षित रखें।
+- 🛠️ **ज़्यादा भरोसेमंद terminal, provider और code-search behavior:** Windows और non-English environments में terminal behavior बेहतर करें, provider responses और cancellation को मज़बूत बनाएं और code search में सही workspace का लगातार इस्तेमाल सुनिश्चित करें।
 
 ## Zoo Code आपके लिए क्या कर सकता है?
 
