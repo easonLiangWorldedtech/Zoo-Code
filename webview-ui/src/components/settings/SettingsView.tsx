@@ -196,6 +196,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		terminalProfile,
 		writeDelayMs,
 		diffFuzzyThreshold,
+		maxNestingDepth,
+		autoFlattenOnLimit,
 		showRooIgnoredFiles,
 		enableSubfolderRules,
 		maxImageFileSize,
@@ -412,6 +414,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 					checkpointTimeout: checkpointTimeout ?? DEFAULT_CHECKPOINT_TIMEOUT_SECONDS,
 					writeDelayMs,
 					diffFuzzyThreshold,
+					maxNestingDepth,
+					autoFlattenOnLimit,
 					terminalShellIntegrationTimeout: terminalShellIntegrationTimeout ?? 30_000,
 					terminalShellIntegrationDisabled,
 					terminalCommandDelay,
@@ -879,6 +883,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 								maxDiagnosticMessages={maxDiagnosticMessages}
 								writeDelayMs={writeDelayMs}
 								diffFuzzyThreshold={diffFuzzyThreshold}
+								maxNestingDepth={maxNestingDepth}
+								autoFlattenOnLimit={autoFlattenOnLimit}
 								includeCurrentTime={includeCurrentTime}
 								includeCurrentCost={includeCurrentCost}
 								maxGitStatusFiles={maxGitStatusFiles}
