@@ -50,7 +50,12 @@ afterEach(async () => {
 // Only isSymbolicLink() is consulted by the guard, so the double carries just
 // that method. The mocks reject asynchronously: a synchronous throw would bypass
 // resolvePublishTarget's catch and skip the ENOENT/symlink branch under test.
-const symlinkStat = (target: unknown) => ({ isSymbolicLink: () => target === currentLink }) as unknown as BigIntStats
+const symlinkStat = (target: unknown) => ({
+	isSymbolicLink: () => target === currentLink,
+	// The staging-path check in safeWriteText also asks whether the path is a
+	// regular file, so the double carries that predicate as well.
+	isFile: () => target !== currentLink,
+}) as unknown as BigIntStats
 let currentLink = ""
 
 describe("safeWriteJson lock key under a peer commit", () => {
@@ -91,7 +96,10 @@ describe("safeWriteJson lock key under a peer commit", () => {
 		// The lock key is the key every other writer to this file uses, so the caller
 		// queued behind the peer instead of failing before the lock.
 		expect(mockedAcquireFileLock).toHaveBeenCalledWith(referent)
-		expect(order).toEqual(["resolve-failed", "lstat", "resolve", "resolve", "lock", "resolve", "resolve"])
+		// The trailing lstat is safeWriteText's staging-path check on the temp file
+		// this write created: it runs after the key was resolved and the lock taken,
+		// so it does not change which lock the caller queued behind.
+		expect(order).toEqual(["resolve-failed", "lstat", "resolve", "resolve", "lock", "resolve", "resolve", "lstat"])
 		expect(JSON.parse(await fs.readFile(referent, "utf8"))).toEqual({ id: "task-1" })
 	})
 
@@ -144,7 +152,7 @@ describe("safeWriteJson lock key under a peer commit", () => {
 			if (target === file) throw enoent
 			return canonicalDir
 		})
-		mockedLstat.mockImplementation(async () => ({ isSymbolicLink: () => false }) as unknown as BigIntStats)
+		mockedLstat.mockImplementation(async () => ({ isSymbolicLink: () => false, isFile: () => true }) as unknown as BigIntStats)
 
 		expect(await resolveLockKey(file)).toBe(path.join(canonicalDir, "history_item.json"))
 	})
