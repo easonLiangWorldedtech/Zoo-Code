@@ -853,6 +853,41 @@ describe("writeToFileTool", () => {
 			)
 		})
 
+		it("reports a discard that fails on the rooignore-denial exit", async () => {
+			// The denial path discards the preview a stream left open before resetting it. When that
+			// discard throws, the user still has to learn that the preview may be holding content nobody
+			// approved - a console line is not a report - and the reset below must still run, because it is
+			// what releases the provider for the next write.
+			mockCline.diffViewProvider.isEditing = true
+			mockCline.diffViewProvider.discardUnapprovedStream.mockRejectedValue(
+				new Error("EPERM: operation not permitted"),
+			)
+			mockCline.diffViewProvider.reset.mockClear()
+			const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+			try {
+				await executeWriteFileTool({}, { accessAllowed: false })
+
+				// Counted on the exact channel instead of matched with toHaveBeenCalledWith: this exit
+				// already says "rooignore_error", so only a count of error reports naming the discarded
+				// preview proves the report happened exactly once.
+				const discardReports = mockCline.say.mock.calls.filter(
+					([type, text]: unknown[]) =>
+						type === "error" &&
+						typeof text === "string" &&
+						text.includes("could not discard the preview for the denied write"),
+				)
+				expect(discardReports).toHaveLength(1)
+				// The report carries the underlying failure so the user knows what to fix.
+				expect(discardReports[0][1]).toContain("EPERM: operation not permitted")
+				expect(mockCline.diffViewProvider.discardUnapprovedStream).toHaveBeenCalledTimes(1)
+				// A failed report must not skip the teardown below: reset is what releases the diff view.
+				expect(mockCline.diffViewProvider.reset).toHaveBeenCalledTimes(1)
+			} finally {
+				errorSpy.mockRestore()
+			}
+		})
+
 		it("removes the directories a delta adopted before resetting a denied write", async () => {
 			// The first delta only records the path; a second delta on the same path is what stabilizes
 			// it, and only then does handlePartial() create the parent directories and hand them to the
@@ -872,10 +907,14 @@ describe("writeToFileTool", () => {
 			expect(mockCline.diffViewProvider.isEditing).toBe(false)
 			mockCline.diffViewProvider.removeAdoptedDirectories.mockClear()
 			mockCline.diffViewProvider.reset.mockClear()
+			mockCline.diffViewProvider.discardUnapprovedStream.mockClear()
 
 			await executeWriteFileTool({}, { accessAllowed: false })
 
 			expect(mockCline.diffViewProvider.removeAdoptedDirectories).toHaveBeenCalledTimes(1)
+			// The discard is the session-editing branch's job: with no diff view open the tool must
+			// not call it, or it reaches past the delta that adopted the directories.
+			expect(mockCline.diffViewProvider.discardUnapprovedStream).not.toHaveBeenCalled()
 			expect(mockCline.diffViewProvider.reset).toHaveBeenCalledTimes(1)
 			// The order is the fix: after the reset the adopted list is gone, so removing after it
 			// would find nothing and leave the directories behind.
