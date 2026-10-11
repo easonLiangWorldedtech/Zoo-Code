@@ -6,6 +6,7 @@ import { JsonStreamStringify } from "json-stream-stringify"
 import {
 	resolvePublishTarget,
 	safeWriteText,
+	DaclRestoreError,
 	PublishNotDurableError,
 	type SafeWriteTextOptions,
 } from "../services/file-safety/safeWriteText"
@@ -150,11 +151,14 @@ async function safeWriteJson(filePath: string, data: any, options?: SafeWriteJso
 	} catch (originalError) {
 		console.error(`Operation failed for ${absoluteFilePath}: [Original Error Caught]`, originalError)
 
-		// PublishNotDurableError is the one failure where the commit rename DID land:
-		// the staged path was renamed onto the target, so it is no longer a leftover
-		// temp file and must never be treated as one below. Only the durability of the
-		// directory entry is unconfirmed; the content is in place.
-		if (originalError instanceof PublishNotDurableError) {
+		// PublishNotDurableError and DaclRestoreError are the failures where the commit
+		// rename DID land: the staged path was renamed onto the target, so it is no
+		// longer a leftover temp file and must never be treated as one below. For
+		// PublishNotDurableError only the durability of the directory entry is
+		// unconfirmed; for DaclRestoreError the content is committed and durable but the
+		// saved access rights could not be put back. Both rethrow, so neither can be
+		// observed as a successful save.
+		if (originalError instanceof PublishNotDurableError || originalError instanceof DaclRestoreError) {
 			actualTempNewFilePath = null
 		}
 

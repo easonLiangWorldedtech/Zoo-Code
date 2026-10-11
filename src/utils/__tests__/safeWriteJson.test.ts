@@ -5,6 +5,14 @@ import * as os from "os"
 
 import { safeWriteJson } from "../safeWriteJson"
 
+// Pass-through spy over the real publish primitive: every test keeps the real
+// behaviour, and one test can hand safeWriteJson the post-commit DaclRestoreError
+// without a real Windows DACL failure.
+vi.mock("../../services/file-safety/safeWriteText", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../services/file-safety/safeWriteText")>()
+	return { ...actual, safeWriteText: vi.fn(actual.safeWriteText) }
+})
+
 // Capture actual implementations before the vi.mock factory runs,
 // so they are never wrapped by vi.fn() — avoids infinite recursion when
 // test mockImplementation callbacks delegate to the real implementation.
@@ -133,6 +141,32 @@ describe("safeWriteJson", () => {
 			expect(await readFileContent(target)).toEqual(payload)
 		},
 	)
+
+	// Security Boundaries: a landed commit whose DACL was lost
+	test("does not treat the staged path as a leftover when the commit landed but the DACL restore failed", async () => {
+		const { safeWriteText, DaclRestoreError } = await import("../../services/file-safety/safeWriteText")
+		const target = path.join(tempDir, "restore-fail.json")
+
+		// The commit rename landed; only putting the saved DACL back failed. The consumer
+		// must classify this as a landed commit - not a failed publish whose staged file
+		// is a leftover to remove - and it must still rethrow, so no caller observes
+		// success for a publish whose DACL was not restored.
+		vi.mocked(safeWriteText).mockImplementationOnce(async () => {
+			throw new DaclRestoreError(target, null)
+		})
+
+		await expect(safeWriteJson(target, { committed: "value" })).rejects.toBeInstanceOf(DaclRestoreError)
+
+		// The staged path was consumed by the commit rename, so the catch path must not
+		// unlink it as a leftover temp file.
+		const streamCall = vi
+			.mocked(fsSyncActual.createWriteStream)
+			.mock.calls.find((call) => String(call[0]).includes(".new_"))
+		expect(streamCall).toBeDefined()
+		const stagedPath = String(streamCall![0])
+		const stagedUnlinks = vi.mocked(fs.unlink).mock.calls.filter((call) => String(call[0]) === stagedPath)
+		expect(stagedUnlinks).toHaveLength(0)
+	})
 
 	// Staging permissions
 	test.skipIf(process.platform === "win32")(
