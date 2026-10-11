@@ -99,20 +99,27 @@ export abstract class BaseTool<TName extends ToolName> {
 	}
 
 	/**
-	 * Release the state this tool holds for one task on paths that never reach
-	 * execute(). No-op for tools without per-task state; the scope is a single task
-	 * because tool instances are singletons shared by concurrent tasks.
+	 * Teardown boundary for a completed tool call that never reaches execute(): the
+	 * parse-failure catch in handle(), and presentAssistantMessage's missing-nativeArgs
+	 * guard, which emits its own tool_result and returns before handle() is reached.
+	 * No-op for tools without per-task state; the scope is a single task because tool
+	 * instances are singletons shared by concurrent tasks.
+	 *
+	 * Default: there is no per-task streaming state to release, so the generic parse
+	 * error is what the user sees. A tool that keeps per-task stream state may release
+	 * it, restore any diff document a stream opened, and report a more specific failure
+	 * through callbacks.handleError - returning true suppresses the incidental parse
+	 * error so the failure is reported exactly once. Per-task only: a global teardown
+	 * would clobber another task that is still streaming through this singleton.
+	 *
+	 * Public because that caller sits outside handle(). Its guard owns the single
+	 * tool_result a native tool call must produce, so it passes a handleError that folds
+	 * the reported failure into that result instead of pushing a second one.
 	 */
-	/**
-	 * Teardown boundary for the handle() parse-failure path, where execute() never
-	 * runs. Default: there is no per-task streaming state to release, so the generic
-	 * parse error is what the user sees. A tool that keeps per-task stream state may
-	 * release it, restore any diff document a stream opened, and report a more specific
-	 * failure - returning true suppresses the incidental parse error so the failure is
-	 * reported exactly once. Per-task only: a global teardown would clobber another task
-	 * that is still streaming through this singleton.
-	 */
-	protected async releaseStreamStateOnParseFailure(_task: Task, _callbacks: ToolCallbacks): Promise<boolean> {
+	async releaseStreamStateOnParseFailure(
+		_task: Task,
+		_callbacks: Pick<ToolCallbacks, "handleError">,
+	): Promise<boolean> {
 		return false
 	}
 

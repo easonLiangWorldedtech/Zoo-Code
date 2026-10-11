@@ -190,8 +190,19 @@ export class WriteToFileTool extends BaseTool<"write_to_file"> {
 	 * act on, so it is reported with the same "writing file" context execute()'s catch uses,
 	 * and true is returned to suppress the incidental parse error - the failure surfaces
 	 * exactly once.
+	 *
+	 * Also reached from presentAssistantMessage's missing-nativeArgs guard: that guard
+	 * emits its own tool_result and returns before handle() runs, so this teardown is
+	 * the only thing that can release the entry a stream left behind. Skip it and the
+	 * per-task entry plus its TaskAborted listener outlive the call, the retained
+	 * streamFailed mark suppresses this task's later diff previews, and a diff document
+	 * the stream opened keeps content the user never approved. That guard passes a
+	 * handleError that feeds the failure into the single tool_result it owns.
 	 */
-	protected override async releaseStreamStateOnParseFailure(task: Task, callbacks: ToolCallbacks): Promise<boolean> {
+	override async releaseStreamStateOnParseFailure(
+		task: Task,
+		callbacks: Pick<ToolCallbacks, "handleError">,
+	): Promise<boolean> {
 		const state = this.taskPartialStreamState.get(this.getPartialStreamFailureKey(task))
 		if (!state) {
 			return false

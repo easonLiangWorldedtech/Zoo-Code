@@ -563,12 +563,33 @@ async function presentAssistantMessageBlock(cline: Task): Promise<void> {
 						// Best-effort only
 					}
 
+					// This guard returns before tool.handle(), so handle()'s parse-failure teardown
+					// never runs on the malformed-completion path: the per-task stream entry and its
+					// TaskAborted listener would outlive the call, a retained streamFailed mark would
+					// suppress this task's later diff previews, and a diff document the stream opened
+					// would keep content the user never approved. Release this task's state before
+					// emitting the result. The guard owns the single tool_result a native tool call
+					// must produce, so the tool's handleError folds the failure it reports into that
+					// one result instead of pushing a second one.
+					const abandonedStreamFailure: { report?: string } = {}
+					if (block.name === "write_to_file") {
+						await writeToFileTool.releaseStreamStateOnParseFailure(cline, {
+							handleError: async (action, error) => {
+								await cline.say(
+									"error",
+									`Error ${action}:\n${error.message ?? JSON.stringify(serializeError(error), null, 2)}`,
+								)
+								abandonedStreamFailure.report = `Error ${action}: ${JSON.stringify(serializeError(error))}`
+							},
+						})
+					}
+
 					// Push tool_result directly without setting didAlreadyUseTool so streaming can
 					// continue gracefully.
 					cline.pushToolResultToUserContent({
 						type: "tool_result",
 						tool_use_id: sanitizeToolUseId(toolCallId),
-						content: formatResponse.toolError(errorMessage),
+						content: formatResponse.toolError(abandonedStreamFailure.report ?? errorMessage),
 						is_error: true,
 					})
 
