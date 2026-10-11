@@ -25,7 +25,11 @@ vi.mock("fs/promises", () => ({
 
 vi.mock("path", async () => {
 	const originalPath = await vi.importActual("path")
-	return {
+	// The default import must be the mocked object too: the tools read path through
+	// `import path from "path"`, and spreading originalPath alone left the default
+	// import on the REAL module - production then resolved against the runner's cwd
+	// (drive-dependent on Windows) instead of the mocked resolve.
+	const mocked = {
 		...originalPath,
 		resolve: vi.fn().mockImplementation((...args) => {
 			const separator = process.platform === "win32" ? "\\" : "/"
@@ -36,6 +40,7 @@ vi.mock("path", async () => {
 			return to
 		}),
 	}
+	return { ...mocked, default: mocked }
 })
 
 vi.mock("delay", () => ({
