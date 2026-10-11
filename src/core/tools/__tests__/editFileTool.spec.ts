@@ -4,6 +4,7 @@ import fs from "fs/promises"
 import type { MockedFunction } from "vitest"
 
 import { fileExistsAtPath } from "../../../utils/fs"
+import { ObservationRegistry } from "../../task/observationRegistry"
 import { isPathOutsideWorkspace } from "../../../utils/pathUtils"
 import { getReadablePath } from "../../../utils/path"
 import { ToolUse, ToolResponse, AskApproval, HandleError, PushToolResult } from "../../../shared/tools"
@@ -12,6 +13,13 @@ import { editFileTool } from "../EditFileTool"
 vi.mock("fs/promises", () => ({
 	default: {
 		readFile: vi.fn().mockResolvedValue(""),
+		stat: vi.fn().mockResolvedValue({
+			dev: 7n,
+			ino: 4242n,
+			size: 1234n,
+			mtimeNs: 1700000000123456789n,
+			ctimeNs: 1700000000789999999n,
+		}),
 	},
 }))
 
@@ -145,6 +153,9 @@ describe("editFileTool", () => {
 		mockTask.fileContextTracker = {
 			trackFileContext: vi.fn().mockResolvedValue(undefined),
 		}
+		// Real registry: the regression test asserts which version token the tool's own
+		// read leaves behind, so a stub would only restate the call.
+		mockTask.observationRegistry = new ObservationRegistry()
 		mockTask.say = vi.fn().mockResolvedValue(undefined)
 		mockTask.ask = vi.fn().mockResolvedValue(undefined)
 		mockTask.recordToolError = vi.fn()
@@ -714,6 +725,30 @@ describe("editFileTool", () => {
 			)
 			expect(mockTask.diffViewProvider.saveChanges).not.toHaveBeenCalled()
 			expect(mockTask.didEditFile).toBe(true)
+			expect(result).toContain("Tool result message")
+			expect(mockHandleError).not.toHaveBeenCalled()
+		})
+
+		it("records the version its own read saw so the guarded edit is authorized", async () => {
+			// No prior read_file observation exists for this path. The tool's own read
+			// must leave the observation that authorizes saveDirectly("edit"), or the
+			// guarded publish rejects with "File not read yet".
+			const result = await executeEditFileTool(
+				{ old_string: "Line 2", new_string: "Modified Line 2" },
+				{ fileExists: true, fileContent: "Line 1\nLine 2\nLine 3", experiments: focusDisruption },
+			)
+
+			expect(mockTask.observationRegistry.get(absoluteFilePath)?.version).toBe(
+				"7:4242:1234:1700000000123456789:1700000000789999999",
+			)
+			expect(mockTask.diffViewProvider.saveDirectly).toHaveBeenCalledWith(
+				testFilePath,
+				"Line 1\nModified Line 2\nLine 3",
+				false,
+				true,
+				1000,
+				"edit",
+			)
 			expect(result).toContain("Tool result message")
 			expect(mockHandleError).not.toHaveBeenCalled()
 		})

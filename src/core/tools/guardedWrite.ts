@@ -164,8 +164,9 @@ export async function createIfAbsent(absolutePath: string, content: string): Pro
 			// this check and the publish. A writer that does NOT honor the advisory lock can
 			// still create the file while the staged copy is being written and fsynced, so
 			// absence is re-asserted inside safeWriteText immediately before the commit
-			// rename: the window then covers only that syscall, and the race surfaces as a
-			// rejected write instead of silently clobbering whoever created the file.
+			// rename: the window then covers only that syscall, and a file that appears
+			// before verification rejects the write instead of being silently clobbered;
+			// one that appears after verification returns can still be overwritten.
 			await safeWriteText(absolutePath, content, {
 				preCommitVerify: async (targetPath) => {
 					try {

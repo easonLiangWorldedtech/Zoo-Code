@@ -117,6 +117,53 @@ describe("safeWriteText", () => {
 			// no unlink of temp (it's now the committed file; DACL skipped via platform:linux)
 			expect(fs.unlink).not.toHaveBeenCalled()
 		})
+
+		it("removes the staging directory after the commit lands", async () => {
+			const targetPath = "/tmp/test-dir/target.txt"
+			vi.mocked(fs.realpath).mockResolvedValue(targetPath)
+			vi.mocked(fsSync.openSync).mockReturnValue(1)
+
+			await safeWriteText(targetPath, "data", { platform: "linux" })
+
+			// The directory only exists to hold this write's temp file, so a successful publish
+			// must not leave it behind in the user's workspace.
+			expect(fs.rmdir).toHaveBeenCalledWith(expect.stringContaining(".file-safety-staging"))
+		})
+
+		it("re-creates the staging directory when a concurrent write removes it mid-write", async () => {
+			const targetPath = "/tmp/test-dir/target.txt"
+			vi.mocked(fs.realpath).mockResolvedValue(targetPath)
+			vi.mocked(fsSync.openSync)
+				.mockImplementationOnce(() => {
+					// Another writer committed and rmdir'd the shared staging directory
+					// between _stagingDir() and this open.
+					throw Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" })
+				})
+				.mockReturnValue(1)
+
+			await safeWriteText(targetPath, "data", { platform: "linux" })
+
+			// Once for the original staging call, once for the recovery.
+			expect(fsSync.mkdirSync).toHaveBeenCalledTimes(2)
+			expect(fs.rename).toHaveBeenCalledWith(expect.stringContaining("safeWriteText_"), targetPath)
+		})
+
+		it("gives up after one recovery when the staging open keeps failing with ENOENT", async () => {
+			const targetPath = "/tmp/test-dir/target.txt"
+			vi.mocked(fs.realpath).mockResolvedValue(targetPath)
+			const enoent = Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" })
+			vi.mocked(fsSync.openSync).mockImplementation(() => {
+				throw enoent
+			})
+
+			await expect(safeWriteText(targetPath, "data", { platform: "linux" })).rejects.toBe(enoent)
+
+			// One staging create plus one recovery attempt, then the error surfaces
+			// instead of looping.
+			expect(fsSync.mkdirSync).toHaveBeenCalledTimes(2)
+			expect(fsSync.openSync).toHaveBeenCalledTimes(2)
+			expect(fs.rename).not.toHaveBeenCalled()
+		})
 	})
 
 	// ── Test 2: fsync ordering ───────────────────────────────────────────────
@@ -289,6 +336,12 @@ describe("safeWriteText", () => {
 				return String(call[0]).includes("safeWriteText.bak_") && call[1] === "r+"
 			})
 			expect(backupOpen).toBeDefined()
+			// The writable open must come after the chmod: an open taken before it would
+			// fsync the copy while copyFile's chosen mode is still on the file.
+			const backupOpenOrder = vi.mocked(fsSync.openSync).mock.invocationCallOrder[
+				vi.mocked(fsSync.openSync).mock.calls.indexOf(backupOpen!)
+			]
+			expect(backupOpenOrder).toBeGreaterThan(vi.mocked(fs.chmod).mock.invocationCallOrder[0])
 		})
 
 		it("a failed commit leaves the pre-write content at the target and drops the backup copy", async () => {
@@ -474,53 +527,6 @@ describe("safeWriteText", () => {
 
 			// a caller-supplied tempPath must not create the staging directory
 			expect(fsSync.mkdirSync).not.toHaveBeenCalled()
-		})
-
-		it("removes the staging directory after the commit lands", async () => {
-			const targetPath = "/tmp/test-dir/target.txt"
-			vi.mocked(fs.realpath).mockResolvedValue(targetPath)
-			vi.mocked(fsSync.openSync).mockReturnValue(1)
-
-			await safeWriteText(targetPath, "data", { platform: "linux" })
-
-			// The directory only exists to hold this write's temp file, so a successful publish
-			// must not leave it behind in the user's workspace.
-			expect(fs.rmdir).toHaveBeenCalledWith(expect.stringContaining(".file-safety-staging"))
-		})
-
-		it("re-creates the staging directory when a concurrent write removes it mid-write", async () => {
-			const targetPath = "/tmp/test-dir/target.txt"
-			vi.mocked(fs.realpath).mockResolvedValue(targetPath)
-			vi.mocked(fsSync.openSync)
-				.mockImplementationOnce(() => {
-					// Another writer committed and rmdir'd the shared staging directory
-					// between _stagingDir() and this open.
-					throw Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" })
-				})
-				.mockReturnValue(1)
-
-			await safeWriteText(targetPath, "data", { platform: "linux" })
-
-			// Once for the original staging call, once for the recovery.
-			expect(fsSync.mkdirSync).toHaveBeenCalledTimes(2)
-			expect(fs.rename).toHaveBeenCalledWith(expect.stringContaining("safeWriteText_"), targetPath)
-		})
-
-		it("gives up after one recovery when the staging open keeps failing with ENOENT", async () => {
-			const targetPath = "/tmp/test-dir/target.txt"
-			vi.mocked(fs.realpath).mockResolvedValue(targetPath)
-			const enoent = Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" })
-			vi.mocked(fsSync.openSync).mockImplementation(() => {
-				throw enoent
-			})
-
-			await expect(safeWriteText(targetPath, "data", { platform: "linux" })).rejects.toBe(enoent)
-
-			// One staging create plus one recovery attempt, then the error surfaces
-			// instead of looping.
-			expect(fsSync.mkdirSync).toHaveBeenCalledTimes(2)
-			expect(fsSync.openSync).toHaveBeenCalledTimes(2)
-			expect(fs.rename).not.toHaveBeenCalled()
 		})
 
 		it("applies the existing target's mode to a caller-supplied tempPath before publishing", async () => {

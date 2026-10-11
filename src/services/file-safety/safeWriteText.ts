@@ -50,9 +50,11 @@ export interface SafeWriteTextOptions {
 	 * This is not an atomic compare-and-swap. No portable rename primitive compares the
 	 * on-disk CONTENT against an expectation, so a writer that neither takes the advisory
 	 * lock nor goes through this path can still change the file inside that last window.
-	 * The guard narrows the window and turns a silent lost update into a rejected write;
-	 * full atomicity would need a content-addressed publish (or a lock every writer in
-	 * the ecosystem honors), which this layer cannot enforce from outside.
+	 * The guard narrows the window: a change detected during verification rejects the
+	 * write instead of being silently lost, but a change that lands after verification
+	 * returns and before the rename can still be overwritten. Full atomicity would need
+	 * a content-addressed publish (or a lock every writer in the ecosystem honors),
+	 * which this layer cannot enforce from outside.
 	 */
 	preCommitVerify?: (targetPath: string) => Promise<void>
 }

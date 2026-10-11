@@ -4,6 +4,7 @@ import path from "path"
 import { type ClineSayTool, DEFAULT_WRITE_DELAY_MS } from "@roo-code/types"
 
 import { getReadablePath } from "../../utils/path"
+import { versionTokenOfStat } from "../../utils/versionToken"
 import { isPathOutsideWorkspace } from "../../utils/pathUtils"
 import { Task } from "../task/Task"
 import { formatResponse } from "../prompts/responses"
@@ -231,10 +232,23 @@ export class EditFileTool extends BaseTool<"edit_file"> {
 			// Read file or determine if creating new
 			if (fileExists) {
 				try {
+					// The guarded saveDirectly below authorizes the publish against the version
+					// this read saw, and the focus-disruption path has no diff view that could
+					// observe the file. Same contract as ApplyDiffTool/ApplyPatchTool: stat around
+					// the read and observe only when the file did not change underneath it. Without
+					// it the saveDirectly("edit") below rejects with "File not read yet".
+					const preReadStats = await fs.stat(absolutePath, { bigint: true }).catch(() => undefined)
 					currentContent = await fs.readFile(absolutePath, "utf8")
+					const postReadStats = await fs.stat(absolutePath, { bigint: true }).catch(() => undefined)
 					originalEol = detectLineEnding(currentContent)
 					// Normalize line endings to LF for matching
 					currentContentLF = normalizeToLF(currentContent)
+					if (preReadStats && postReadStats) {
+						const preReadToken = versionTokenOfStat(preReadStats)
+						if (preReadToken === versionTokenOfStat(postReadStats)) {
+							task.observationRegistry.observe(absolutePath, preReadToken)
+						}
+					}
 				} catch (error) {
 					task.consecutiveMistakeCount++
 					task.didToolFailInCurrentTurn = true
