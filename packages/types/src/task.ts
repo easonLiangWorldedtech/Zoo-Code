@@ -116,6 +116,8 @@ export interface TaskLike {
 	readonly rootTaskId?: string
 	readonly parentTaskId?: string
 	readonly childTaskId?: string
+	/** Nesting level; root = 0, child = parent.depth + 1. */
+	readonly depth: number
 	readonly metadata: TaskMetadata
 	readonly taskStatus: TaskStatus
 	readonly taskAsk: ClineMessage | undefined
