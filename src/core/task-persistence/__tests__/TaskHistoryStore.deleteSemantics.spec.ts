@@ -165,6 +165,8 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			// contradicted by the next reconciliation.
 			const attempt = operation === "delete" ? store.delete(history.id) : store.deleteMany([history.id])
 			await expect(attempt).rejects.toThrow(TaskHistoryDeleteError)
+			// An item whose file is still on disk stays in the cache: the delete did not finish.
+			expect(store.get(history.id)?.id).toBe(history.id)
 			expect(JSON.parse(await fs.readFile(filePath, "utf8"))).toEqual(history)
 			expect(JSON.parse(await fs.readFile(backup, "utf8"))).toEqual(history)
 		},
@@ -223,6 +225,151 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			expect(cache.has("lock-fail")).toBe(hadCache)
 			expect(taskFileMtimes.has("lock-fail")).toBe(hadMtime)
 			expect(store.get("lock-fail")).toBeDefined()
+			expect(onWrite).not.toHaveBeenCalled()
+		})
+
+		it("names the directory-read stage when the sweep's readdir fails under the lock", async () => {
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "readdir-fail" }))
+			onWrite.mockClear()
+
+			const internals = storeInternals(store)
+			const hadCache = internals.cache.has("readdir-fail")
+			const hadMtime = internals.taskFileMtimes.has("readdir-fail")
+			// The lock itself succeeds here: only the sweep's directory read fails.
+			const readdirSpy = vi
+				.spyOn(fs, "readdir")
+				.mockRejectedValueOnce(
+					Object.assign(new Error("EACCES: permission denied, scandir"), { code: "EACCES" }),
+				)
+			let rejection: unknown
+			try {
+				rejection = await store.delete("readdir-fail").catch((error: unknown) => error)
+			} finally {
+				readdirSpy.mockRestore()
+			}
+
+			expect(rejection).toBeInstanceOf(TaskHistoryDeleteError)
+			// The stage that failed is the directory read. Calling it a lock failure would send the
+			// reader looking for a lock that was held the whole time.
+			expect(String((rejection as TaskHistoryDeleteError).reason)).toContain(
+				"the containing directory could not be read (EACCES)",
+			)
+			await expect(fs.access(historyFilePath(storagePath, "readdir-fail"))).resolves.toBeUndefined()
+			const after = storeInternals(store)
+			expect(after.cache.has("readdir-fail")).toBe(hadCache)
+			expect(after.taskFileMtimes.has("readdir-fail")).toBe(hadMtime)
+			expect(store.get("readdir-fail")).toBeDefined()
+			expect(onWrite).not.toHaveBeenCalled()
+		})
+
+		it("keeps the item when the lock fails, the named path is absent, and a recovery leftover remains", async () => {
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "leftover-after-lock-fail" }))
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "leftover-after-lock-fail")
+			const taskDir = path.dirname(taskPath)
+			// A .bak_ sibling is the kind recoverInterruptedReplacement restores when the canonical
+			// path is missing (jsonFileRecovery.ts:169-172), so this is the leftover that can bring the
+			// task back after the delete claimed it was finished.
+			const leftover = "." + GlobalFileNames.historyItem + ".bak_1_saved.tmp"
+			await actualFs.writeFile(path.join(taskDir, leftover), "{}")
+			const internals = storeInternals(store)
+			const hadCache = internals.cache.has("leftover-after-lock-fail")
+			const lstatSpy = vi.spyOn(fs, "lstat").mockImplementation(async (p: unknown) => {
+				if (String(p) === taskPath) {
+					throw Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" })
+				}
+				return await actualFs.lstat(String(p))
+			})
+			vi.mocked(withFileLock).mockRejectedValueOnce(
+				Object.assign(new Error("EEXIST: file already exists, mkdir"), { code: "EEXIST" }),
+			)
+			let rejection: unknown
+			try {
+				rejection = await store.delete("leftover-after-lock-fail").catch((error: unknown) => error)
+			} finally {
+				lstatSpy.mockRestore()
+			}
+
+			expect(rejection).toBeInstanceOf(TaskHistoryDeleteError)
+			expect(String((rejection as TaskHistoryDeleteError).reason)).toContain("can still be recovered")
+			expect(storeInternals(store).cache.has("leftover-after-lock-fail")).toBe(hadCache)
+			expect(store.get("leftover-after-lock-fail")).toBeDefined()
+			await expect(actualFs.access(path.join(taskDir, leftover))).resolves.toBeUndefined()
+		})
+
+		it("keeps the item when the scan is empty but a live lock still stands", async () => {
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "live-lock-empty-scan" }))
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "live-lock-empty-scan")
+			const internals = storeInternals(store)
+			const hadCache = internals.cache.has("live-lock-empty-scan")
+			// A writer that holds the lock and has not staged anything yet leaves the named path
+			// absent and the directory free of siblings, so an empty scan proves nothing about it.
+			const lockKey = await canonicalKey(taskPath)
+			await actualFs.writeFile(lockKey + ".lock", "")
+			const lstatSpy = vi.spyOn(fs, "lstat").mockImplementation(async (p: unknown) => {
+				if (String(p) === taskPath) {
+					throw Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" })
+				}
+				return await actualFs.lstat(String(p))
+			})
+			vi.mocked(withFileLock).mockRejectedValueOnce(
+				Object.assign(new Error("EEXIST: file already exists, mkdir"), { code: "EEXIST" }),
+			)
+			let rejection: unknown
+			try {
+				rejection = await store.delete("live-lock-empty-scan").catch((error: unknown) => error)
+			} finally {
+				lstatSpy.mockRestore()
+				await actualFs.rm(lockKey + ".lock", { force: true })
+			}
+			expect(rejection).toBeInstanceOf(TaskHistoryDeleteError)
+			expect(String((rejection as TaskHistoryDeleteError).reason)).toContain("a writer may still hold the lock")
+			expect(storeInternals(store).cache.has("live-lock-empty-scan")).toBe(hadCache)
+			expect(store.get("live-lock-empty-scan")).toBeDefined()
+			expect(onWrite).not.toHaveBeenCalled()
+		})
+
+		it("reports failure when the file comes back after the lock failed", async () => {
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "came-back" }))
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "came-back")
+			const internals = storeInternals(store)
+			const hadCache = internals.cache.has("came-back")
+			// A writer can publish and release the lock between the missing-file lstat and the scan,
+			// so the file is back by the time the verdict would be reported: the first lstat sees it
+			// absent and every later check sees the published file.
+			let firstLstat = true
+			const lstatSpy = vi.spyOn(fs, "lstat").mockImplementation(async (p: unknown) => {
+				if (String(p) === taskPath && firstLstat) {
+					firstLstat = false
+					throw Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" })
+				}
+				return await actualFs.lstat(String(p))
+			})
+			vi.mocked(withFileLock).mockRejectedValueOnce(
+				Object.assign(new Error("EEXIST: file already exists, mkdir"), { code: "EEXIST" }),
+			)
+			let rejection: unknown
+			try {
+				rejection = await store.delete("came-back").catch((error: unknown) => error)
+			} finally {
+				lstatSpy.mockRestore()
+			}
+			expect(rejection).toBeInstanceOf(TaskHistoryDeleteError)
+			expect(String((rejection as TaskHistoryDeleteError).reason)).toContain(
+				"the file came back after the lock failed",
+			)
+			expect(storeInternals(store).cache.has("came-back")).toBe(hadCache)
+			expect(store.get("came-back")).toBeDefined()
 			expect(onWrite).not.toHaveBeenCalled()
 		})
 

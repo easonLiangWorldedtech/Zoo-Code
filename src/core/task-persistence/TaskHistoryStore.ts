@@ -111,10 +111,13 @@ function errorCode(error: unknown): string | undefined {
 /**
  * What the locked removal observed. "blocked" is the resurrection guard firing: a leftover
  * sibling of this task file could not be removed, so the canonical file was kept.
+ * "enumeration-failed" is the sweep's own read failing: the lock was held, so the stage that
+ * failed is the directory read, not the lock, and neither the sweep nor the unlink ran.
  */
 type TaskFileRemoval =
 	| { outcome: "removed" | "absent" }
 	| { outcome: "blocked"; blockedOn: string; error: unknown }
+	| { outcome: "enumeration-failed"; error: unknown }
 	| { outcome: "failed"; error: unknown }
 
 export class TaskHistoryStore {
@@ -404,9 +407,10 @@ export class TaskHistoryStore {
 	 * Only the unlink's own ENOENT counts as gone: the file was there to delete and is not there
 	 * now. Every other failure means the file may still exist and the item must stay in the store
 	 * - a lock-key that cannot be resolved, a lock that could not be taken (proper-lockfile
-	 * reports ENOENT for a missing key), a lock timeout, or any non-ENOENT unlink error. Those
-	 * three stages reach the caller with a reason naming the stage, because "ENOENT" on its own
-	 * does not say which of them happened, and a store that evicts an item whose file survived
+	 * reports ENOENT for a missing key), a lock timeout, a containing-directory read that failed
+	 * while the lock was held, or any non-ENOENT unlink error. Those stages reach the caller with a
+	 * reason naming the stage, because "ENOENT" on its own does not say which of them happened, and
+	 * a store that evicts an item whose file survived
 	 * reports a deletion the next reconciliation contradicts. The one stage where an ENOENT may
 	 * still close the deletion is a lock that could not be taken at all: there the verdict comes
 	 * from an lstat of the named path, not from the lock's errno, so a file that reports itself
@@ -454,7 +458,10 @@ export class TaskHistoryStore {
 						// nothing left that a later reader could resurrect.
 						return { outcome: "absent" }
 					}
-					throw readdirError
+					// Returned, not thrown: withFileLock rethrows an operation error unchanged, so a
+					// throw here would land in the lock catch and be reported as a lock failure even though
+					// the lock was taken and the stage that failed is the directory read.
+					return { outcome: "enumeration-failed", error: readdirError }
 				}
 				for (const entry of entries) {
 					if (!isReplacementLeftover(absoluteFilePath, entry)) {
@@ -488,7 +495,7 @@ export class TaskHistoryStore {
 			// and when the key is an alias whose referent is missing (the named file may still be
 			// right there). Ask the named path itself rather than read the lock's errno as a
 			// report about the file.
-			return await this._verdictAfterLockFailure(filePath, lockError)
+			return await this._verdictAfterLockFailure(filePath, lockKey, lockError)
 		}
 
 		if (removal.outcome === "blocked") {
@@ -502,6 +509,16 @@ export class TaskHistoryStore {
 					" from an interrupted write could not be removed (" +
 					(errorCode(removal.error) ?? "unknown error") +
 					")",
+				cause: removal.error,
+			}
+		}
+		if (removal.outcome === "enumeration-failed") {
+			// The lock was held and the containing directory could not be read, so neither the leftover
+			// sweep nor the unlink ran. Nothing here says the file is gone: the stage that failed is the
+			// read, and the item has to stay with the file.
+			return {
+				deleted: false,
+				reason: `the containing directory could not be read (${errorCode(removal.error) ?? "unknown error"})`,
 				cause: removal.error,
 			}
 		}
@@ -525,6 +542,7 @@ export class TaskHistoryStore {
 	 */
 	private async _verdictAfterLockFailure(
 		filePath: string,
+		lockKey: string,
 		lockError: unknown,
 	): Promise<{ deleted: boolean; reason?: string; cause?: unknown }> {
 		const lockReason = `the per-file lock could not be taken (${errorCode(lockError) ?? "unknown error"})`
@@ -532,7 +550,73 @@ export class TaskHistoryStore {
 			await fs.lstat(filePath)
 		} catch (statError: unknown) {
 			if (errorCode(statError) === "ENOENT") {
-				// The named path is absent: there was nothing to delete, whatever the lock did.
+				// The named path is absent: there was nothing to delete, whatever the lock did. That closes
+				// the deletion only when nothing a later reader could resurrect is left beside it: the
+				// replacement temps live beside the file, and this path never held the lock, so the sweep
+				// that runs under the lock did not run here.
+				// A writer that still holds the lock has not published yet: it may not have staged anything,
+				// so the named path is absent and the directory scan below is empty. An empty scan cannot
+				// settle the deletion while that lock is still live.
+				try {
+					const lockStat = await fs.stat(lockKey + ".lock")
+					if (Date.now() - lockStat.mtimeMs < LOCK_STALE_MS) {
+						return {
+							deleted: false,
+							reason: `${lockReason}; a writer may still hold the lock`,
+							cause: lockError,
+						}
+					}
+				} catch (lockStatError: unknown) {
+					if (errorCode(lockStatError) !== "ENOENT") {
+						return {
+							deleted: false,
+							reason: `${lockReason}; the lock file could not be checked (${errorCode(lockStatError) ?? "unknown error"})`,
+							cause: lockStatError,
+						}
+					}
+				}
+				const containingDir = path.dirname(filePath)
+				let entries: string[]
+				try {
+					entries = await fs.readdir(containingDir)
+				} catch (readError: unknown) {
+					if (errorCode(readError) === "ENOENT") {
+						// Neither the file nor any sibling of it can exist: the directory is gone.
+						return { deleted: true }
+					}
+					return {
+						deleted: false,
+						reason: `${lockReason}; the containing directory could not be read (${errorCode(readError) ?? "unknown error"})`,
+						cause: readError,
+					}
+				}
+				const leftover = entries.find((entry) => isReplacementLeftover(filePath, entry))
+				if (leftover) {
+					return {
+						deleted: false,
+						reason: `${lockReason}; a leftover ${leftover} from an interrupted write can still be recovered`,
+						cause: lockError,
+					}
+				}
+				// Last check, because this verdict was reached on a path that never held the lock: a
+				// writer can publish and release the lock between the lstat above and the scan. The
+				// named path must still be absent before the caller is told the deletion is done.
+				try {
+					await fs.lstat(filePath)
+					return {
+						deleted: false,
+						reason: `${lockReason}; the file came back after the lock failed`,
+						cause: lockError,
+					}
+				} catch (recheckError: unknown) {
+					if (errorCode(recheckError) !== "ENOENT") {
+						return {
+							deleted: false,
+							reason: `${lockReason}; the named path could not be checked (${errorCode(recheckError) ?? "unknown error"})`,
+							cause: recheckError,
+						}
+					}
+				}
 				return { deleted: true }
 			}
 			return {

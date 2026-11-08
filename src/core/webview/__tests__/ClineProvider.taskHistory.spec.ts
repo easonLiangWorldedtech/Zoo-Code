@@ -30,6 +30,10 @@ vi.mock("fs/promises", () => ({
 	// The delete paths compute the lock key a writer would use, which walks the publish
 	// target through lstat/readlink/realpath. Without these the walk dies on a missing
 	// export and the deletion is reported as failed.
+	// The lock-failure verdict asks whether a writer still holds <key>.lock before it reports a stage.
+	// No lock file in this fixture: the honest double is ENOENT, which lets the verdict ladder walk
+	// on to the leftover scan and the reappearance re-check instead of dying on a missing export.
+	stat: vi.fn().mockRejectedValue(Object.assign(new Error("ENOENT: no such file"), { code: "ENOENT" })),
 	lstat: vi.fn().mockRejectedValue(Object.assign(new Error("ENOENT: no such file"), { code: "ENOENT" })),
 	readlink: vi.fn().mockRejectedValue(Object.assign(new Error("ENOENT: not a symlink"), { code: "ENOENT" })),
 	realpath: vi.fn(async (p: string) => p),
