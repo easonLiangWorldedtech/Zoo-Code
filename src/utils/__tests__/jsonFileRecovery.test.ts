@@ -4,7 +4,7 @@ import * as path from "path"
 
 import { acquireFileLock } from "../fileLock"
 import { setPersistenceTraceSink } from "../../core/task-persistence/persistenceTrace"
-import { deleteJsonFile, recoverMissingJsonFile } from "../jsonFileRecovery"
+import { recoverInterruptedReplacement, deleteJsonFile, recoverMissingJsonFile } from "../jsonFileRecovery"
 import { readFileWithMissingRetry } from "../../core/task-persistence/readFileWithMissingRetry"
 
 vi.mock("fs/promises", async () => {
@@ -55,6 +55,57 @@ describe("reader recovery", () => {
 		await recoverMissingJsonFile(target)
 		expect(JSON.parse(await fs.readFile(target, "utf8"))).toEqual({ newest: true })
 		await expect(fs.readFile(backup)).rejects.toMatchObject({ code: "ENOENT" })
+	})
+
+	// The recency choice is `sort((a, b) => b.mtimeMs - a.mtimeMs)` followed by renaming
+	// the head of that list. mtime is the only signal recovery has, so an exact tie says
+	// nothing about which backup holds the committed content - the winner would be readdir
+	// order, and the loser is unlinked. The tie is set with utimes rather than raced
+	// against the clock, so the row does not depend on how fast two writes land; the
+	// second row is the control that keeps this from being a test which merely asserts
+	// "two backups means reject".
+	it("refuses an exact mtime tie between two backups instead of picking by directory order", async () => {
+		const otherBackup = path.join(dir, ".history_item.json.bak_2_other.tmp")
+		await fs.writeFile(otherBackup, JSON.stringify({ other: true }))
+		const shared = new Date(1_700_000_000_000)
+		await fs.utimes(backup, shared, shared)
+		await fs.utimes(otherBackup, shared, shared)
+
+		const error = await recoverInterruptedReplacement(target).then(
+			() => undefined,
+			(reason: unknown) => reason,
+		)
+		expect(error).toMatchObject({
+			name: "AmbiguousBackupRecencyError",
+			code: "AMBIGUOUS_BACKUP_RECENCY",
+			mtimeMs: 1_700_000_000_000,
+		})
+		// The diagnostic has to name the magnitude it refused to guess about.
+		expect(String((error as Error).message)).toContain("share mtime 1700000000000")
+
+		// Fail closed: nothing restored, nothing deleted, so both copies survive for a
+		// human to read.
+		await expect(fs.access(target)).rejects.toMatchObject({ code: "ENOENT" })
+		expect(JSON.parse(await fs.readFile(backup, "utf8"))).toEqual({ committed: true })
+		expect(JSON.parse(await fs.readFile(otherBackup, "utf8"))).toEqual({ other: true })
+	})
+
+	it("restores the newer backup when two backups have different mtimes", async () => {
+		const otherBackup = path.join(dir, ".history_item.json.bak_2_other.tmp")
+		await fs.writeFile(otherBackup, JSON.stringify({ other: true }))
+		const older = new Date(1_700_000_000_000)
+		const newer = new Date(1_700_000_000_001)
+		await fs.utimes(otherBackup, older, older)
+		await fs.utimes(backup, newer, newer)
+
+		const recovery = await recoverInterruptedReplacement(target)
+
+		expect(recovery.foundLeftovers).toBe(true)
+		expect(recovery.restoredFrom).toBe(backup)
+		expect(JSON.parse(await fs.readFile(target, "utf8"))).toEqual({ committed: true })
+		// The loser of a decided race is still garbage-collected, which is the contract the
+		// tie row must not break.
+		await expect(fs.access(otherBackup)).rejects.toMatchObject({ code: "ENOENT" })
 	})
 
 	it("traces reader restoration and lock waiting", async () => {
