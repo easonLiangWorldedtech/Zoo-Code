@@ -7,10 +7,16 @@ import { getErrorCode } from "../../utils/errorCode"
 
 export interface SafeWriteTextOptions {
 	/**
-	 * When true, preserve the old-file semantics: rename target -> backup first,
-	 * after commit rename delete the backup; on failure roll the backup back to
-	 * the target path.  When false (default) the atomic rename simply replaces
-	 * the target -- crash-safe window is zero.
+	 *
+	 * When true, keep a durable copy of the previous content at a sibling
+	 * safeWriteText.bak_* file for the duration of the write: the target is copied
+	 * before the commit rename and the copy is removed after it. The copy is never
+	 * a rollback source - nothing is restored on failure, because the copy never
+	 * displaced the target: before the commit the target still holds its previous
+	 * content, and after it the target holds the new content and this call removes
+	 * the copy, reporting it as OrphanedBackupAfterFailedWriteError if the removal
+	 * itself fails. When false (default) the atomic rename simply replaces the
+	 * target -- crash-safe window is zero.
 	 */
 	backup?: boolean
 
@@ -216,6 +222,10 @@ export class PostCommitDurabilityError extends Error {
  * replace it with a file that inherits different rights. On Windows the publish is refused before
  * anything is committed: a save that silently widened who can read the file is not a save the
  * caller can trust, and nothing has been published yet, so the target still holds its content.
+ * causeError carries the platform failure behind the refusal - the access check
+ * error or the icacls error - so a caller can tell a command that ran and refused
+ * from one that could not be started at all; it is the runner's own error, not a
+ * summary of it.
  */
 export class DaclInspectionError extends Error {
 	constructor(
