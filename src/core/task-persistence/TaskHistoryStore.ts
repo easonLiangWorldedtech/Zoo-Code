@@ -111,11 +111,14 @@ function errorCode(error: unknown): string | undefined {
 /**
  * What the locked removal observed. "blocked" is the resurrection guard firing: a leftover
  * sibling of this task file could not be removed, so the canonical file was kept.
+ * "retargeted" is the identity check firing: the name now resolves onto a different lock key
+ * key than the one this call holds, so the file belongs to another writer's lock and this
+ * removal touched nothing.
  * "enumeration-failed" is the sweep's own read failing: the lock was held, so the stage that
  * failed is the directory read, not the lock, and neither the sweep nor the unlink ran.
  */
 type TaskFileRemoval =
-	| { outcome: "removed" | "absent" }
+	| { outcome: "removed" | "absent" | "retargeted" }
 	| { outcome: "blocked"; blockedOn: string; error: unknown }
 	| { outcome: "enumeration-failed"; error: unknown }
 	| { outcome: "failed"; error: unknown }
@@ -456,6 +459,15 @@ export class TaskHistoryStore {
 		let removal: TaskFileRemoval
 		try {
 			removal = await withFileLock(lockKey, async (absoluteFilePath) => {
+				// The key was computed before this call waited. A referent move in the meantime means the
+				// lock being held keys a location a writer has already moved away from: the sweep below
+				// would read one directory and the unlink would remove a name whose publish target another
+				// lock now covers. Re-derive the key from the name this removal was asked to remove and
+				// refuse when it no longer matches, the way the guarded writes refuse the same window
+				// (src/core/tools/guardedWrite.ts:215-220), rather than removing beside it.
+				if ((await resolveLockKey(filePath)) !== lockKey) {
+					return { outcome: "retargeted" }
+				}
 				const containingDir = path.dirname(absoluteFilePath)
 				// Sweep the interrupted-write siblings before the canonical file, in the order
 				// jsonFileRecovery.deleteJsonFile uses. A leftover backup this sweep cannot remove
@@ -511,6 +523,15 @@ export class TaskHistoryStore {
 			return await this._verdictAfterLockFailure(filePath, lockKey, lockError)
 		}
 
+		if (removal.outcome === "retargeted") {
+			// The name resolved onto a different key while the lock was being taken, so this call held the
+			// wrong lock and left the file alone. Reporting a deletion here would evict an item whose
+			// file another writer is publishing onto right now.
+			return {
+				deleted: false,
+				reason: "the path resolved to a different lock key while this removal waited for the lock",
+			}
+		}
 		if (removal.outcome === "blocked") {
 			// The task file was kept, so the item must stay in the store: reporting a deletion
 			// here would be contradicted by the next reconciliation.
@@ -590,7 +611,11 @@ export class TaskHistoryStore {
 	 * caller is told which stage to retry. Inside the acquisition the named path is asked
 	 * again and the interrupted-write siblings are scanned, because a completed publish that
 	 * landed while the delete was waiting for the lock leaves a canonical file and no siblings,
-	 * and only an observation made while no writer can move the file says what is beside it.
+	 * and only an observation made while no writer can move the file says what is beside it. When
+	 * the retry cannot create the lock at all, that failure's errno is still not the verdict: the
+	 * named path is asked again and its own answer closes or blocks the deletion, and the scan
+	 * covers both the name the caller passed and the target that name resolves to, which is the
+	 * directory a writer actually stages in.
 	 */
 	private async _certifyAbsentUnderLock(
 		filePath: string,
@@ -603,12 +628,32 @@ export class TaskHistoryStore {
 			releaseLock = await acquireFileLock(lockKey)
 		} catch (retryError: unknown) {
 			if (errorCode(retryError) === "ENOENT") {
-				// The lock file could not be created because a directory on the way to it is gone, and
-				// the named path already reported itself absent above: with the directory missing, neither
-				// the file nor any sibling of it can exist, which is the same answer the readdir inside the
-				// lock gives. A different errno - EEXIST, EACCES, EBUSY - is somebody else holding the lock
-				// or a directory that cannot be written, and that is not a completed deletion.
-				return { deleted: true }
+				// A directory on the way to the lock is gone, so the retry could not create the lock at
+				// all. The lock's errno is not a verdict about the file, and the absence observed above was
+				// observed outside any lock: a writer can publish onto this name between that lstat and this
+				// failed retry, and it publishes onto the spelling it resolves to rather than onto the
+				// directory that happens to be missing. Ask the named path again - lstat does not follow a
+				// symlink, which is what keeps a dangling alias reporting itself present - and let that
+				// answer decide. A different errno - EEXIST, EACCES, EBUSY - is somebody else holding the
+				// lock or a directory that cannot be written, and that is not a completed deletion.
+				try {
+					await fs.lstat(filePath)
+					return {
+						deleted: false,
+						reason: `${lockReason}; the file reported itself present after a directory on the way to the lock went missing`,
+						cause: retryError,
+					}
+				} catch (retryStatError: unknown) {
+					if (errorCode(retryStatError) !== "ENOENT") {
+						return {
+							deleted: false,
+							reason: `${lockReason}; the named path could not be checked (${errorCode(retryStatError) ?? "unknown error"})`,
+							cause: retryStatError,
+						}
+					}
+					// Absent when asked again, with no lock left to take and nothing published onto this name.
+					return { deleted: true }
+				}
 			}
 			return {
 				deleted: false,
@@ -635,27 +680,41 @@ export class TaskHistoryStore {
 					}
 				}
 			}
-			const containingDir = path.dirname(filePath)
-			let entries: string[]
-			try {
-				entries = await fs.readdir(containingDir)
-			} catch (readError: unknown) {
-				if (errorCode(readError) === "ENOENT") {
-					// Neither the file nor any sibling of it can exist: the directory is gone.
-					return { deleted: true }
-				}
-				return {
-					deleted: false,
-					reason: `${lockReason}; the containing directory could not be read (${errorCode(readError) ?? "unknown error"})`,
-					cause: readError,
-				}
+			// A writer stages its temp file and its old-content copy beside the target it resolves to
+			// (src/services/file-safety/safeWriteText.ts:273-275), which is the directory of the lock key,
+			// and names them after that target's basename. When the name this caller passed is an alias,
+			// path.dirname(filePath) is a different directory and the leftovers carry the referent's
+			// basename rather than the alias's, so one lookup here would be a claim about a directory no
+			// writer used. Read both spellings' directories, each against the spelling whose basename its
+			// leftovers are named after.
+			const scans: { dir: string; against: string }[] = [{ dir: path.dirname(filePath), against: filePath }]
+			const keyDir = path.dirname(lockKey)
+			if (keyDir !== path.dirname(filePath)) {
+				scans.push({ dir: keyDir, against: lockKey })
 			}
-			const leftover = entries.find((entry) => isReplacementLeftover(filePath, entry))
-			if (leftover) {
-				return {
-					deleted: false,
-					reason: `${lockReason}; a leftover ${leftover} from an interrupted write can still be recovered`,
-					cause: lockError,
+			for (const scan of scans) {
+				let entries: string[]
+				try {
+					entries = await fs.readdir(scan.dir)
+				} catch (readError: unknown) {
+					if (errorCode(readError) === "ENOENT") {
+						// Nothing sits in this spelling's directory: for this spelling that is the same
+						// answer an empty scan gives.
+						continue
+					}
+					return {
+						deleted: false,
+						reason: `${lockReason}; the containing directory could not be read (${errorCode(readError) ?? "unknown error"})`,
+						cause: readError,
+					}
+				}
+				const leftover = entries.find((entry) => isReplacementLeftover(scan.against, entry))
+				if (leftover) {
+					return {
+						deleted: false,
+						reason: `${lockReason}; a leftover ${leftover} from an interrupted write can still be recovered`,
+						cause: lockError,
+					}
 				}
 			}
 			// Absent, holding the lock, with nothing a recovery pass could restore beside it.

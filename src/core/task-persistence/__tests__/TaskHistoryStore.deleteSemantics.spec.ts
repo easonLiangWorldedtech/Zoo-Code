@@ -643,6 +643,171 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			expect(store.get("lock-fail-uncheckable")).toBeDefined()
 			expect(onWrite).not.toHaveBeenCalled()
 		})
+
+		it("refuses the removal when the name retargets while its lock is being taken", async () => {
+			// The lock key is derived before this call enters the queue for that key, and a rename or a
+			// re-linked referent can move the target in the meantime. The leftover sweep and the unlink
+			// inside the callback then act on a name whose publish target another writer's lock covers:
+			// the unlink removes the file while a writer staging beside the new target believes its own
+			// publish is protected by the lock it holds. The removal has to re-derive the spelling it is
+			// publishing to and refuse, the way src/core/tools/guardedWrite.ts:215-220 refuses the same
+			// window, rather than remove beside a foreign lock.
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "moved-target" }))
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "moved-target")
+			const referentDir = path.join(storagePath, "referent-dir")
+			const aliasDir = path.join(storagePath, "alias-dir")
+			await actualFs.mkdir(referentDir, { recursive: true })
+			await actualFs.mkdir(aliasDir, { recursive: true })
+			const referentFile = path.join(referentDir, "moved-target.json")
+			await actualFs.writeFile(referentFile, "{}", "utf8")
+			// The stand-in for a link: the name resolves onto the referent target while the key is
+			// computed and onto the other directory by the time the callback runs. Only the file
+			// resolves through the alias, so the directories are canonicalized for real.
+			let resolvedOnce = false
+			const realpathSpy = vi.spyOn(fs, "realpath").mockImplementation(async (target) => {
+				if (String(target) === taskPath) {
+					const spelling = resolvedOnce ? path.join(aliasDir, "moved-target.json") : referentFile
+					resolvedOnce = true
+					return spelling
+				}
+				return await actualFs.realpath(String(target))
+			})
+			let failure: unknown
+			try {
+				failure = await store
+					.delete("moved-target")
+					.then(() => null)
+					.catch((error: unknown) => error)
+			} finally {
+				realpathSpy.mockRestore()
+			}
+			expect(failure).toBeInstanceOf(TaskHistoryDeleteError)
+			expect(String((failure as TaskHistoryDeleteError).reason)).toContain("resolved to a different lock key")
+			// The lock that was taken keyed the target the name resolved to at the time, which is the
+			// spelling the check compares against.
+			expect(vi.mocked(withFileLock)).toHaveBeenCalledWith(await canonicalKey(referentFile), expect.any(Function))
+			// Nothing was unlinked, the item is still served, and nothing was written through.
+			// The unlink never ran for this name, so the file the removal refused to touch is
+			// still where the item says it is.
+			expect(vi.mocked(fs.unlink)).not.toHaveBeenCalledWith(taskPath)
+			expect(storeInternals(store).cache.has("moved-target")).toBe(true)
+			await expect(fs.access(taskPath)).resolves.toBeUndefined()
+			expect(onWrite).not.toHaveBeenCalled()
+		})
+
+		it("keeps the item when the file reappears after the directory on the way to the lock goes missing", async () => {
+			// The lock failed, the name read as absent outside any lock, and the retry then found the
+			// directory it would have created the lock in gone. The old code concluded from that errno
+			// alone: a missing directory on the way to a lock says nothing about the name, and a writer
+			// can publish onto the name in the gap between the first look and the retry - here it lands
+			// while the directory is being removed. Reporting a deletion evicted a served item whose file
+			// is on disk, so its next read would find a file the store no longer lists.
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "moved-back" }))
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "moved-back")
+			const referentDir = path.join(storagePath, "moved-away")
+			const referentFile = path.join(referentDir, "moved-back.json")
+			await actualFs.mkdir(referentDir, { recursive: true })
+			// The name resolves through an alias onto the target in referentDir, so the lock key sits in
+			// that directory: it is the directory whose disappearance the retry reports.
+			const realpathSpy = vi
+				.spyOn(fs, "realpath")
+				.mockImplementation(async (target) =>
+					String(target) === taskPath ? referentFile : actualFs.realpath(String(target)),
+				)
+			// A publish lands on the name in the gap between the delete's first look at it and its retry
+			// for the lock, which is also when the directory on the way to the lock disappears.
+			await actualFs.rm(taskPath)
+			let asks = 0
+			const lstatSpy = vi.spyOn(fs, "lstat").mockImplementation(async (target) => {
+				if (String(target) === taskPath) {
+					asks += 1
+					if (asks === 1) {
+						await actualFs.rm(referentDir, { recursive: true, force: true })
+						await actualFs.writeFile(
+							taskPath,
+							JSON.stringify(makeHistoryItem({ id: "moved-back" })),
+							"utf8",
+						)
+						throw Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" })
+					}
+				}
+				return await actualFs.lstat(String(target))
+			})
+			vi.mocked(withFileLock).mockRejectedValueOnce(new Error("the per-file lock could not be taken"))
+			let failure: unknown
+			try {
+				failure = await store
+					.delete("moved-back")
+					.then(() => null)
+					.catch((error: unknown) => error)
+			} finally {
+				lstatSpy.mockRestore()
+				realpathSpy.mockRestore()
+			}
+			expect(asks).toBeGreaterThan(1)
+			expect(failure).toBeInstanceOf(TaskHistoryDeleteError)
+			expect(String((failure as TaskHistoryDeleteError).reason)).toContain(
+				"the file reported itself present after a directory on the way to the lock went missing",
+			)
+			// The file is on disk and the item is still served beside it.
+			await expect(fs.access(taskPath)).resolves.toBeUndefined()
+			expect(storeInternals(store).cache.has("moved-back")).toBe(true)
+			expect(onWrite).not.toHaveBeenCalled()
+		})
+
+		it("blocks on a leftover beside the target the name resolves to, not only beside the name", async () => {
+			// A writer stages its temp file and its old-content copy beside the target it resolves to and
+			// names them after that target's basename (src/services/file-safety/safeWriteText.ts:273-275).
+			// Here the name is an alias into another directory that holds an interrupted write's copy,
+			// while the directory of the name itself is clean. The certification scanned only the name's
+			// directory and called the deletion complete, which dropped the recovery file jsonFileRecovery
+			// could have restored and evicted the item whose content that copy holds.
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "referent-side" }))
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "referent-side")
+			const referentDir = path.join(storagePath, "referent-side-dir")
+			const referentFile = path.join(referentDir, "referent-history.json")
+			await actualFs.mkdir(referentDir, { recursive: true })
+			// The copy a killed publish leaves beside its target, named after the target rather than
+			// after the alias.
+			const leftover = path.join(referentDir, ".referent-history.json.bak_1_saved.tmp")
+			await actualFs.writeFile(leftover, JSON.stringify(makeHistoryItem({ id: "referent-side" })), "utf8")
+			// The named path is gone; its own directory holds nothing recoverable.
+			await actualFs.rm(taskPath)
+			const realpathSpy = vi
+				.spyOn(fs, "realpath")
+				.mockImplementation(async (target) =>
+					String(target) === taskPath ? referentFile : actualFs.realpath(String(target)),
+				)
+			vi.mocked(withFileLock).mockRejectedValueOnce(
+				Object.assign(new Error("EEXIST: file already exists, mkdir"), { code: "EEXIST" }),
+			)
+			let failure: unknown
+			try {
+				failure = await store
+					.delete("referent-side")
+					.then(() => null)
+					.catch((error: unknown) => error)
+			} finally {
+				realpathSpy.mockRestore()
+			}
+			expect(failure).toBeInstanceOf(TaskHistoryDeleteError)
+			const reason = String((failure as TaskHistoryDeleteError).reason)
+			expect(reason).toContain("can still be recovered")
+			expect(reason).toContain(path.basename(leftover))
+			// The recovery file is untouched and the item is still served next to it.
+			await expect(fs.access(leftover)).resolves.toBeUndefined()
+			expect(storeInternals(store).cache.has("referent-side")).toBe(true)
+			expect(onWrite).not.toHaveBeenCalled()
+		})
 	})
 
 	describe("reconcile()", () => {
