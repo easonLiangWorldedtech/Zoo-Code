@@ -7,7 +7,7 @@ import deepEqual from "fast-deep-equal"
 import { historyItemSchema, type HistoryItem } from "@roo-code/types"
 
 import { GlobalFileNames } from "../../shared/globalFileNames"
-import { LOCK_STALE_MS, withFileLock } from "../../utils/fileLock"
+import { acquireFileLock, LOCK_STALE_MS, withFileLock } from "../../utils/fileLock"
 import { safeWriteJson } from "../../utils/safeWriteJson"
 import { deleteJsonFile, isReplacementLeftover, recoverMissingJsonFile } from "../../utils/jsonFileRecovery"
 import { getErrorCode, readFileWithMissingRetry } from "./readFileWithMissingRetry"
@@ -413,8 +413,9 @@ export class TaskHistoryStore {
 	 * a store that evicts an item whose file survived
 	 * reports a deletion the next reconciliation contradicts. The one stage where an ENOENT may
 	 * still close the deletion is a lock that could not be taken at all: there the verdict comes
-	 * from an lstat of the named path, not from the lock's errno, so a file that reports itself
-	 * absent is a completed deletion while a file that reports itself present is not.
+	 * from the named path rather than from the lock's errno, and it is made inside a fresh
+	 * acquisition of that same lock, so a file verified absent with nothing recoverable beside
+	 * it is a completed deletion while a lock that still refuses the retry is not.
 	 */
 	private async removeTaskFile(taskId: string): Promise<{ deleted: boolean; reason?: string; cause?: unknown }> {
 		const filePath = await this.getTaskFilePath(taskId)
@@ -535,10 +536,14 @@ export class TaskHistoryStore {
 	}
 
 	/**
-	 * What to report when the lock could not be taken at all. The file counts as gone only when
-	 * the named path says so directly: lstat does not follow a symlink, so a dangling alias still
-	 * reports itself present and the item stays in the store. Any other answer keeps the item and
-	 * reports the lock failure, which is the only thing actually known.
+	 * What to report when the lock could not be taken at all. A verdict about the file has to
+	 * come from the same place the writer publishes from, so the named path is asked directly
+	 * rather than read through the lock's errno - lstat does not follow a symlink, which is
+	 * what keeps a dangling alias reporting itself present - and an absence is accepted only
+	 * after the lock has been taken again and the named path and its siblings are re-checked
+	 * inside it. A lock that still refuses the retry is a writer that is standing: the
+	 * deletion is blocked, because a caller that never held the lock cannot certify that
+	 * nothing recoverable is sitting beside the file.
 	 */
 	private async _verdictAfterLockFailure(
 		filePath: string,
@@ -550,74 +555,11 @@ export class TaskHistoryStore {
 			await fs.lstat(filePath)
 		} catch (statError: unknown) {
 			if (errorCode(statError) === "ENOENT") {
-				// The named path is absent: there was nothing to delete, whatever the lock did. That closes
-				// the deletion only when nothing a later reader could resurrect is left beside it: the
-				// replacement temps live beside the file, and this path never held the lock, so the sweep
-				// that runs under the lock did not run here.
-				// A writer that still holds the lock has not published yet: it may not have staged anything,
-				// so the named path is absent and the directory scan below is empty. An empty scan cannot
-				// settle the deletion while that lock is still live.
-				try {
-					const lockStat = await fs.stat(lockKey + ".lock")
-					if (Date.now() - lockStat.mtimeMs < LOCK_STALE_MS) {
-						return {
-							deleted: false,
-							reason: `${lockReason}; a writer may still hold the lock`,
-							cause: lockError,
-						}
-					}
-				} catch (lockStatError: unknown) {
-					if (errorCode(lockStatError) !== "ENOENT") {
-						return {
-							deleted: false,
-							reason: `${lockReason}; the lock file could not be checked (${errorCode(lockStatError) ?? "unknown error"})`,
-							cause: lockStatError,
-						}
-					}
-				}
-				const containingDir = path.dirname(filePath)
-				let entries: string[]
-				try {
-					entries = await fs.readdir(containingDir)
-				} catch (readError: unknown) {
-					if (errorCode(readError) === "ENOENT") {
-						// Neither the file nor any sibling of it can exist: the directory is gone.
-						return { deleted: true }
-					}
-					return {
-						deleted: false,
-						reason: `${lockReason}; the containing directory could not be read (${errorCode(readError) ?? "unknown error"})`,
-						cause: readError,
-					}
-				}
-				const leftover = entries.find((entry) => isReplacementLeftover(filePath, entry))
-				if (leftover) {
-					return {
-						deleted: false,
-						reason: `${lockReason}; a leftover ${leftover} from an interrupted write can still be recovered`,
-						cause: lockError,
-					}
-				}
-				// Last check, because this verdict was reached on a path that never held the lock: a
-				// writer can publish and release the lock between the lstat above and the scan. The
-				// named path must still be absent before the caller is told the deletion is done.
-				try {
-					await fs.lstat(filePath)
-					return {
-						deleted: false,
-						reason: `${lockReason}; the file came back after the lock failed`,
-						cause: lockError,
-					}
-				} catch (recheckError: unknown) {
-					if (errorCode(recheckError) !== "ENOENT") {
-						return {
-							deleted: false,
-							reason: `${lockReason}; the named path could not be checked (${errorCode(recheckError) ?? "unknown error"})`,
-							cause: recheckError,
-						}
-					}
-				}
-				return { deleted: true }
+				// The named path reported itself absent, and this path never held the writer's lock,
+				// so that answer is not the writer's own: a writer can publish after this lstat,
+				// move an earlier publish to a backup, and be interrupted there. Absence is
+				// certifiable only from inside the lock, so it is certified under a new one.
+				return await this._certifyAbsentUnderLock(filePath, lockKey, lockReason, lockError)
 			}
 			return {
 				deleted: false,
@@ -626,6 +568,95 @@ export class TaskHistoryStore {
 			}
 		}
 		return { deleted: false, reason: lockReason, cause: lockError }
+	}
+
+	/**
+	 * Certify an absence that was observed from outside the lock. The acquisition is retried
+	 * with the staleness window acquireFileLock already passes to proper-lockfile, so a lock
+	 * left behind by a dead writer is stolen and the delete proceeds, while a live one refuses
+	 * the retry and the deletion is reported blocked: the item stays in the store and the
+	 * caller is told which stage to retry. Inside the acquisition the named path is asked
+	 * again and the interrupted-write siblings are scanned, because a completed publish that
+	 * landed while the delete was waiting for the lock leaves a canonical file and no siblings,
+	 * and only an observation made while no writer can move the file says what is beside it.
+	 */
+	private async _certifyAbsentUnderLock(
+		filePath: string,
+		lockKey: string,
+		lockReason: string,
+		lockError: unknown,
+	): Promise<{ deleted: boolean; reason?: string; cause?: unknown }> {
+		let releaseLock: () => Promise<void>
+		try {
+			releaseLock = await acquireFileLock(lockKey)
+		} catch (retryError: unknown) {
+			if (errorCode(retryError) === "ENOENT") {
+				// The lock file could not be created because a directory on the way to it is gone, and
+				// the named path already reported itself absent above: with the directory missing, neither
+				// the file nor any sibling of it can exist, which is the same answer the readdir inside the
+				// lock gives. A different errno - EEXIST, EACCES, EBUSY - is somebody else holding the lock
+				// or a directory that cannot be written, and that is not a completed deletion.
+				return { deleted: true }
+			}
+			return {
+				deleted: false,
+				reason: `${lockReason}; the retry could not take the lock either, so the deletion is blocked on the lock`,
+				cause: retryError,
+			}
+		}
+		try {
+			// With the lock held, the named path is asked first: a publish that completed while
+			// the delete was refused the lock means there is a file here again.
+			try {
+				await fs.lstat(filePath)
+				return {
+					deleted: false,
+					reason: `${lockReason}; the file came back after the lock failed`,
+					cause: lockError,
+				}
+			} catch (statError: unknown) {
+				if (errorCode(statError) !== "ENOENT") {
+					return {
+						deleted: false,
+						reason: `${lockReason}; the named path could not be checked (${errorCode(statError) ?? "unknown error"})`,
+						cause: statError,
+					}
+				}
+			}
+			const containingDir = path.dirname(filePath)
+			let entries: string[]
+			try {
+				entries = await fs.readdir(containingDir)
+			} catch (readError: unknown) {
+				if (errorCode(readError) === "ENOENT") {
+					// Neither the file nor any sibling of it can exist: the directory is gone.
+					return { deleted: true }
+				}
+				return {
+					deleted: false,
+					reason: `${lockReason}; the containing directory could not be read (${errorCode(readError) ?? "unknown error"})`,
+					cause: readError,
+				}
+			}
+			const leftover = entries.find((entry) => isReplacementLeftover(filePath, entry))
+			if (leftover) {
+				return {
+					deleted: false,
+					reason: `${lockReason}; a leftover ${leftover} from an interrupted write can still be recovered`,
+					cause: lockError,
+				}
+			}
+			// Absent, holding the lock, with nothing a recovery pass could restore beside it.
+			return { deleted: true }
+		} finally {
+			// The verdict is already known, so a release failure is logged rather than
+			// reported over it, the way withFileLock handles a failed release.
+			try {
+				await releaseLock()
+			} catch (releaseError: unknown) {
+				console.error(`Failed to release lock for ${lockKey}:`, releaseError)
+			}
+		}
 	}
 
 	// ────────────────────────────── Reconciliation ──────────────────────────────

@@ -311,8 +311,11 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			const hadCache = internals.cache.has("live-lock-empty-scan")
 			// A writer that holds the lock and has not staged anything yet leaves the named path
 			// absent and the directory free of siblings, so an empty scan proves nothing about it.
+			// The lock is the shape proper-lockfile makes - a directory beside the key - so the
+			// retry refuses it for the reason production would: it is younger than the window.
 			const lockKey = await canonicalKey(taskPath)
-			await actualFs.writeFile(lockKey + ".lock", "")
+			const lockDir = lockKey + ".lock"
+			await actualFs.mkdir(lockDir)
 			const lstatSpy = vi.spyOn(fs, "lstat").mockImplementation(async (p: unknown) => {
 				if (String(p) === taskPath) {
 					throw Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" })
@@ -327,15 +330,46 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 				rejection = await store.delete("live-lock-empty-scan").catch((error: unknown) => error)
 			} finally {
 				lstatSpy.mockRestore()
-				await actualFs.rm(lockKey + ".lock", { force: true })
+				await actualFs.rm(lockDir, { recursive: true, force: true })
 			}
 			expect(rejection).toBeInstanceOf(TaskHistoryDeleteError)
-			expect(String((rejection as TaskHistoryDeleteError).reason)).toContain("a writer may still hold the lock")
+			expect(String((rejection as TaskHistoryDeleteError).reason)).toContain("blocked on the lock")
 			expect(storeInternals(store).cache.has("live-lock-empty-scan")).toBe(hadCache)
 			expect(store.get("live-lock-empty-scan")).toBeDefined()
 			expect(onWrite).not.toHaveBeenCalled()
 		})
 
+		it("takes a lock older than the staleness window and certifies the deletion under it", async () => {
+			// The other side of the same threshold. A writer that died leaves its lock directory
+			// behind, and acquireFileLock passes LOCK_STALE_MS to proper-lockfile, which then
+			// steals it: the retry is not a wait for a live writer, it is a test of whether one is
+			// still holding on. The file is removed for real here, so the certification is the
+			// filesystem's own answer, taken while the delete held the lock.
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "stale-lock-certified" }))
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "stale-lock-certified")
+			const lockKey = await canonicalKey(taskPath)
+			const lockDir = lockKey + ".lock"
+			await actualFs.mkdir(lockDir)
+			// Older than the window the protocol passes, by well past its margin.
+			const stale = new Date(Date.now() - actualFileLock.LOCK_STALE_MS - 9_000)
+			await actualFs.utimes(lockDir, stale, stale)
+			await actualFs.rm(taskPath)
+			vi.mocked(withFileLock).mockRejectedValueOnce(
+				Object.assign(new Error("EEXIST: file already exists, mkdir"), { code: "EEXIST" }),
+			)
+			await expect(store.delete("stale-lock-certified")).resolves.toBeUndefined()
+			// The lock was stolen, the named path was absent under it and nothing recoverable sat
+			// beside it, so the deletion is completed and the stolen lock is released again.
+			const { cache, taskFileMtimes } = storeInternals(store)
+			expect(cache.has("stale-lock-certified")).toBe(false)
+			expect(taskFileMtimes.has("stale-lock-certified")).toBe(false)
+			expect(store.get("stale-lock-certified")).toBeUndefined()
+			expect(onWrite).toHaveBeenCalledTimes(1)
+			await expect(actualFs.stat(lockDir)).rejects.toMatchObject({ code: "ENOENT" })
+		})
 		it("reports failure when the file comes back after the lock failed", async () => {
 			const store = createStore()
 			await store.initialize()
@@ -550,7 +584,7 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 		})
 
 		it("reports a lock failure as a completed deletion when the named file is itself gone", async () => {
-			// The other half of the same verdict: an ENOENT from the lock says nothing about the
+			// file, so the file is asked directly - and here it really answers ENOENT. The answer
 			// file, so the file is asked directly - and here it really answers ENOENT. The answer
 			// comes from the filesystem rather than a mock, so the branch is reached the way
 			// production reaches it: a task file that was already removed while the lock was lost.
@@ -563,7 +597,7 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 
 			await expect(store.delete("lock-fail-gone")).resolves.toBeUndefined()
 
-			// The named path said it is absent, so the item is gone whatever the lock did: evicted,
+			// and the index written through without it. A verdict that kept the item here would leave
 			// and the index written through without it. A verdict that kept the item here would leave
 			// an entry whose file can never be deleted again.
 			const { cache, taskFileMtimes } = storeInternals(store)
