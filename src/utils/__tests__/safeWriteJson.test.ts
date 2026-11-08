@@ -660,8 +660,21 @@ describe("safeWriteJson", () => {
 			await fs.writeFile(unreadableBackup, JSON.stringify({ stale: true }))
 			await fs.writeFile(readableBackup, JSON.stringify({ committed: true }))
 			const actual = await vi.importActual<typeof import("fs/promises")>("fs/promises")
+			// The injection is keyed on the leftover's inode, not on the spelling of its path:
+			// the writer stats the canonical form of the same file, which realpath can spell
+			// differently from os.tmpdir() on the machine running the test. Production cannot tell
+			// the two spellings apart - they are one file - so the double matches the inode.
+			const injectedInode = await actual.stat(unreadableBackup)
+			const isInjectedInode = async (candidate: Parameters<typeof actual.stat>[0]) => {
+				try {
+					const inode = await actual.stat(candidate)
+					return inode.dev === injectedInode.dev && inode.ino === injectedInode.ino
+				} catch {
+					return false // a candidate that cannot be stat-ed is not the injected leftover
+				}
+			}
 			vi.mocked(fs.stat).mockImplementation(async (backupPath) => {
-				if (backupPath === unreadableBackup) {
+				if (await isInjectedInode(backupPath)) {
 					throw Object.assign(new Error("Backup stat failed"), { code })
 				}
 				return actual.stat(backupPath)
