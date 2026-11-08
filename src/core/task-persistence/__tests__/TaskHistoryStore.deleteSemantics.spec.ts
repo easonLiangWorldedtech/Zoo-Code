@@ -1455,5 +1455,62 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			expect(storeInternals(store).cache.has("dup-failed")).toBe(true)
 			expect(onWrite).not.toHaveBeenCalled()
 		})
+
+		it("puts the entry back when a duplicate id's later attempt fails after an earlier one removed it", async () => {
+			// The peer republishes between the two attempts and the duplicate id's second attempt cannot
+			// take the lock. The last attempt decides the report, and the batch's promise is that a failed
+			// id stays in the store: the eviction the earlier attempt made has to be undone before the
+			// write-through, or the payload, the cache, and the error each omit the very task the error
+			// tells the caller to keep.
+			const store = createStore()
+			await store.initialize()
+			const item = makeHistoryItem({ id: "dup-restored" })
+			await store.upsert(item)
+			// reconcile is what seeds taskFileMtimes, so there is an mtime record to restore beside the
+			// entry rather than an entry alone.
+			await store.reconcile()
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "dup-restored")
+			// A removed item costs two locked calls: the removal itself, and main's delete helper running
+			// once more after the lock was released. The counter puts the republish after that cleanup and
+			// the refusal on the second attempt's removal, which is the order the report is about.
+			let lockedCalls = 0
+			vi.mocked(withFileLock).mockImplementation(async (key, operation) => {
+				lockedCalls++
+				if (lockedCalls === 2) {
+					const cleaned = await actualFileLock.withFileLock(key, operation)
+					await actualFs.writeFile(taskPath, JSON.stringify(item), "utf8")
+					return cleaned
+				}
+				if (lockedCalls === 3) {
+					throw Object.assign(new Error("EEXIST: file already exists, mkdir"), { code: "EEXIST" })
+				}
+				return actualFileLock.withFileLock(key, operation)
+			})
+			let failure: unknown
+			try {
+				failure = await store
+					.deleteMany(["dup-restored", "dup-restored"])
+					.then(() => null)
+					.catch((error: unknown) => error)
+			} finally {
+				vi.mocked(withFileLock).mockImplementation(actualFileLock.withFileLock)
+			}
+			expect(failure).toBeInstanceOf(TaskHistoryDeleteError)
+			expect((failure as TaskHistoryDeleteError).taskIds).toEqual(["dup-restored"])
+			expect(String((failure as TaskHistoryDeleteError).reason)).toContain("could not be taken")
+			// The peer's copy is on disk and the store still serves the item beside it, with the mtime
+			// record reconcile seeded.
+			await expect(fs.access(taskPath)).resolves.toBeUndefined()
+			const after = storeInternals(store)
+			expect(after.cache.has("dup-restored")).toBe(true)
+			expect(store.get("dup-restored")).toBeDefined()
+			expect(after.taskFileMtimes.has("dup-restored")).toBe(true)
+			// One write-through for a batch that removed one file, and the id the error names is inside the
+			// payload that write sent.
+			expect(onWrite).toHaveBeenCalledTimes(1)
+			const payload = onWrite.mock.calls[0]?.[0] as HistoryItem[]
+			expect(payload.some((entry: HistoryItem) => entry.id === "dup-restored")).toBe(true)
+		})
 	})
 })

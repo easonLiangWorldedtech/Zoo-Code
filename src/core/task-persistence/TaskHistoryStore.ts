@@ -364,7 +364,10 @@ export class TaskHistoryStore {
 	 * The single write-through runs once, after the batch, and only if at least one item was
 	 * actually removed. Failed ids are reported together in one TaskHistoryDeleteError and stay
 	 * in the store, one entry per id: the report is keyed by id, so a duplicate id is named once and
-	 * only the outcome of its last attempt decides whether it is named at all.
+	 * only the outcome of its last attempt decides whether it is named at all. An id whose earlier
+	 * attempt removed the file and whose later attempt failed keeps the entry that earlier attempt
+	 * served: the eviction is undone before the write-through, so the payload, the cache, and the
+	 * report all agree about which tasks the caller still has.
 	 */
 	async deleteMany(taskIds: string[]): Promise<void> {
 		return this.withLock(async () => {
@@ -375,10 +378,27 @@ export class TaskHistoryStore {
 			// artifacts of a task this batch already removed. One entry per id, and the attempt that
 			// decides the entry is the last one.
 			const failures = new Map<string, { reason: string; cause?: unknown }>()
+			// What each successful attempt served away, keyed by id. The batch can attempt one id twice, and
+			// the last attempt decides the report; when that attempt fails the file may be there again - a
+			// peer republished it - and the entry this store was serving has to be back in the cache before
+			// the write-through and the error. A batch that reports a failed id while the payload it just
+			// wrote and the cache it just evicted both omit that id tells the caller to keep a task the
+			// store itself no longer has.
+			const served = new Map<string, { entry?: HistoryItem; mtime?: number }>()
 			let deletedAny = false
 			for (const taskId of taskIds) {
 				const outcome = await this.removeTaskFile(taskId)
 				if (!outcome.deleted) {
+					const held = served.get(taskId)
+					if (held) {
+						served.delete(taskId)
+						if (held.entry) {
+							this.cache.set(taskId, held.entry)
+						}
+						if (held.mtime !== undefined) {
+							this.taskFileMtimes.set(taskId, held.mtime)
+						}
+					}
 					failures.set(taskId, { reason: outcome.reason ?? "unknown error", cause: outcome.cause })
 					continue
 				}
@@ -386,6 +406,9 @@ export class TaskHistoryStore {
 				// the same id: leaving the entry behind would report a deletion as failed and cost the
 				// caller its artifact cleanup for a file that is no longer there.
 				failures.delete(taskId)
+				// Snapshot what this attempt serves away, so a later attempt of the same id that fails can put
+				// back exactly what was here rather than what a recovery pass would guess.
+				served.set(taskId, { entry: this.cache.get(taskId), mtime: this.taskFileMtimes.get(taskId) })
 				this.cache.delete(taskId)
 				this.taskFileMtimes.delete(taskId)
 				deletedAny = true
