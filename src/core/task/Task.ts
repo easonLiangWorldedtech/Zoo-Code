@@ -398,6 +398,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	providerRef: WeakRef<ClineProvider>
 	private readonly globalStoragePath: string
 	abort: boolean = false
+	// Monotonic cancellation counter. `requestAbort()` and `requestDispose()` advance
+	// this fence, and the guarded-write path compares the value it captured when the
+	// write was queued with the value at publish time, so a queued write cannot publish
+	// after the task was cancelled or disposed.
+	cancellationGeneration: number = 0
 	currentRequestAbortController?: AbortController
 	/**
 	 * Controller for the waiter on an in-flight `ensureModelFetched()` call (see
@@ -3596,6 +3601,11 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			this.abandoned = true
 		}
 		this.abort = true
+		// The S4a write guard compares this counter with the value a queued write
+		// captured when it started, so every cancellation must advance it; it must
+		// never go backwards because resumeAfterDelegation() clears `abort` (the
+		// flag alone cannot keep the cancelled run and the resumed run apart).
+		this.cancellationGeneration++
 		this.driveRunEvent({ tag: "abortRequested", abandoned: isAbandoned })
 	}
 
@@ -3606,6 +3616,10 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	requestDispose(): void {
 		this.abort = true
+		// A host teardown never calls abortTask(): disposal has to raise the same
+		// counter, or a write still parked on its path chain publishes after the
+		// task is gone.
+		this.cancellationGeneration++
 		this.driveRunEvent({ tag: "disposeRequested" })
 	}
 
@@ -3634,6 +3648,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 	public abortTask(isAbandoned = false): Promise<void> {
 		this.requestAbort(isAbandoned)
+
 		this.cancelAssistantMessagePersistence()
 		this.abortPromise ??= this.abortTaskOnce()
 		return this.abortPromise

@@ -7,12 +7,10 @@ import { getErrorCode } from "../../utils/errorCode"
 
 export interface SafeWriteTextOptions {
 	/**
-	 * When true, keep the old-file semantics without ever removing the target: the
-	 * previous content is copied to a hidden backup path and flushed before the
-	 * commit rename, the commit rename atomically replaces the target, and on success
-	 * the backup copy is deleted. A failure before the commit leaves the target
-	 * untouched (there is nothing to roll back) and removes the backup copy. When
-	 * false (default) the atomic rename simply replaces the target.
+	 * When true, preserve the old-file semantics: rename target -> backup first,
+	 * after commit rename delete the backup; on failure roll the backup back to
+	 * the target path.  When false (default) the atomic rename simply replaces
+	 * the target -- crash-safe window is zero.
 	 */
 	backup?: boolean
 
@@ -30,22 +28,110 @@ export interface SafeWriteTextOptions {
 	execFileRunner?: typeof execFile
 
 	/**
-	 * Sink for non-fatal safety notices. The notice that still reaches it is a leftover: the backup
-	 * copy kept beside the target after a Windows DACL restore failed, named with its path. A DACL
-	 * that could not be captured is no longer a notice here - the publish is refused with
-	 * DaclInspectionError before anything is committed - and a saved DACL that could not be put back
-	 * after the commit arrives as DaclRestoreError rather than a warning, so neither reaches this
-	 * sink. Defaults to console.warn.
-	 */
-	onWarning?: (message: string) => void
-
-	/**
 	 * Pre-written temp path to use for the commit phase.  When provided,
 	 * safeWriteText skips creating its own staging file and uses this path
 	 * instead (it still fsyncs before rename).  Useful when a caller has
 	 * already written data to a temp file via a custom stream.
 	 */
 	tempPath?: string
+
+	/**
+	 * Commit only if the target name does NOT exist at commit time.
+	 * rename(2) has no no-replace form - it silently displaces a target that another
+	 * writer created after the caller's absence check - so the commit is done with
+	 * link(2) instead, which fails EEXIST for an existing name (and does not follow a
+	 * symlink placed at that name). A conditional create therefore cannot overwrite a
+	 * file it never saw.
+	 */
+	failIfExist?: boolean
+
+	/**
+	 * The publish target the caller already authorized.
+	 * A caller that checks workspace containment and then calls this primitive resolves
+	 * the path twice: once for its own decision and once here. If a link is swapped in
+	 * between the two, the decision was about a different file than the one published.
+	 * Passing the authorized value makes that drift fatal instead of silent.
+	 */
+	expectedResolvedPath?: string
+
+	/**
+	 * The directories the caller walked when it authorized this target, with the
+	 * (dev, ino) identity each had at that moment.
+	 *
+	 * expectedResolvedPath pins the NAME this write publishes; it cannot see a parent
+	 * directory being replaced by a link between the caller's containment check and the
+	 * commit. Re-checking the ancestor identities immediately before the commit makes a
+	 * swapped parent fatal too: the publish then aborts instead of writing through the new
+	 * link. Node has no descriptor-relative rename, so a swap that lands after this check
+	 * and before the rename is not eliminable here - it narrows the window to the commit
+	 * itself rather than the whole guard.
+	 * The identity check is paired with a realpath comparison: moving a directory
+	 * preserves (dev, ino), and replacing its old name with a symlink to the moved
+	 * location keeps stat() matching while sending the commit to the new location.
+	 * The name must still resolve to the authorized location, not merely to the
+	 * same inode.
+	 */
+	expectedAncestorIdentities?: DirectoryIdentity[]
+}
+
+/** One directory's on-disk identity, read with bigint stats so NTFS 64-bit values survive. */
+export type DirectoryIdentity = {
+	dir: string
+	dev: bigint
+	ino: bigint
+}
+
+/**
+ * The backup copy could not be created AND the partial copy could not be removed.
+ * The write failed either way, but the leftover is a copy of the previous content that
+ * is still on disk: its path travels on the error so the caller can remove it, instead
+ * of the cleanup silently discarding the only reference to it.
+ */
+export class OrphanedBackupError extends Error {
+	readonly orphanedBackupPath: string
+	readonly originalError: unknown
+	readonly cleanupError: unknown
+	constructor(backupPath: string, targetPath: string, cause: unknown, cleanupError: unknown) {
+		super(_orphanedBackupMessage(targetPath, backupPath, cause, cleanupError), { cause })
+		this.name = "OrphanedBackupError"
+		this.orphanedBackupPath = backupPath
+		this.originalError = cause
+		this.cleanupError = cleanupError
+	}
+}
+
+/**
+ * The write committed and the content is published, but the pre-write backup could not be
+ * removed after two attempts (a transient handle - antivirus scanner, indexer - usually
+ * causes this). Returning success would hide a stale copy of the previous content that
+ * only a recovery tool can find, so the path travels on this error instead.
+ */
+export class OrphanedPublishedBackupError extends Error {
+	readonly publishedPath: string
+	readonly orphanedBackupPath: string
+	readonly cleanupError: unknown
+
+	constructor(targetPath: string, backupPath: string, cleanupError: unknown) {
+		const reason = cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+		super(
+			`safeWriteText: the content was published at ${targetPath}, but the pre-write copy at ${backupPath} ` +
+				`could not be removed (${reason}). The copy is still on disk and should be removed by the caller or a recovery tool.`,
+			{ cause: cleanupError },
+		)
+		this.name = "OrphanedPublishedBackupError"
+		this.publishedPath = targetPath
+		this.orphanedBackupPath = backupPath
+		this.cleanupError = cleanupError
+	}
+}
+
+function _orphanedBackupMessage(targetPath: string, backupPath: string, cause: unknown, cleanupError: unknown): string {
+	const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+	return (
+		`safeWriteText: could not create the backup of ${targetPath} (${reason(cause)}), and the ` +
+		`partial copy at ${backupPath} could not be removed (${reason(cleanupError)}). The copy is ` +
+		`still on disk and must be deleted.`
+	)
 }
 
 /**
@@ -73,9 +159,11 @@ export class StagingPathError extends Error {
 export class PostCommitDurabilityError extends Error {
 	readonly targetPath: string
 
-	constructor(targetPath: string, cause: unknown) {
+	constructor(targetPath: string, cause: unknown, copiedTargetFsync = false) {
 		super(
-			"The rename committed but the parent directory could not be fsynced -- the content is at the target path reported on this error, and the directory entry may not be durable.",
+			copiedTargetFsync
+				? "The exclusive copy committed but the copied target could not be fsynced -- the content is at the target path reported on this error, and it may not survive a crash on a volume without hard links."
+				: "The rename committed but the parent directory could not be fsynced -- the content is at the target path reported on this error, and the directory entry may not be durable.",
 			{ cause },
 		)
 		this.name = "PostCommitDurabilityError"
@@ -102,19 +190,68 @@ export class DaclInspectionError extends Error {
 }
 
 /**
- * The content is committed but the saved DACL could not be put back on it, so the file at the
- * target answers to different access rights than the one it replaced. Reported as an error rather
- * than a warning: no caller can observe success for a publish whose DACL was not preserved. The
- * failure handler keeps this write's backup copy for it - that copy is the only artifact still
- * carrying the access rights of the file the publish replaced.
+ * A conditional create (failIfExist) found a target at commit time. The write is
+ * refused without touching it: whatever is at the path was created by someone else
+ * and stays exactly as it is.
  */
-export class DaclRestoreError extends Error {
-	constructor(
-		readonly targetPath: string,
-		readonly causeError: unknown,
-	) {
-		super(`safeWriteText: content committed at ${targetPath}, but its saved access rights could not be restored`)
-		this.name = "DaclRestoreError"
+export class TargetExistsError extends Error {
+	readonly targetPath: string
+	constructor(targetPath: string) {
+		super(`A file already exists at ${targetPath} -- the no-replace commit refused it.`)
+		this.name = "TargetExistsError"
+		this.targetPath = targetPath
+	}
+}
+
+/**
+ * A conditional create (failIfExist) found that the volume hosting the target has
+ * no atomic no-replace primitive: link(2) reported that hard links do not exist
+ * here, and publishing by copy would put bytes at the final name that readers can
+ * observe mid-copy. Nothing is published - the write fails closed so a retry on a
+ * capable volume (or a caller that accepts non-atomic publication) decides.
+ */
+export class UnsupportedFilesystemError extends Error {
+	readonly targetPath: string
+	constructor(targetPath: string, cause: unknown) {
+		super(
+			`Filesystem hosting ${targetPath} has no atomic no-replace commit primitive -- the guarded create refused to publish by copy.`,
+			{ cause },
+		)
+		this.name = "UnsupportedFilesystemError"
+		this.targetPath = targetPath
+	}
+}
+
+/**
+ * The path resolved to something other than the target the caller authorized.
+ * Nothing is staged or published: a link swapped in after the caller's containment
+ * check would otherwise send the write to a file that check never covered.
+ */
+export class TargetMovedError extends Error {
+	readonly authorizedPath: string
+	readonly resolvedPath: string
+	constructor(authorizedPath: string, resolvedPath: string) {
+		super(
+			`The write was authorized for ${authorizedPath}, but that path now resolves to ${resolvedPath} -- nothing was published.`,
+		)
+		this.name = "TargetMovedError"
+		this.authorizedPath = authorizedPath
+		this.resolvedPath = resolvedPath
+	}
+}
+
+/**
+ * A directory the caller walked on its way to the authorized target is no longer the
+ * directory it was: it was removed, replaced, or turned into a link to somewhere else.
+ * Publishing through it would act on a decision that was never made about the file now
+ * reachable there, so the commit is aborted.
+ */
+export class AncestorReplacedError extends Error {
+	readonly directory: string
+	constructor(directory: string, reason: string) {
+		super(`A directory on the authorized path (${directory}) ${reason} -- nothing was published.`)
+		this.name = "AncestorReplacedError"
+		this.directory = directory
 	}
 }
 // -- helpers ---------------------------------------------------------------
@@ -162,12 +299,8 @@ async function _saveDaclWindows(srcPath: string, dumpPath: string, execFileRunne
 }
 
 /** Restore a DACL dump onto *dirPath* on Windows.
- * Returns whether icacls succeeded; the caller reports a failure. */
-async function _restoreDaclWindows(
-	dirPath: string,
-	dumpPath: string,
-	execFileRunner?: typeof execFile,
-): Promise<boolean> {
+ * Best-effort: content is already committed, so failure is non-fatal. */
+async function _restoreDaclWindows(dirPath: string, dumpPath: string, execFileRunner?: typeof execFile): Promise<void> {
 	const runner = execFileRunner ?? execFile
 	try {
 		await new Promise<void>((resolve, reject) => {
@@ -175,9 +308,8 @@ async function _restoreDaclWindows(
 				err ? reject(err) : resolve(),
 			)
 		})
-		return true
 	} catch {
-		return false
+		// best-effort; content already committed
 	}
 }
 
@@ -205,7 +337,7 @@ export async function resolvePublishTarget(absoluteFilePath: string): Promise<st
 			throw lstatError
 		})
 		if (linkStat?.isSymbolicLink()) throw error
-		return absoluteFilePath
+		return await canonicalizeNearestAncestor(absoluteFilePath)
 	})
 }
 
@@ -250,11 +382,40 @@ async function canonicalDirKey(absoluteFilePath: string): Promise<string> {
 }
 
 /**
+ * Canonicalize the nearest EXISTING ancestor and re-append the missing components.
+ * The guard hands back a pin produced exactly this way (guardedWrite#realpathNearest),
+ * so an absent target has to resolve identically here: a lexical fallback differs from
+ * that pin whenever an ancestor is a symlink, and the create would then abort with
+ * TargetMovedError even though nothing moved.
+ */
+async function canonicalizeNearestAncestor(absoluteFilePath: string): Promise<string> {
+	const missing: string[] = []
+	let cursor = absoluteFilePath
+	for (;;) {
+		try {
+			const realPath = await fs.realpath(cursor)
+			return missing.length > 0 ? path.join(realPath, ...missing.reverse()) : realPath
+		} catch (error: unknown) {
+			const code = getErrorCode(error)
+			if (code !== "ENOENT" && code !== "ENOTDIR") {
+				// A real inspection failure (EACCES, EIO) says nothing about the path's
+				// identity. Returning a lexical key here would silently canonicalize a
+				// different path than the guard's pin, so fail closed instead.
+				throw error
+			}
+			const parent = path.dirname(cursor)
+			if (parent === cursor) return absoluteFilePath
+			missing.push(path.basename(cursor))
+			cursor = parent
+		}
+	}
+}
+
+/**
  * Lock key for a publish target: the symlink referent when the path is an
  * existing symlink, the path itself otherwise. Unlike resolvePublishTarget this
  * tolerates a dangling link, because the lock key has to be computable while a
- * peer writer is mid-commit (a publish renames the staged file onto the referent,
- * and backup mode keeps a copy beside it).
+ * peer writer is mid-commit (backup mode renames the referent away and back).
  * The walk is bounded so a two-link cycle terminates, and every key it returns is
  * canonicalized through canonicalDirKey.
  */
@@ -275,14 +436,6 @@ export async function resolveLockKey(absoluteFilePath: string): Promise<string> 
 	}
 }
 
-/**
- * Publish text by staging beside the resolved target and committing with a rename.
- *
- * @internal Production callers of this file use resolvePublishTarget and
- * resolveLockKey; the write entry point itself has no production caller while #2350
- * decides which primitive main keeps, so it is tagged internal instead of being
- * reported as an unused export.
- */
 export async function safeWriteText(
 	filePath: string,
 	content: string | Uint8Array,
@@ -292,6 +445,13 @@ export async function safeWriteText(
 
 	// Resolve the symlink referent (see resolvePublishTarget).
 	const targetPath = await resolvePublishTarget(absoluteFilePath)
+
+	// The caller authorized a specific resolved path; publishing at a different one
+	// would act on a decision that was never made about this file.
+	if (options?.expectedResolvedPath && path.resolve(options.expectedResolvedPath) !== targetPath) {
+		throw new TargetMovedError(options.expectedResolvedPath, targetPath)
+	}
+
 	const dirPath = path.dirname(targetPath)
 
 	// Ensure parent directory exists (mirrors safeWriteJson behaviour).
@@ -304,6 +464,11 @@ export async function safeWriteText(
 	// write created so its cleanup removes its own directory, not a shared one.
 	let stagingDir: string | null = null
 	let tempPath: string
+	// Whether the commit rename has consumed the staging file. Cleanup is allowed to unlink
+	// the staging path only while this write still owns it: after the rename the name belongs to
+	// whatever is filed under it next, and a caller-supplied staging name is reused by the next
+	// write to the same target.
+	let stagingCommitted = false
 	if (options?.tempPath) {
 		// A caller-supplied staging file is only safe when it is the file this
 		// write is staging, not an arbitrary path. Two properties are checked:
@@ -362,38 +527,10 @@ export async function safeWriteText(
 
 	let backupPath: string | null = null
 	let releaseBackupOnSuccess = false
-	// Set once the commit rename has published the new content. After that point the
-	// backup is no longer a safe restore source: rolling it back would overwrite
-	// content the caller can already observe at the target path.
 	// Non-null only when the win32 step-2 block saved a successful DACL dump:
 	// it gates the step-5 restore and is tracked for the cleanup unlinks.
 	let daclDumpPath: string | null = null
-	// Warning delivery must never abort the write: the notice below describes a leftover
-	// beside a committed file, and a caller whose callback throws (a UI sink, a logger that is
-	// mid-restart) must not turn that into a different failure than the one the caller is told
-	// about. Declared above the try so the failure handler can report a retained backup through it.
-	const warn = (message: string) => {
-		const report = (label: string, error: unknown) => {
-			console.warn(
-				`safeWriteText: onWarning callback ${label}: ${error instanceof Error ? error.message : String(error)}`,
-			)
-		}
-		try {
-			const sink = options?.onWarning ?? ((m: string) => console.warn(m))
-			const result: unknown = sink(message)
-			// A sink may be async - TypeScript accepts a value-returning callback where
-			// a void one is expected. Awaiting it would let warning delivery delay a
-			// write that has already committed (and hang it if the sink never settles),
-			// while leaving the promise unhandled turns a rejection into an unhandled
-			// rejection, which under Node's default mode can end the process after a
-			// successful write. Attach a handler without awaiting.
-			if (result instanceof Promise) {
-				result.catch((error: unknown) => report("rejected", error))
-			}
-		} catch (error: unknown) {
-			report("failed", error)
-		}
-	}
+
 	try {
 		// -- Step 1: write content to staging temp file -------------------
 		if (!options?.tempPath) {
@@ -461,7 +598,7 @@ export async function safeWriteText(
 			}
 		}
 
-		// -- Step 2 (win32): save DACL BEFORE the backup copy -----------
+		// -- Step 2 (win32): save DACL BEFORE backup rename ---------------
 		const platform = options?.platform ?? process.platform
 		if (platform === "win32") {
 			let accessError: unknown = null
@@ -499,7 +636,48 @@ export async function safeWriteText(
 				throw new DaclInspectionError(targetPath, "inspect", accessError)
 			}
 		}
+
 		try {
+			// -- Step 2b: re-validate the authorized ancestry before committing --
+			// The caller decided containment by walking this directory chain. A parent
+			// swapped for a link to outside that chain would send the commit somewhere the
+			// caller never authorized, even though expectedResolvedPath still matches (the
+			// name is unchanged). Compare each recorded identity now, before anything is
+			// moved into place.
+			if (options?.expectedAncestorIdentities) {
+				for (const expected of options.expectedAncestorIdentities) {
+					const current = await fs.stat(expected.dir, { bigint: true }).catch((error: unknown) => {
+						if (getErrorCode(error) === "ENOENT") {
+							throw new AncestorReplacedError(expected.dir, "no longer exists")
+						}
+						throw error
+					})
+					if (current.dev !== expected.dev || current.ino !== expected.ino) {
+						throw new AncestorReplacedError(expected.dir, "is no longer the directory that was authorized")
+					}
+					// A move preserves dev+ino, so the identity check above passes for a
+					// directory that was relocated and whose old name was replaced by a
+					// symlink to the moved location - stat follows that link. The commit
+					// below takes path strings and would follow it too, publishing at the
+					// moved location outside the chain the caller walked. Require that the
+					// authorized name still resolves to the very location it named.
+					// Only a vanished name is a containment violation. A transient EACCES
+					// or EIO would otherwise be reported as a replaced ancestor, pointing
+					// the user at a security problem that is not there - mirror the stat
+					// call above, which maps only ENOENT and rethrows the rest.
+					const resolvedDir = await fs.realpath(expected.dir).catch((error: unknown) => {
+						const code = getErrorCode(error)
+						if (code === "ENOENT" || code === "ENOTDIR") {
+							return undefined
+						}
+						throw error
+					})
+					if (resolvedDir === undefined || path.resolve(resolvedDir) !== path.resolve(expected.dir)) {
+						throw new AncestorReplacedError(expected.dir, "no longer resolves to the authorized location")
+					}
+				}
+			}
+
 			// -- Step 3 (backup:true): durable copy target -> backup ----
 			if (options?.backup) {
 				try {
@@ -521,6 +699,11 @@ export async function safeWriteText(
 						// the chmod afterwards is what clears a copied read-only attribute on Windows
 						// and keeps a backup of a permissive file private.
 						const seedFd = fsSync.openSync(backupPath, "wx", 0o600)
+						// Single close, no retry: on POSIX close(2) can release the descriptor before it
+						// reports an error (and leaves its state unspecified after EINTR), so a second
+						// close could release a descriptor some other operation has meanwhile reused.
+						// The failure propagates; backupPath is already recorded, so the outer cleanup
+						// removes the seeded file instead of leaving it beside the target.
 						fsSync.closeSync(seedFd)
 						await fs.copyFile(targetPath, backupPath)
 						await fs.chmod(backupPath, 0o600)
@@ -534,9 +717,31 @@ export async function safeWriteText(
 						}
 					} catch (backupError: unknown) {
 						// A partial backup must not outlive this attempt: it is not a complete copy
-						// of anything, and once the write fails nothing else removes it.
-						await fs.unlink(backupPath).catch(() => {})
+						// of anything, and once the write fails nothing else removes it. The unlink is
+						// retried once (Windows reports EPERM for a file whose handle has not been
+						// released yet); if it still fails the path is carried on the thrown error
+						// instead of being dropped where no caller can act on it.
+						const orphanPath = backupPath
+						let backupCleanupError: unknown = null
+						for (let attempt = 0; attempt < 2; attempt++) {
+							try {
+								await fs.unlink(orphanPath)
+								backupCleanupError = null
+								break
+							} catch (cleanupError: unknown) {
+								if (getErrorCode(cleanupError) === "ENOENT") {
+									// Already gone: that is exactly the outcome the cleanup wanted, so stop
+									// rather than unlinking the same path a second time.
+									backupCleanupError = null
+									break
+								}
+								backupCleanupError = cleanupError
+							}
+						}
 						backupPath = null
+						if (backupCleanupError !== null) {
+							throw new OrphanedBackupError(orphanPath, targetPath, backupError, backupCleanupError)
+						}
 						throw backupError
 					}
 					releaseBackupOnSuccess = true
@@ -545,9 +750,50 @@ export async function safeWriteText(
 				}
 			}
 
-			// -- Step 4: atomic rename temp -> target ---------------------
-			await fs.rename(tempPath, targetPath)
+			// -- Step 4: atomic commit temp -> target ---------------------
+			if (options?.failIfExist) {
+				// No-replace commit: link(2) fails EEXIST when the name already exists,
+				// where a rename would silently displace whatever a non-participating
+				// writer put there after the caller checked. The staged copy is removed
+				// once the name points at it.
+				try {
+					await fs.link(tempPath, targetPath)
+				} catch (error: unknown) {
+					const code = getErrorCode(error)
+					if (code === "EEXIST") {
+						throw new TargetExistsError(targetPath)
+					}
+					// FAT32/exFAT volumes and some SMB/network mounts have no hard links, where
+					// link(2) fails EPERM/ENOTSUP/ENOSYS. The fallback this replaces published by
+					// an exclusive copy directly at the final name, but a copy is not atomic:
+					// readers can observe a partial file, and a crash or an EIO mid-copy leaves
+					// damaged bytes under the final name with the 'already exists' verdict on
+					// retry. No atomic no-replace primitive exists on those volumes, so the
+					// guarded create fails closed - nothing is published and the caller learns
+					// the volume cannot honor the contract.
+					if (code !== "EPERM" && code !== "ENOTSUP" && code !== "ENOSYS") {
+						throw error
+					}
+					throw new UnsupportedFilesystemError(targetPath, error)
+				}
+			} else {
+				await fs.rename(tempPath, targetPath)
+			}
 
+			if (options?.failIfExist) {
+				// The target name is published at this point; the staged name is only a second
+				// link to the same inode (or a copy of it). Removal is best-effort: on Windows
+				// an antivirus handle can make unlink fail with EBUSY/EPERM after the content
+				// is already visible, and the write must not be reported as failed for content
+				// the caller can now read back.
+				await fs.unlink(tempPath).catch(() => undefined)
+			}
+
+			// Marked once the commit has consumed the staging name: on the rename path the
+			// rename consumed it, on the link path the removal just did. Every step after
+			// this one is a post-commit step, and none of them may remove the staging path
+			// or the published content.
+			stagingCommitted = true
 			// -- Step 4b (POSIX): fsync the parent directory so the directory entry
 			// changed by the commit rename is durable, not just the file content.
 			if (platform !== "win32") {
@@ -575,25 +821,33 @@ export async function safeWriteText(
 			// and on every failed save.
 			if (daclDumpPath !== null) {
 				const restoredDir = path.dirname(targetPath)
-				const restored = await _restoreDaclWindows(restoredDir, daclDumpPath, options?.execFileRunner)
-				if (!restored) {
-					// The content is committed, but the published file answers to a different DACL
-					// from the one that was saved, and nothing here verified an equivalent
-					// restrictive ACL on the replacement. This reaches the caller as an error rather
-					// than a warning: no caller can observe success for a publish whose DACL was not
-					// preserved. The handler at the bottom of this try keeps the backup copy for this
-					// error instead of rolling the published content back, so the throw reports the
-					// changed access rights without undoing a write the caller can already observe.
-					throw new DaclRestoreError(targetPath, null)
-				}
+				await _restoreDaclWindows(restoredDir, daclDumpPath, options?.execFileRunner)
 			}
 
 			// -- Step 6 (backup:true): delete backup on success -----------
 			if (releaseBackupOnSuccess && backupPath) {
-				try {
-					await fs.unlink(backupPath)
-				} catch {
-					// non-fatal — orphaned backup is acceptable
+				const orphanedBackupPath = backupPath
+				let backupCleanupError: unknown = null
+				// A transient handle (antivirus scanner, indexer) can block the first unlink
+				// on Windows; one retry usually clears it.
+				for (let attempt = 0; attempt < 2; attempt++) {
+					try {
+						await fs.unlink(orphanedBackupPath)
+						backupCleanupError = null
+						break
+					} catch (cleanupError: unknown) {
+						if (getErrorCode(cleanupError) === "ENOENT") {
+							backupCleanupError = null
+							break
+						}
+						backupCleanupError = cleanupError
+					}
+				}
+				backupPath = null
+				if (backupCleanupError !== null) {
+					// The content is published: reporting success here would abandon a stale
+					// copy of the previous content, so the failure travels as its own error.
+					throw new OrphanedPublishedBackupError(targetPath, orphanedBackupPath, backupCleanupError)
 				}
 			}
 		} finally {
@@ -613,35 +867,23 @@ export async function safeWriteText(
 			await fs.rmdir(stagingDir).catch(() => {})
 		}
 	} catch (originalError: unknown) {
-		// Only a pre-commit failure can restore the backup. Once the commit rename
-		// published, a later failure (for example the post-commit directory fsync)
-		// must not overwrite the published content with the old file.
+		// The backup is a copy, never a restore source: whether the failure happened before
+		// or after the commit rename, the copy is removed below so no stale duplicate of the
+		// previous content survives next to the target.
 		if (backupPath && releaseBackupOnSuccess) {
-			if (originalError instanceof DaclRestoreError) {
-				// The one post-commit failure that keeps its copy. The published file answers to
-				// the descriptor its staging file was created with, and this copy - made from the
-				// file the publish replaced, so on Windows it carries that file's security
-				// attributes - is the only artifact left holding the access rights that could not
-				// be restored. Deleting it would destroy the only recovery path for exactly the
-				// fact the error reports, so the copy stays and its path is named to the human:
-				// the caller already holds the error, and this primitive reports a leftover on
-				// the warning sink because it has no structured result to carry it on.
-				warn(
-					`${originalError.message}; its backup copy is kept at ${backupPath} and still carries the access rights of the file it replaced.`,
-				)
-			} else {
-				// Nothing to restore: the backup is a copy, so the target still holds whatever
-				// the commit left there - before the commit that is the pre-write content, and
-				// after it the published content. Either way the copy has served its purpose
-				// and must not be left beside the target where no caller can find it.
-				await fs.unlink(backupPath).catch(() => {})
-			}
+			// Nothing to restore: the backup is a copy, so the target still holds whatever
+			// the commit left there - before the commit that is the pre-write content, and
+			// after it the published content. Either way the copy has served its purpose
+			// and must not be left beside the target where no caller can find it.
+			await fs.unlink(backupPath).catch(() => {})
 			backupPath = null
 		}
-		try {
-			await fs.unlink(tempPath).catch(() => {})
-		} catch {
-			// cleanup failure is non-fatal
+		if (!stagingCommitted) {
+			try {
+				await fs.unlink(tempPath).catch(() => {})
+			} catch {
+				// cleanup failure is non-fatal
+			}
 		}
 
 		// A failed self-staged write must not leave its staging directory behind.
