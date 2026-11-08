@@ -10,7 +10,14 @@ function getTempFilePrefix(absoluteFilePath: string, kind: "new" | "bak"): strin
 	return `.${path.basename(absoluteFilePath)}.${kind}_`
 }
 
-function isReplacementLeftover(absoluteFilePath: string, entry: string): boolean {
+/**
+ * Whether a directory entry is one of the replacement-protocol temp files a writer
+ * leaves behind only when it died mid-commit. Exported so a caller that already holds
+ * the per-file lock can sweep the same set in the same order deleteJsonFile does,
+ * without taking the lock a second time.
+ */
+
+export function isReplacementLeftover(absoluteFilePath: string, entry: string): boolean {
 	return (
 		entry.endsWith(".tmp") &&
 		(entry.startsWith(getTempFilePrefix(absoluteFilePath, "new")) ||
