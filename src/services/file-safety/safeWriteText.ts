@@ -125,6 +125,46 @@ export class OrphanedPublishedBackupError extends Error {
 	}
 }
 
+/**
+ * A write that is already failing left its complete backup copy on disk because removing it
+ * failed twice. Reported separately from OrphanedPublishedBackupError, which says the write
+ * SUCCEEDED and only the copy is leftover: here the write's own failure is the primary fact
+ * and is kept as originalError (and as this error's cause), cleanupError says why the copy is
+ * still there, and contentPublished says which of the two meanings the leftover has - a stale
+ * copy beside published content, or a duplicate of the content the target still holds.
+ */
+export class OrphanedBackupAfterFailedWriteError extends Error {
+	readonly targetPath: string
+	readonly orphanedBackupPath: string
+	readonly originalError: unknown
+	readonly cleanupError: unknown
+	readonly contentPublished: boolean
+
+	constructor(
+		targetPath: string,
+		backupPath: string,
+		cause: unknown,
+		cleanupError: unknown,
+		contentPublished: boolean,
+	) {
+		const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+		super(
+			`safeWriteText: the write to ${targetPath} failed (${reason(cause)}), and the backup copy at ${backupPath} ` +
+				`could not be removed (${reason(cleanupError)}). The copy of the previous content is still on disk; ` +
+				(contentPublished
+					? `the target holds the new content, so the copy is stale and must be removed.`
+					: `the target still holds the previous content, so the copy duplicates it and must be removed.`),
+			{ cause },
+		)
+		this.name = "OrphanedBackupAfterFailedWriteError"
+		this.targetPath = targetPath
+		this.orphanedBackupPath = backupPath
+		this.originalError = cause
+		this.cleanupError = cleanupError
+		this.contentPublished = contentPublished
+	}
+}
+
 function _orphanedBackupMessage(targetPath: string, backupPath: string, cause: unknown, cleanupError: unknown): string {
 	const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 	return (
@@ -282,9 +322,11 @@ function _stagingDir(dir: string): string {
 }
 
 /** Save the DACL of *srcPath* to a dump file on Windows.
- * Returns true when the dump was written successfully; false otherwise.
- * Never throws — callers treat failure as "skip DACL handling". */
-async function _saveDaclWindows(srcPath: string, dumpPath: string, execFileRunner?: typeof execFile): Promise<boolean> {
+ * Returns null when the dump was written, and the runner's error when it was not: the caller
+ * refuses the publish either way and has to be able to say which failure it is refusing -
+ * "icacls ran and failed" and "icacls could not be started at all" are different facts to act
+ * on. Never throws. */
+async function _saveDaclWindows(srcPath: string, dumpPath: string, execFileRunner?: typeof execFile): Promise<unknown> {
 	const runner = execFileRunner ?? execFile
 	try {
 		await new Promise<void>((resolve, reject) => {
@@ -292,12 +334,11 @@ async function _saveDaclWindows(srcPath: string, dumpPath: string, execFileRunne
 				err ? reject(err) : resolve(),
 			)
 		})
-		return true
-	} catch {
-		return false
+		return null
+	} catch (error: unknown) {
+		return error
 	}
 }
-
 /** Restore a DACL dump onto *dirPath* on Windows.
  * Best-effort: content is already committed, so failure is non-fatal. */
 async function _restoreDaclWindows(dirPath: string, dumpPath: string, execFileRunner?: typeof execFile): Promise<void> {
@@ -527,6 +568,9 @@ export async function safeWriteText(
 
 	let backupPath: string | null = null
 	let releaseBackupOnSuccess = false
+	// True only when this write's own seed open created the backup file. A name that already
+	// existed is not this write's file, and the failure path below must not unlink it.
+	let backupSeeded = false
 	// Non-null only when the win32 step-2 block saved a successful DACL dump:
 	// it gates the step-5 restore and is tracked for the cleanup unlinks.
 	let daclDumpPath: string | null = null
@@ -565,9 +609,21 @@ export async function safeWriteText(
 				// Loop until every byte is written: writeSync can report a short
 				// (partial) write, and publishing a truncated staging file would
 				// commit corrupt content.
+				// A zero return is not a short write - it means the descriptor made no progress -
+				// and it is handled below rather than looped on.
 				let offset = 0
 				while (offset < buffer.length) {
-					offset += fsSync.writeSync(fd, buffer, offset, buffer.length - offset)
+					const written = fsSync.writeSync(fd, buffer, offset, buffer.length - offset)
+					if (written === 0) {
+						// Not a short write: the descriptor made no progress at all, so looping again
+						// would hold the fd and the event loop forever without ever reaching fsyncSync
+						// or the commit. The finally below closes the fd and the outer cleanup removes
+						// the staged file, so a stalled write strands neither.
+						throw new Error(
+							`safeWriteText: write of ${tempPath} stalled after ${offset} of ${buffer.length} bytes`,
+						)
+					}
+					offset += written
 				}
 				fsSync.fsyncSync(fd)
 			} finally {
@@ -609,8 +665,8 @@ export async function safeWriteText(
 			}
 			if (accessError === null) {
 				const dumpPath = _tempName(dirPath, "safeWriteText.acl")
-				const saved = await _saveDaclWindows(targetPath, dumpPath, options?.execFileRunner)
-				if (saved) {
+				const saveFailure = await _saveDaclWindows(targetPath, dumpPath, options?.execFileRunner)
+				if (saveFailure === null) {
 					// Only a successfully saved dump may be restored onto the
 					// committed file (step 5).
 					daclDumpPath = dumpPath
@@ -627,7 +683,10 @@ export async function safeWriteText(
 					// still holds its content, and this throw lands in the handler at the bottom of
 					// this try - the one place that removes the staged file and this write's own
 					// staging directory - so a refused publish strands neither.
-					throw new DaclInspectionError(targetPath, "save", null)
+					// The runner's error travels with the refusal: the phase already says which check
+					// refused, and without the error a caller cannot tell a failed icacls from an
+					// icacls that could not be started at all.
+					throw new DaclInspectionError(targetPath, "save", saveFailure)
 				}
 			} else if (getErrorCode(accessError) !== "ENOENT") {
 				// Not "absent": the target is there but its access rights could not be read
@@ -699,6 +758,9 @@ export async function safeWriteText(
 						// the chmod afterwards is what clears a copied read-only attribute on Windows
 						// and keeps a backup of a permissive file private.
 						const seedFd = fsSync.openSync(backupPath, "wx", 0o600)
+						// The name is ours from the moment the exclusive open succeeds, so the failure
+						// path may remove it even when the close below reports an error.
+						backupSeeded = true
 						// Single close, no retry: on POSIX close(2) can release the descriptor before it
 						// reports an error (and leaves its state unspecified after EINTR), so a second
 						// close could release a descriptor some other operation has meanwhile reused.
@@ -723,22 +785,29 @@ export async function safeWriteText(
 						// instead of being dropped where no caller can act on it.
 						const orphanPath = backupPath
 						let backupCleanupError: unknown = null
-						for (let attempt = 0; attempt < 2; attempt++) {
-							try {
-								await fs.unlink(orphanPath)
-								backupCleanupError = null
-								break
-							} catch (cleanupError: unknown) {
-								if (getErrorCode(cleanupError) === "ENOENT") {
-									// Already gone: that is exactly the outcome the cleanup wanted, so stop
-									// rather than unlinking the same path a second time.
+						if (backupSeeded) {
+							for (let attempt = 0; attempt < 2; attempt++) {
+								try {
+									await fs.unlink(orphanPath)
 									backupCleanupError = null
 									break
+								} catch (cleanupError: unknown) {
+									if (getErrorCode(cleanupError) === "ENOENT") {
+										// Already gone: that is exactly the outcome the cleanup wanted, so stop
+										// rather than unlinking the same path a second time.
+										backupCleanupError = null
+										break
+									}
+									backupCleanupError = cleanupError
 								}
-								backupCleanupError = cleanupError
 							}
 						}
 						backupPath = null
+						// When the seed open never succeeded - an EEXIST on a name another writer owns, or a
+						// failure before anything existed at it - there is nothing here to remove: an entry
+						// this write did not create is not this write's orphan, and unlinking it would take
+						// away somebody else's backup on the way out. backupCleanupError stays null, so the
+						// original failure below is what the caller sees.
 						if (backupCleanupError !== null) {
 							throw new OrphanedBackupError(orphanPath, targetPath, backupError, backupCleanupError)
 						}
@@ -870,12 +939,46 @@ export async function safeWriteText(
 		// The backup is a copy, never a restore source: whether the failure happened before
 		// or after the commit rename, the copy is removed below so no stale duplicate of the
 		// previous content survives next to the target.
+		// Set when a backup copy this write made could not be removed; reported at the end of
+		// this catch so the staging cleanup above is not skipped for a cleanup failure.
+		let pendingBackupError: OrphanedBackupAfterFailedWriteError | null = null
 		if (backupPath && releaseBackupOnSuccess) {
 			// Nothing to restore: the backup is a copy, so the target still holds whatever
 			// the commit left there - before the commit that is the pre-write content, and
 			// after it the published content. Either way the copy has served its purpose
 			// and must not be left beside the target where no caller can find it.
-			await fs.unlink(backupPath).catch(() => {})
+			let removalError: unknown = null
+			for (let attempt = 0; attempt < 2; attempt++) {
+				try {
+					await fs.unlink(backupPath)
+					removalError = null
+					break
+				} catch (error: unknown) {
+					if (getErrorCode(error) === "ENOENT") {
+						// Already gone: that is exactly the outcome this cleanup wanted.
+						removalError = null
+						break
+					}
+					// Retry once: Windows reports EPERM for a file whose handle has not been
+					// released yet, which is the same failure the success-path cleanup retries.
+					removalError = error
+				}
+			}
+			if (removalError !== null) {
+				// The copy of the previous content is still on disk and only this function knew
+				// where. Reporting it is what keeps the original error the primary fact while
+				// leaving the leftover findable; swallowing the removal left both unreported.
+				// Constructed, not thrown yet: the staging cleanup below has to run first, so
+				// the leftover is reported once this catch has finished what it can do about the
+				// write's own mess.
+				pendingBackupError = new OrphanedBackupAfterFailedWriteError(
+					targetPath,
+					backupPath,
+					originalError,
+					removalError,
+					stagingCommitted,
+				)
+			}
 			backupPath = null
 		}
 		if (!stagingCommitted) {
@@ -897,6 +1000,12 @@ export async function safeWriteText(
 			await fs.unlink(daclDumpPath).catch(() => {})
 		}
 
+		if (pendingBackupError) {
+			// The write's own failure is still the primary fact - it travels on this error as
+			// originalError and as its cause - and the copy of the previous content now has a
+			// path a caller can act on instead of being unreported.
+			throw pendingBackupError
+		}
 		throw originalError
 	}
 }

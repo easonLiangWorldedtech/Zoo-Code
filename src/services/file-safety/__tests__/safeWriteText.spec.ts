@@ -15,6 +15,7 @@ import {
 	UnsupportedFilesystemError,
 	TargetMovedError,
 	AncestorReplacedError,
+	OrphanedBackupAfterFailedWriteError,
 	OrphanedBackupError,
 	OrphanedPublishedBackupError,
 } from "../safeWriteText"
@@ -569,6 +570,77 @@ describe("safeWriteText", () => {
 			expect(fs.rename).not.toHaveBeenCalled()
 		})
 
+		it("refuses a backup name another writer already owns instead of unlinking it", async () => {
+			const targetPath = "/tmp/test-dir/target.txt"
+			vi.mocked(fs.realpath).mockResolvedValue(targetPath)
+			// The exclusive seed open hits a backup name this write never created.
+			vi.mocked(fsSync.openSync).mockImplementation((...args: unknown[]) => {
+				if (typeof args[0] === "string" && args[0].includes("safeWriteText.bak_")) {
+					throw Object.assign(new Error("EEXIST"), { code: "EEXIST" })
+				}
+				return 1
+			})
+
+			const error = await safeWriteText(targetPath, "new data", {
+				backup: true,
+				platform: "linux",
+			}).catch((caught: unknown) => caught)
+
+			expect((error as Error).message).toContain("EEXIST")
+			// The name is not this write's orphan: unlinking it on the way out would
+			// delete another writer's backup to clean up a file this write never made.
+			const backupUnlinks = vi.mocked(fs.unlink).mock.calls.filter(function (call: unknown[]) {
+				return typeof call[0] === "string" && call[0].includes("safeWriteText.bak_")
+			})
+			expect(backupUnlinks).toHaveLength(0)
+			expect(fs.copyFile).not.toHaveBeenCalled()
+			expect(fs.rename).not.toHaveBeenCalled()
+		})
+
+		it("reports a backup copy it cannot remove after a failed write instead of dropping it", async () => {
+			const targetPath = "/tmp/test-dir/target.txt"
+			vi.mocked(fs.realpath).mockResolvedValue(targetPath)
+			vi.mocked(fsSync.openSync).mockReturnValue(1)
+			// The copy is seeded and flushed fine; only its removal on the failure
+			// path fails, twice, with the same handle-not-released error Windows
+			// reports for a fresh file.
+			vi.mocked(fs.unlink).mockImplementation(async (p: unknown) => {
+				if (String(p).includes("safeWriteText.bak_")) {
+					throw Object.assign(new Error("EPERM"), { code: "EPERM" })
+				}
+			})
+			// The commit is what fails here, so nothing was published.
+			vi.mocked(fs.rename).mockRejectedValue(Object.assign(new Error("EIO"), { code: "EIO" }))
+
+			const error = await safeWriteText(targetPath, "new data", {
+				backup: true,
+				platform: "linux",
+			}).catch((caught: unknown) => caught)
+
+			expect(error).toBeInstanceOf(OrphanedBackupAfterFailedWriteError)
+			const orphan = error as OrphanedBackupAfterFailedWriteError
+			expect(orphan.orphanedBackupPath).toContain("safeWriteText.bak_")
+			expect(orphan.message).toContain("safeWriteText.bak_")
+			expect(orphan.message).toContain("EPERM")
+			// The write's own failure stays the primary fact: it travels as
+			// originalError and as the cause, and cleanupError says why the copy
+			// is still on disk.
+			expect((orphan.originalError as Error).message).toBe("EIO")
+			expect((orphan.cleanupError as Error).message).toBe("EPERM")
+			expect(orphan.cause).toBe(orphan.originalError)
+			// The commit never succeeded, so the target still holds the previous
+			// content and the copy duplicates it rather than going stale.
+			expect(orphan.contentPublished).toBe(false)
+			const backupUnlinks = vi.mocked(fs.unlink).mock.calls.filter(function (call: unknown[]) {
+				return typeof call[0] === "string" && call[0].includes("safeWriteText.bak_")
+			})
+			expect(backupUnlinks).toHaveLength(2)
+			// Reporting the leftover must not skip cleaning the write's own staged
+			// file and staging directory: both ran before the leftover was reported.
+			expect(fs.unlink).toHaveBeenCalledWith(expect.stringContaining("safeWriteText_"))
+			expect(fs.rmdir).toHaveBeenCalled()
+		})
+
 		it("a backup copy that fails part-way is removed, not left as a usable-looking backup", async () => {
 			const targetPath = "/tmp/test-dir/target.txt"
 			vi.mocked(fs.realpath).mockResolvedValue(targetPath)
@@ -666,6 +738,13 @@ describe("safeWriteText", () => {
 				targetPath,
 				message: expect.stringContaining("its DACL could not be saved"),
 			})
+
+			// The refusal names the phase and the path but not what icacls did. The
+			// platform failure travels on the error so a caller can tell a refused
+			// icacls from an icacls that could not be started at all.
+			const cause = (refusal as DaclInspectionError).causeError
+			expect(cause).toBeInstanceOf(Error)
+			expect((cause as Error).message).toBe("icacls error")
 
 			// Contract change (Security Boundaries row): a target whose DACL could not be
 			// saved is no longer replaced by a file that inherits different rights.
@@ -1089,6 +1168,30 @@ describe("safeWriteText", () => {
 			expect(fsSync.writeSync).toHaveBeenNthCalledWith(2, 1, buffer, 4, 6)
 			expect(fsSync.fsyncSync).toHaveBeenCalledWith(1)
 			expect(fs.rename).toHaveBeenCalledWith(expect.stringContaining("safeWriteText_"), targetPath)
+		})
+
+		it("stops instead of looping when a write makes no progress at all", async () => {
+			const targetPath = "/tmp/test-dir/target.txt"
+			const content = "abcdefg" // 7 bytes
+			vi.mocked(fs.realpath).mockResolvedValue(targetPath)
+			vi.mocked(fsSync.openSync).mockReturnValue(1)
+			// Every write reports zero bytes. The short-write loop is bounded by
+			// offset < buffer.length only, so a zero return would spin on the same
+			// offset forever, holding the fd and the event loop.
+			vi.mocked(fsSync.writeSync).mockReturnValue(0)
+
+			const error = await safeWriteText(targetPath, content, {
+				platform: "linux",
+			}).catch((caught: unknown) => caught)
+
+			expect(error).toBeInstanceOf(Error)
+			expect((error as Error).message).toContain("stalled after 0 of 7 bytes")
+			// The stalled staging file never reached durability or the commit.
+			expect(fsSync.fsyncSync).not.toHaveBeenCalled()
+			expect(fs.rename).not.toHaveBeenCalled()
+			// The finally around the write closes the descriptor, so a stalled write
+			// strands neither the fd nor the process.
+			expect(fsSync.closeSync).toHaveBeenCalledWith(1)
 		})
 
 		it("fsyncs the parent directory after the commit rename on POSIX", async () => {
