@@ -1492,6 +1492,13 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			// entry rather than an entry alone.
 			await store.reconcile()
 			onWrite.mockClear()
+			// Captured before the batch runs, and as a copy: the restoration hands back the very object this
+			// store was serving, so a reference captured here would travel with any change made to it and
+			// could not tell a preserved entry from a rebuilt one, or a restored mtime from a zeroed one.
+			const servedEntry = structuredClone(store.get("dup-restored"))
+			const servedMtime = storeInternals(store).taskFileMtimes.get("dup-restored")
+			expect(servedEntry).toBeDefined()
+			expect(servedMtime).toBeTypeOf("number")
 			const taskPath = historyFilePath(storagePath, "dup-restored")
 			// A removed item costs two locked calls: the removal itself, and main's delete helper running
 			// once more after the lock was released. The counter puts the republish after that cleanup and
@@ -1526,13 +1533,14 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			await expect(fs.access(taskPath)).resolves.toBeUndefined()
 			const after = storeInternals(store)
 			expect(after.cache.has("dup-restored")).toBe(true)
-			expect(store.get("dup-restored")).toBeDefined()
-			expect(after.taskFileMtimes.has("dup-restored")).toBe(true)
-			// One write-through for a batch that removed one file, and the id the error names is inside the
-			// payload that write sent.
+			expect(store.get("dup-restored")).toEqual(servedEntry)
+			expect(after.taskFileMtimes.get("dup-restored")).toBe(servedMtime)
+			// One write-through for a batch that removed one file, and the complete payload it published:
+			// the id the error names has to appear in it as the entry this store served before the batch,
+			// not as a placeholder record.
 			expect(onWrite).toHaveBeenCalledTimes(1)
 			const payload = onWrite.mock.calls[0]?.[0] as HistoryItem[]
-			expect(payload.some((entry: HistoryItem) => entry.id === "dup-restored")).toBe(true)
+			expect(payload).toEqual([servedEntry])
 		})
 
 		it("keeps the served entry through a second successful attempt of the same id", async () => {
@@ -1547,8 +1555,12 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			await store.upsert(item)
 			await store.reconcile()
 			onWrite.mockClear()
-			const servedEntry = store.get("dup-twice")
+			// Captured as a copy, and before any attempt ran, for the same reason as in the test above:
+			// a reference would move with the object the restoration hands back.
+			const servedEntry = structuredClone(store.get("dup-twice"))
 			const servedMtime = storeInternals(store).taskFileMtimes.get("dup-twice")
+			expect(servedEntry).toBeDefined()
+			expect(servedMtime).toBeTypeOf("number")
 			const taskPath = historyFilePath(storagePath, "dup-twice")
 			// Two locked calls per successful attempt: the removal, then main's delete helper running once
 			// more after that lock was released. The republishes land in the windows between attempts, and
@@ -1593,7 +1605,7 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			// One write-through, and the id the error names is in the payload it published.
 			expect(onWrite).toHaveBeenCalledTimes(1)
 			const payload = onWrite.mock.calls[0]?.[0] as HistoryItem[]
-			expect(payload.some((entry: HistoryItem) => entry.id === "dup-twice")).toBe(true)
+			expect(payload).toEqual([servedEntry])
 		})
 	})
 })
