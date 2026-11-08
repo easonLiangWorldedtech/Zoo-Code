@@ -11,7 +11,7 @@ import * as path from "path"
 import type { HistoryItem } from "@roo-code/types"
 
 import { TaskHistoryDeleteError, TaskHistoryStore } from "../TaskHistoryStore"
-import { withFileLock } from "../../../utils/fileLock"
+import { acquireFileLock, withFileLock } from "../../../utils/fileLock"
 import { GlobalFileNames } from "../../../shared/globalFileNames"
 import { readFileWithMissingRetry } from "../readFileWithMissingRetry"
 import { safeWriteJson } from "../../../utils/safeWriteJson"
@@ -25,7 +25,7 @@ vi.mock("../../../utils/storage", () => ({
 // a failure.
 vi.mock("../../../utils/fileLock", async () => {
 	const actual = await vi.importActual<typeof import("../../../utils/fileLock")>("../../../utils/fileLock")
-	return { ...actual, withFileLock: vi.fn(actual.withFileLock) }
+	return { ...actual, acquireFileLock: vi.fn(actual.acquireFileLock), withFileLock: vi.fn(actual.withFileLock) }
 })
 
 vi.mock("fs/promises", async () => {
@@ -82,6 +82,10 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 		onWrite = vi.fn().mockResolvedValue(undefined)
 		vi.mocked(withFileLock).mockClear()
 		vi.mocked(withFileLock).mockImplementation(actualFileLock.withFileLock)
+		// The certification path retries the acquisition through acquireFileLock directly, so it is
+		// spied per case and left on the real implementation everywhere else.
+		vi.mocked(acquireFileLock).mockClear()
+		vi.mocked(acquireFileLock).mockImplementation(actualFileLock.acquireFileLock)
 		vi.mocked(fs.unlink).mockImplementation(actualFs.unlink)
 	})
 
@@ -1268,6 +1272,457 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 		})
 	})
 
+	describe("certification after a lock that could not be taken", () => {
+		// The cases below all start the same way: the store serves the id, the task file is then removed from
+		// disk behind the store's back, and the first acquisition fails with ENOENT - what proper-lockfile's
+		// mkdir reports when the directory that would hold the lock is gone. That answer cannot settle the
+		// deletion on its own, so the store certifies the absence: it retries the acquisition, and once it
+		// holds a lock it asks the name and its directory what they say. The verdicts differ only in which of
+		// those answers refused, and a caller reads the difference off the reason string, so each case asserts
+		// the whole object the caller receives - ids, reason, cause, message, error name - rather than the
+		// substring that makes the stage obvious.
+		function noErrnoError(message: string): Error {
+			// No code property: the shape the fallback text exists for. The code-reading rule answers undefined
+			// for it, so the reason has to name the stage instead of quoting an errno.
+			return new Error(message)
+		}
+
+		function errnoError(message: string, code: string): Error {
+			return Object.assign(new Error(message), { code })
+		}
+
+		async function stopBackgroundReconciliation(store: TaskHistoryStore): Promise<void> {
+			// The store reconciles on an fs.watch debounce and on a periodic timer, and a reconciliation reads this
+			// task file through the same lock helpers this spec arms, and evicts an id whose file it finds gone.
+			// Those cases below remove the file behind the store's back, so a reconciliation that lands between
+			// taking the snapshot and reporting the verdict changes the served state and consumes an armed
+			// failure: it would describe a store that had already reconciled the absence rather than the
+			// deletion under test. Both background paths are stopped before anything is armed.
+			const timer = store["reconcileTimer"]
+			if (timer) {
+				clearTimeout(timer)
+				store["reconcileTimer"] = null
+			}
+			// The subscription is started asynchronously, so it has to be awaited into existence before it can be
+			// closed. Closing it is not enough on its own either: a debounce that an earlier write already
+			// scheduled survives the close, because its callback only asks whether the store was disposed. That
+			// reconciliation is let run out here, before this case removes the file it would find gone.
+			for (let attempt = 0; attempt < 200 && !store["fsWatcher"]; attempt++) {
+				await new Promise<void>((resolve) => {
+					setTimeout(resolve, 20)
+				})
+			}
+			const watcher = store["fsWatcher"]
+			if (watcher) {
+				watcher.close()
+				store["fsWatcher"] = null
+			}
+			await new Promise<void>((resolve) => {
+				setTimeout(resolve, 600)
+			})
+		}
+
+		function snapshot(store: TaskHistoryStore, taskId: string): { hadCache: boolean; hadMtime: boolean } {
+			const internals = storeInternals(store)
+			return { hadCache: internals.cache.has(taskId), hadMtime: internals.taskFileMtimes.has(taskId) }
+		}
+
+		async function serveIdWithFileRemovedFromDisk(taskId: string): Promise<{
+			store: TaskHistoryStore
+			before: { hadCache: boolean; hadMtime: boolean }
+		}> {
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: taskId }))
+			// reconcile is the only writer of the mtime map, so it has to run before a snapshot of that map
+			// says anything about what a failed delete kept.
+			await store.reconcile()
+			await stopBackgroundReconciliation(store)
+			onWrite.mockClear()
+			const before = snapshot(store, taskId)
+			expect(before.hadCache).toBe(true)
+			expect(before.hadMtime).toBe(true)
+			// The file goes after reconcile: the store still believes it serves this id when the deletion is
+			// attempted, which is the situation the certification is asked to decide.
+			await actualFs.rm(historyFilePath(storagePath, taskId), { force: true })
+			return { store, before }
+		}
+
+		function expectKeptVerdict(params: {
+			rejection: unknown
+			taskId: string
+			reason: string
+			cause: unknown
+			store: TaskHistoryStore
+			before: { hadCache: boolean; hadMtime: boolean }
+		}): void {
+			const { rejection, taskId, reason, cause, store, before } = params
+			expect(rejection).toBeInstanceOf(TaskHistoryDeleteError)
+			const failure = rejection as TaskHistoryDeleteError
+			expect(failure.name).toBe("TaskHistoryDeleteError")
+			expect(failure.taskIds).toEqual([taskId])
+			expect(failure.reason).toBe(reason)
+			expect(failure.message).toBe(
+				`Task history for ${taskId} could not be deleted (${reason}); the affected items were kept.`,
+			)
+			expect(failure.cause).toBe(cause)
+			// Nothing was written through, and the served entry and the mtime record it seeded stay where they
+			// were: a kept item is what the next reconciliation agrees with.
+			expect(onWrite).not.toHaveBeenCalled()
+			const after = storeInternals(store)
+			expect(after.cache.has(taskId)).toBe(before.hadCache)
+			expect(after.taskFileMtimes.has(taskId)).toBe(before.hadMtime)
+			expect(store.get(taskId)).toBeDefined()
+		}
+
+		it("names the stage rather than an errno when the lock rejects with null", async () => {
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "lock-reject-null" }))
+			await store.reconcile()
+			await stopBackgroundReconciliation(store)
+			onWrite.mockClear()
+			const before = snapshot(store, "lock-reject-null")
+			// A rejection that is not an object at all. Read as one, the code rule would reach for a property
+			// on a value that cannot carry it, and the reason would be built from whatever that produced.
+			vi.mocked(withFileLock).mockRejectedValueOnce(null)
+			const rejection = await store.delete("lock-reject-null").catch((error: unknown) => error)
+			// The rejection below is the removal's own attempt: the removal did not retry the lock, and the
+			// forced failure was not consumed by anything else on the way to it.
+			expect(vi.mocked(withFileLock)).toHaveBeenCalledTimes(1)
+			expectKeptVerdict({
+				rejection,
+				taskId: "lock-reject-null",
+				reason: "the per-file lock could not be taken (unknown error)",
+				cause: null,
+				store,
+				before,
+			})
+			// The rejection is preserved underneath exactly as it arrived, null included.
+			await expect(fs.access(historyFilePath(storagePath, "lock-reject-null"))).resolves.toBeUndefined()
+		})
+
+		it("names the stage rather than an errno when the lock rejects with a thrown string", async () => {
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "lock-reject-string" }))
+			await store.reconcile()
+			await stopBackgroundReconciliation(store)
+			onWrite.mockClear()
+			const before = snapshot(store, "lock-reject-string")
+			const thrown = "a lock that would not say why"
+			// A string is the other half of the same rule: it is not an object, and a code read off it answers
+			// undefined rather than saying the read produced nothing, so the reason must carry the fallback
+			// text rather than the result of that read.
+			vi.mocked(withFileLock).mockRejectedValueOnce(thrown)
+			const rejection = await store.delete("lock-reject-string").catch((error: unknown) => error)
+			expect(vi.mocked(withFileLock)).toHaveBeenCalledTimes(1)
+			expectKeptVerdict({
+				rejection,
+				taskId: "lock-reject-string",
+				reason: "the per-file lock could not be taken (unknown error)",
+				cause: thrown,
+				store,
+				before,
+			})
+			await expect(fs.access(historyFilePath(storagePath, "lock-reject-string"))).resolves.toBeUndefined()
+		})
+
+		it("quotes the fallback text when the re-derivation under the lock fails for a reason with no errno", async () => {
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "revalidate-no-errno" }))
+			await store.reconcile()
+			await stopBackgroundReconciliation(store)
+			onWrite.mockClear()
+			const before = snapshot(store, "revalidate-no-errno")
+			const revalidationError = noErrnoError("the filesystem would not say why the name could not be resolved")
+			let insideOperation = false
+			let realpathCallsUnderLock = 0
+			const lockSpy = vi.mocked(withFileLock).mockImplementation((key, operation) =>
+				actualFileLock.withFileLock(key, (lockedPath) => {
+					insideOperation = true
+					return operation(lockedPath).finally(() => {
+						insideOperation = false
+					})
+				}),
+			)
+			const realpathSpy = vi.spyOn(fs, "realpath").mockImplementation(async (target) => {
+				if (insideOperation) {
+					realpathCallsUnderLock++
+					throw revalidationError
+				}
+				return actualFs.realpath(String(target))
+			})
+			let rejection: unknown
+			let lockAttempts = 0
+			try {
+				rejection = await store.delete("revalidate-no-errno").catch((error: unknown) => error)
+				// Read the call data before restoring: restoring the lock spy clears the mock's recorded calls,
+				// and a count taken afterwards would describe the restore rather than the deletion.
+				lockAttempts = vi.mocked(withFileLock).mock.calls.length
+			} finally {
+				realpathSpy.mockRestore()
+				lockSpy.mockRestore()
+			}
+			// The injection has to be seen landing where the case says it lands: a run that never reached the
+			// re-derivation would report some other stage and pass by doing nothing.
+			expect(realpathCallsUnderLock).toBeGreaterThan(0)
+			expect(lockAttempts).toBe(1)
+			expectKeptVerdict({
+				rejection,
+				taskId: "revalidate-no-errno",
+				reason: "the lock key could not be re-derived while this removal held the lock (unknown error)",
+				cause: revalidationError,
+				store,
+				before,
+			})
+			await expect(fs.access(historyFilePath(storagePath, "revalidate-no-errno"))).resolves.toBeUndefined()
+		})
+
+		it("quotes the fallback text when the key cannot be derived at all for a reason with no errno", async () => {
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "resolve-no-errno" }))
+			await store.reconcile()
+			await stopBackgroundReconciliation(store)
+			onWrite.mockClear()
+			const before = snapshot(store, "resolve-no-errno")
+			const resolutionError = noErrnoError("the filesystem would not say why the directory could not be read")
+			// The derivation is the one step that runs before the lock is attempted, so failing every read of
+			// the name's spelling fails it and nothing else: the lock is never taken and the unlink never runs.
+			let derivationReads = 0
+			const realpathSpy = vi.spyOn(fs, "realpath").mockImplementation(async () => {
+				derivationReads++
+				throw resolutionError
+			})
+			let rejection: unknown
+			try {
+				rejection = await store.delete("resolve-no-errno").catch((error: unknown) => error)
+			} finally {
+				realpathSpy.mockRestore()
+			}
+			expect(derivationReads).toBeGreaterThan(0)
+			expect(vi.mocked(withFileLock)).not.toHaveBeenCalled()
+			expectKeptVerdict({
+				rejection,
+				taskId: "resolve-no-errno",
+				reason: "lock key could not be resolved (unknown error)",
+				cause: resolutionError,
+				store,
+				before,
+			})
+			await expect(fs.access(historyFilePath(storagePath, "resolve-no-errno"))).resolves.toBeUndefined()
+		})
+
+		it("quotes the fallback text when the unlink fails for a reason with no errno", async () => {
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "unlink-no-errno" }))
+			await store.reconcile()
+			await stopBackgroundReconciliation(store)
+			onWrite.mockClear()
+			const before = snapshot(store, "unlink-no-errno")
+			// The lock was taken and held, the sweep ran, and only the removal itself failed - the one outcome
+			// whose reason is nothing but the errno, so the fallback text is the whole report the caller gets.
+			const unlinkError = noErrnoError("the unlink would not say why")
+			const taskPath = historyFilePath(storagePath, "unlink-no-errno")
+			let canonicalUnlinkAttempts = 0
+			// Only the removal of the canonical file fails. The sweep that runs before it is allowed to collect
+			// whatever leftover it finds beside the file: a forced failure that landed on that sweep instead
+			// would let the removal succeed and report a deletion, which is a different case.
+			vi.mocked(fs.unlink).mockImplementation(async (p: unknown) => {
+				if (String(p) === taskPath) {
+					canonicalUnlinkAttempts++
+					throw unlinkError
+				}
+				return await actualFs.unlink(String(p))
+			})
+			const rejection = await store.delete("unlink-no-errno").catch((error: unknown) => error)
+			expect(canonicalUnlinkAttempts).toBe(1)
+			expectKeptVerdict({
+				rejection,
+				taskId: "unlink-no-errno",
+				reason: "unknown error",
+				cause: unlinkError,
+				store,
+				before,
+			})
+			await expect(fs.access(historyFilePath(storagePath, "unlink-no-errno"))).resolves.toBeUndefined()
+		})
+
+		it("reports the name as uncheckable when the retry lock cannot be created and the name cannot be read", async () => {
+			const { store, before } = await serveIdWithFileRemovedFromDisk("retry-lock-enoent-stat-eacces")
+			const retryLockError = errnoError("ENOENT: no such file or directory, mkdir 'x.lock'", "ENOENT")
+			const retryStatError = errnoError("EACCES: permission denied, lstat", "EACCES")
+			// The first acquisition fails with ENOENT: the directory that would hold the lock reports
+			// itself gone, which is the answer that cannot settle the deletion on its own.
+			vi.mocked(withFileLock).mockRejectedValueOnce(retryLockError)
+			let retryAttempted = false
+			// The retry's own mkdir fails with ENOENT, so the certification falls back to asking the named path
+			// directly. This case makes that question fail for a different reason than the missing directory.
+			const acquireSpy = vi.mocked(acquireFileLock).mockImplementation(async () => {
+				retryAttempted = true
+				throw retryLockError
+			})
+			let statAttemptsUnderRetry = 0
+			const lstatSpy = vi.spyOn(fs, "lstat").mockImplementation(async (p: unknown) => {
+				if (retryAttempted) {
+					statAttemptsUnderRetry++
+					throw retryStatError
+				}
+				return await actualFs.lstat(String(p))
+			})
+			let rejection: unknown
+			try {
+				rejection = await store.delete("retry-lock-enoent-stat-eacces").catch((error: unknown) => error)
+			} finally {
+				lstatSpy.mockRestore()
+				acquireSpy.mockRestore()
+			}
+			expect(retryAttempted).toBe(true)
+			expect(statAttemptsUnderRetry).toBe(1)
+			expectKeptVerdict({
+				rejection,
+				taskId: "retry-lock-enoent-stat-eacces",
+				reason: "the per-file lock could not be taken (ENOENT); the named path could not be checked (EACCES)",
+				cause: retryStatError,
+				store,
+				before,
+			})
+		})
+
+		it("refuses the certification when the key cannot be re-derived under the retry lock", async () => {
+			const { store, before } = await serveIdWithFileRemovedFromDisk("retry-lock-revalidate-eacces")
+			const retryLockError = errnoError("ENOENT: no such file or directory, mkdir 'x.lock'", "ENOENT")
+			const revalidationError = errnoError("EACCES: permission denied, realpath", "EACCES")
+			vi.mocked(withFileLock).mockRejectedValueOnce(retryLockError)
+			let holdsRetryLock = false
+			let realpathCallsUnderRetry = 0
+			// Here the retry does take a lock. The refusal is the re-derivation inside it: a key that cannot be
+			// produced while holding the retry lock says nothing about the location the name resolves to.
+			let releaseCalls = 0
+			// The certification only needs a lock it can hold and then hand back. The acquisition itself is what
+			// the cases above the certification exercise, so the retry lock here is a recorded double: the case
+			// states which stage refused the certification and asserts that the lock taken for it was released.
+			const acquireSpy = vi.mocked(acquireFileLock).mockImplementation(async () => {
+				holdsRetryLock = true
+				return async () => {
+					holdsRetryLock = false
+					releaseCalls++
+				}
+			})
+			const realpathSpy = vi.spyOn(fs, "realpath").mockImplementation(async (target) => {
+				if (holdsRetryLock) {
+					realpathCallsUnderRetry++
+					throw revalidationError
+				}
+				return actualFs.realpath(String(target))
+			})
+			let rejection: unknown
+			try {
+				rejection = await store.delete("retry-lock-revalidate-eacces").catch((error: unknown) => error)
+			} finally {
+				realpathSpy.mockRestore()
+				acquireSpy.mockRestore()
+			}
+			expect(realpathCallsUnderRetry).toBeGreaterThan(0)
+			expect(releaseCalls).toBe(1)
+			expectKeptVerdict({
+				rejection,
+				taskId: "retry-lock-revalidate-eacces",
+				reason: "the per-file lock could not be taken (ENOENT); the lock key could not be re-derived while the retry lock was held (EACCES)",
+				cause: revalidationError,
+				store,
+				before,
+			})
+		})
+
+		it("reports the name as uncheckable when the read inside the retry lock fails for another errno", async () => {
+			const { store, before } = await serveIdWithFileRemovedFromDisk("retry-lock-stat-eacces")
+			const initialLockError = errnoError("ENOENT: no such file or directory, mkdir 'x.lock'", "ENOENT")
+			const statError = errnoError("EACCES: permission denied, lstat", "EACCES")
+			vi.mocked(withFileLock).mockRejectedValueOnce(initialLockError)
+			let holdsRetryLock = false
+			let lstatCallsUnderRetry = 0
+			// The retry takes the lock and the key re-derives onto the same place it did before. Only the read
+			// that asks whether something published onto the name while this deletion waited fails, and it fails
+			// for a reason that is not an answer about the file.
+			let releaseCalls = 0
+			// The certification only needs a lock it can hold and then hand back. The acquisition itself is what
+			// the cases above the certification exercise, so the retry lock here is a recorded double: the case
+			// states which stage refused the certification and asserts that the lock taken for it was released.
+			const acquireSpy = vi.mocked(acquireFileLock).mockImplementation(async () => {
+				holdsRetryLock = true
+				return async () => {
+					holdsRetryLock = false
+					releaseCalls++
+				}
+			})
+			const lstatSpy = vi.spyOn(fs, "lstat").mockImplementation(async (p: unknown) => {
+				if (holdsRetryLock) {
+					lstatCallsUnderRetry++
+					throw statError
+				}
+				return await actualFs.lstat(String(p))
+			})
+			let rejection: unknown
+			try {
+				rejection = await store.delete("retry-lock-stat-eacces").catch((error: unknown) => error)
+			} finally {
+				lstatSpy.mockRestore()
+				acquireSpy.mockRestore()
+			}
+			expect(holdsRetryLock).toBe(false)
+			expect(lstatCallsUnderRetry).toBeGreaterThan(0)
+			expect(releaseCalls).toBe(1)
+			expectKeptVerdict({
+				rejection,
+				taskId: "retry-lock-stat-eacces",
+				reason: "the per-file lock could not be taken (ENOENT); the named path could not be checked (EACCES)",
+				cause: statError,
+				store,
+				before,
+			})
+		})
+
+		it("names the directory read when the sweep inside the retry lock fails for another errno", async () => {
+			const { store, before } = await serveIdWithFileRemovedFromDisk("retry-lock-readdir-eio")
+			const initialLockError = errnoError("ENOENT: no such file or directory, mkdir 'x.lock'", "ENOENT")
+			const readError = errnoError("EIO: i/o error, scandir", "EIO")
+			vi.mocked(withFileLock).mockRejectedValueOnce(initialLockError)
+			let retryLockTaken = false
+			let releaseCalls = 0
+			// A recorded double for the retry lock, for the same reason as above: this case is about which answer
+			// refused the certification, not about whether a lock can be taken.
+			const acquireSpy = vi.mocked(acquireFileLock).mockImplementation(async () => {
+				retryLockTaken = true
+				return async () => {
+					releaseCalls++
+				}
+			})
+			// Name and key are readable and both answer absent. What fails is the sweep of the directory that
+			// would show an interrupted write's leftovers, and an I/O error there says nothing about the name.
+			const readdirSpy = vi.spyOn(fs, "readdir").mockRejectedValueOnce(readError)
+			let rejection: unknown
+			try {
+				rejection = await store.delete("retry-lock-readdir-eio").catch((error: unknown) => error)
+			} finally {
+				readdirSpy.mockRestore()
+				acquireSpy.mockRestore()
+			}
+			expect(retryLockTaken).toBe(true)
+			expect(releaseCalls).toBe(1)
+			expectKeptVerdict({
+				rejection,
+				taskId: "retry-lock-readdir-eio",
+				reason: "the per-file lock could not be taken (ENOENT); the containing directory could not be read (EIO)",
+				cause: readError,
+				store,
+				before,
+			})
+		})
+	})
 	describe("deleteMany()", () => {
 		it("keeps the failed item, continues the batch, and reports the failure after one write-through", async () => {
 			const store = createStore()
