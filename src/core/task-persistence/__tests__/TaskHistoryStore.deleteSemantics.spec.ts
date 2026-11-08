@@ -973,5 +973,62 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			expect(vi.mocked(withFileLock)).toHaveBeenCalledWith(await canonicalKey(referentPath), expect.any(Function))
 			expect(vi.mocked(fs.unlink)).toHaveBeenCalledWith(aliasPath)
 		})
+		it("reports a duplicate id only when its last attempt failed", async () => {
+			// The batch's caller can hand the same id twice: the descendant walk in
+			// ClineProvider.deleteTaskWithId has no visited set, so a child listed under two parents or
+			// a cycle in childIds yields duplicates. The first attempt here fails at the lock and the
+			// second completes the removal, so the batch has to report nothing: an id whose file this
+			// batch deleted must not appear in the failure report, because its caller excludes reported
+			// ids from the artifact cleanup and would leave the task directory behind.
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "dup-deleted" }))
+			onWrite.mockClear()
+			vi.mocked(withFileLock).mockRejectedValueOnce(new Error("lock acquisition timed out"))
+
+			await expect(store.deleteMany(["dup-deleted", "dup-deleted"])).resolves.toBeUndefined()
+
+			await expect(fs.access(historyFilePath(storagePath, "dup-deleted"))).rejects.toMatchObject({
+				code: "ENOENT",
+			})
+			expect(storeInternals(store).cache.has("dup-deleted")).toBe(false)
+			expect(store.get("dup-deleted")).toBeUndefined()
+			// One write-through for a batch that removed one file.
+			expect(onWrite).toHaveBeenCalledTimes(1)
+		})
+
+		it("names a duplicate id once when every attempt of it failed", async () => {
+			// Both attempts fail the same way: a live lock stands, the named path is absent, and the
+			// retry inside the certification refuses it, so the deletion is blocked twice. The ids the
+			// error carries are the list of tasks the caller must keep, and the reason string is what a
+			// human reads: one id named once is enough to act on.
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "dup-failed" }))
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "dup-failed")
+			const lockDir = (await canonicalKey(taskPath)) + ".lock"
+			// The lock directory proper-lockfile makes, kept young so the retry refuses it for the
+			// reason production would.
+			await actualFs.mkdir(lockDir)
+			await actualFs.rm(taskPath)
+			vi.mocked(withFileLock).mockImplementation(() =>
+				Promise.reject(Object.assign(new Error("EEXIST: file already exists, mkdir"), { code: "EEXIST" })),
+			)
+			let failure: unknown
+			try {
+				failure = await store
+					.deleteMany(["dup-failed", "dup-failed"])
+					.then(() => null)
+					.catch((error: unknown) => error)
+			} finally {
+				await actualFs.rm(lockDir, { recursive: true, force: true })
+			}
+			expect(failure).toBeInstanceOf(TaskHistoryDeleteError)
+			expect((failure as TaskHistoryDeleteError).taskIds).toEqual(["dup-failed"])
+			expect(String((failure as TaskHistoryDeleteError).reason).split("dup-failed:").length - 1).toBe(1)
+			expect(storeInternals(store).cache.has("dup-failed")).toBe(true)
+			expect(onWrite).not.toHaveBeenCalled()
+		})
 	})
 })
