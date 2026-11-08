@@ -283,17 +283,26 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			expect(internals.cache.has("revalidate-fail")).toBe(true)
 			expect(internals.taskFileMtimes.has("revalidate-fail")).toBe(true)
 
-			// Two derivations touch this directory: the one that computes the key before the acquisition, and
-			// the revalidation inside the locked operation. The flag is what tells them apart, so the forced
-			// failure lands on the second one - a path that stops resolving after the lock was taken - and not
-			// on the resolution that precedes the acquisition.
-			let lockEntered = false
-			const lockSpy = vi.mocked(withFileLock).mockImplementation(async (key, operation) => {
-				lockEntered = true
-				return actualFileLock.withFileLock(key, operation)
-			})
+			// Two derivations touch this name: the one that computes the key before the acquisition, and the
+			// revalidation inside the locked operation. The flag marks the operation rather than the
+			// acquisition, so the forced failure can only land on the second one - a name that stops
+			// resolving after the lock was taken, which is the shape of the failure here. The rule names no
+			// path spelling on purpose: the canonical spelling of a temp directory and the spelling it was
+			// built from are not the same string on every runner, and a case keyed to one of them passes on
+			// the runner that happens to use it while doing nothing on the other.
+			let insideOperation = false
+			let realpathCallsUnderLock = 0
+			const lockSpy = vi.mocked(withFileLock).mockImplementation((key, operation) =>
+				actualFileLock.withFileLock(key, (lockedPath) => {
+					insideOperation = true
+					return operation(lockedPath).finally(() => {
+						insideOperation = false
+					})
+				}),
+			)
 			const realpathSpy = vi.spyOn(fs, "realpath").mockImplementation(async (target) => {
-				if (lockEntered && path.normalize(String(target)) === path.normalize(path.dirname(taskPath))) {
+				if (insideOperation) {
+					realpathCallsUnderLock++
 					throw Object.assign(new Error("EACCES: permission denied, realpath"), { code: "EACCES" })
 				}
 				return actualFs.realpath(String(target))
@@ -307,6 +316,9 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 				lockSpy.mockRestore()
 			}
 
+			// The injection has to be seen to have landed where the case claims it lands: a run that never
+			// reached the re-derivation would report no failure and pass by doing nothing.
+			expect(realpathCallsUnderLock).toBeGreaterThan(0)
 			expect(rejection).toBeInstanceOf(TaskHistoryDeleteError)
 			// The stage that failed is the re-derivation, with the lock held. Naming it a lock that could not
 			// be taken would send the reader looking for an acquisition that in fact succeeded.
@@ -937,11 +949,21 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			// basenames differ. One scan against the alias basename found nothing recoverable, certified the
 			// deletion, evicted the item, and left a copy that a later recovery pass would restore over a task
 			// the store had already reported gone.
-			const store = createStore()
+			// The store is built on the canonical spelling of the temp directory on purpose. On a runner whose
+			// temp path was built from a short name, the canonical directory and the directory the name was
+			// built from are different strings, and that unrelated difference alone would hand the scan its
+			// second pass even without the basename rule - the case would pass for the wrong reason. With the
+			// spelling pinned, a second scan can only come from a different basename in the same directory,
+			// which is exactly the combination this case is about.
+			const canonicalStorage = await actualFs.realpath(storagePath)
+			const store = new TaskHistoryStore(canonicalStorage, {
+				onWrite: onWrite as (items: HistoryItem[]) => Promise<void>,
+			})
+			stores.push(store)
 			await store.initialize()
 			await store.upsert(makeHistoryItem({ id: "same-dir-leftover" }))
 			onWrite.mockClear()
-			const taskPath = historyFilePath(storagePath, "same-dir-leftover")
+			const taskPath = historyFilePath(canonicalStorage, "same-dir-leftover")
 			const containingDir = path.dirname(taskPath)
 			const referentPath = path.join(containingDir, "referent-history.json")
 			const leftover = path.join(containingDir, ".referent-history.json.bak_1_saved.tmp")
