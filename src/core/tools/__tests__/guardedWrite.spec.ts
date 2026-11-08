@@ -26,6 +26,7 @@ import type { Task } from "../../task/Task"
 
 vi.mock("fs/promises", () => ({
 	access: vi.fn(),
+	mkdir: vi.fn(),
 	stat: vi.fn(),
 	realpath: vi.fn(),
 	lstat: vi.fn(),
@@ -51,6 +52,7 @@ const mockedFsRealpath = vi.mocked(fs.realpath)
 const mockedFsLstat = vi.mocked(fs.lstat)
 const mockedComputeVersionToken = vi.mocked(computeVersionToken)
 const mockedSafeWriteText = vi.mocked(safeWriteText)
+const mockedFsMkdir = vi.mocked(fs.mkdir)
 
 // -- Fixtures ----------------------------------------------------------------
 
@@ -474,6 +476,11 @@ describe("guardedWrite (S4a, epic #1375)", () => {
 				return str
 			})
 			mockedComputeVersionToken.mockResolvedValue("v1")
+			// The lock-key double has to model what the real resolver does: for a stable alias the
+			// canonical key is the referent, so the under-lock re-derivation matches the key that was
+			// acquired. This is the same line the other alias cases set; without it the double claims
+			// two locks for one file and the re-derivation refuses a write that never moved.
+			mockedResolveLockKey.mockResolvedValue(referent)
 			const task = createMockTask()
 			task.observationRegistry.observe(alias, "v1", true)
 
@@ -1272,5 +1279,77 @@ describe("guardedWrite (S4a, epic #1375)", () => {
 		)
 		expect(staleError?.path).toBe("src/thing.ts")
 		expect(mockedSafeWriteText).not.toHaveBeenCalled()
+	})
+
+	describe("review-driven repairs at head e991674ed", () => {
+		it("creates the directory that holds the lock before asking for the lock", async () => {
+			// proper-lockfile builds its lock as "<key>.lock" with a non-recursive mkdir, so a
+			// create into a directory that does not exist yet fails with ENOENT at lock
+			// acquisition - before the writer below performs its own mkdir -p. The order of these
+			// two calls is the whole claim: the directory has to exist before withFileLock is
+			// asked for the lock, because a create promises to make the missing components.
+			mockedFsAccess.mockRejectedValue({ code: "ENOENT" })
+			mockedComputeVersionToken.mockResolvedValue("v1")
+			const task = createMockTask()
+
+			await guardedWrite(task, path.join("nested", "deep", "new.txt"), "hello", "create")
+
+			expect(mockedFsMkdir.mock.calls.length).toBeGreaterThan(0)
+			expect(mockedFsMkdir.mock.calls[0]?.[1]).toMatchObject({ recursive: true })
+			expect(mockedFsMkdir.mock.invocationCallOrder[0] ?? 0).toBeLessThan(
+				mockedWithFileLock.mock.invocationCallOrder[0] ?? 0,
+			)
+			expect(mockedSafeWriteText).toHaveBeenCalledTimes(1)
+		})
+
+		it("refuses the replacement when the bound target no longer maps to the held lock", async () => {
+			// The lock key is computed before the lock is acquired. A path repointed while this
+			// call waited binds a target that some other writer locks, so the version comparison
+			// could pass against the new target and this rename would publish over the other
+			// writer's file while both sides believed they were serialized.
+			const reg = new ObservationRegistry()
+			reg.observe(abs("moved.txt"), "v1")
+			mockedComputeVersionToken.mockResolvedValue("v1")
+			// The re-check under the lock resolves the path onto a different referent, and
+			// resolveLockKey is the identity double here, so the bound target maps to another key.
+			mockedFsRealpath.mockImplementation(async (p) =>
+				String(p) === abs("moved.txt") ? abs("other.txt") : String(p),
+			)
+			const task = createMockTask({ observationRegistry: reg })
+
+			await expect(guardedWrite(task, "moved.txt", "patched", "edit")).rejects.toThrow(
+				"Path changed while this write waited for the lock",
+			)
+			expect(mockedSafeWriteText).not.toHaveBeenCalled()
+		})
+
+		it("keeps submission order when the first write verifies its target slowly", async () => {
+			// Two writes to one path. Target verification is an await, so a write that verified
+			// before reserving its place on the chain let the second - whose verification resolves
+			// immediately - queue ahead of it and publish first. Reserving the position first is
+			// what makes the chain mean submission order.
+			const reg = new ObservationRegistry()
+			reg.observe(abs("gate.txt"), "v1")
+			mockedComputeVersionToken.mockResolvedValue("v1")
+			let gateArmed = true
+			mockedFsRealpath.mockImplementation(async (p) => {
+				if (gateArmed && String(p) === abs("gate.txt")) {
+					gateArmed = false
+					await new Promise((resolveDelay) => setTimeout(resolveDelay, 30))
+				}
+				return String(p)
+			})
+			const order: string[] = []
+			mockedSafeWriteText.mockImplementation(async (_target: string, content: unknown) => {
+				order.push(String(content))
+			})
+			const task = createMockTask({ observationRegistry: reg })
+
+			const first = guardedWrite(task, "gate.txt", "first", "update")
+			const second = guardedWrite(task, "gate.txt", "second", "update")
+			await Promise.all([first, second])
+
+			expect(order).toEqual(["first", "second"])
+		})
 	})
 })

@@ -13,6 +13,8 @@ import type { HistoryItem } from "@roo-code/types"
 import { TaskHistoryDeleteError, TaskHistoryStore } from "../TaskHistoryStore"
 import { withFileLock } from "../../../utils/fileLock"
 import { GlobalFileNames } from "../../../shared/globalFileNames"
+import { readFileWithMissingRetry } from "../readFileWithMissingRetry"
+import { safeWriteJson } from "../../../utils/safeWriteJson"
 
 vi.mock("../../../utils/storage", () => ({
 	getStorageBasePath: vi.fn().mockImplementation((defaultPath: string) => defaultPath),
@@ -97,6 +99,76 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 		stores.push(store)
 		return store
 	}
+
+	it.each(["delete", "deleteMany"] as const)(
+		"%s removes backups before deletion so readers and merges cannot resurrect history",
+		async (operation) => {
+			const store = createStore()
+			await store.initialize()
+			const history = makeHistoryItem({ id: "with-leftovers" })
+			await store.upsert(history)
+			const filePath = historyFilePath(storagePath, history.id)
+			const dir = path.dirname(filePath)
+			const backup = path.join(dir, `.${path.basename(filePath)}.bak_1_saved.tmp`)
+			const replacement = path.join(dir, `.${path.basename(filePath)}.new_1_pending.tmp`)
+			const unrelated = path.join(dir, ".other.json.bak_1_saved.tmp")
+			await fs.writeFile(backup, JSON.stringify(history))
+			await fs.writeFile(replacement, "{}")
+			await fs.writeFile(unrelated, "keep")
+			if (operation === "delete") await store.delete(history.id)
+			else await store.deleteMany([history.id])
+
+			await expect(readFileWithMissingRetry(filePath)).rejects.toMatchObject({ code: "ENOENT" })
+			expect(await fs.readdir(dir)).toEqual([path.basename(unrelated)])
+			await safeWriteJson(
+				filePath,
+				{},
+				{
+					merge: (existing) => {
+						expect(existing).toBeNull()
+						return { fresh: true }
+					},
+				},
+			)
+			expect(JSON.parse(await fs.readFile(filePath, "utf8"))).toEqual({ fresh: true })
+		},
+	)
+
+	it.each(["delete", "deleteMany"] as const)(
+		"%s preserves the canonical file if backup cleanup fails",
+		async (operation) => {
+			const store = createStore()
+			await store.initialize()
+			const history = makeHistoryItem({ id: "blocked-cleanup" })
+			await store.upsert(history)
+			const filePath = historyFilePath(storagePath, history.id)
+			const backup = path.join(path.dirname(filePath), `.${path.basename(filePath)}.bak_1_saved.tmp`)
+			await fs.writeFile(backup, JSON.stringify(history))
+			vi.mocked(fs.unlink).mockImplementation(async (target) => {
+				// Matched by basename, not by the whole path: the store re-derives the sibling path from
+				// its own resolved and realpath'd directory, and on a Windows runner that spelling need
+				// not be string-equal to the spelling this case created the file under. The basename of
+				// a leftover is unique to this task file, so the injection still lands on exactly one
+				// unlink and nothing else in the case can produce the EACCES.
+				const backupName = path.basename(backup)
+				if (path.basename(String(target)) === backupName) {
+					throw Object.assign(new Error("Cleanup failed"), { code: "EACCES" })
+				}
+				return actualFs.unlink(target)
+			})
+			// The sweep of the interrupted-write siblings runs inside the same per-file lock as the
+			// unlink, in the order jsonFileRecovery.deleteJsonFile uses, so a backup this store
+			// cannot collect blocks the canonical unlink instead of leaving a resurrection source
+			// beside a file the delete claimed to remove. Both files therefore survive, which is
+			// main's guarantee, and the delete is reported as failed, which is this store's delete
+			// contract: an item whose file is still on disk stays in the cache instead of being
+			// contradicted by the next reconciliation.
+			const attempt = operation === "delete" ? store.delete(history.id) : store.deleteMany([history.id])
+			await expect(attempt).rejects.toThrow(TaskHistoryDeleteError)
+			expect(JSON.parse(await fs.readFile(filePath, "utf8"))).toEqual(history)
+			expect(JSON.parse(await fs.readFile(backup, "utf8"))).toEqual(history)
+		},
+	)
 
 	describe("delete()", () => {
 		it("unlinks under the shared per-file lock, evicts cache and mtime, and writes through once", async () => {

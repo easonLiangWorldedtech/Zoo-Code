@@ -97,21 +97,17 @@ describe("safeWriteJson lock key under a peer commit", () => {
 		// The lock key is the key every other writer to this file uses, so the caller
 		// queued behind the peer instead of failing before the lock.
 		expect(mockedAcquireFileLock).toHaveBeenCalledWith(referent)
-		// The two trailing lstat calls are safeWriteText's staging-path checks: the
-		// regular-file check on the temp file this write created, and the identity check
-		// that the staging path is not the target. Both run after the key was resolved
-		// and the lock was taken, so neither changes which lock the caller queued behind.
-		expect(order).toEqual([
-			"resolve-failed",
-			"lstat",
-			"resolve",
-			"resolve",
-			"lock",
-			"resolve",
-			"resolve",
-			"lstat",
-			"lstat",
-		])
+		// The last resolve is this module's own publish-target resolution under the lock:
+		// the commit rename needs the referent, and the staging path is derived from it.
+		// Nothing here consults a delegated writer any more - this module performs the
+		// commit rename itself - so the operation list is shorter than it was under
+		// delegation. Every entry still runs after the lock key was resolved and after
+		// the lock was taken, so none of them changes which lock the caller queued behind.
+		// The recovery pass resolves the publish target before it scans, so one more resolution
+		// runs inside the lock: it is what makes the scan look beside the referent instead of
+		// beside the link. The pinned entries still say nothing ran before the lock key was
+		// resolved and nothing ran while the lock was unheld, which is the claim of this case.
+		expect(order).toEqual(["resolve-failed", "lstat", "resolve", "resolve", "lock", "resolve", "resolve"])
 		expect(JSON.parse(await fs.readFile(referent, "utf8"))).toEqual({ id: "task-1" })
 	})
 
@@ -148,7 +144,11 @@ describe("safeWriteJson lock key under a peer commit", () => {
 		expect(released).toBe(true)
 		// The strict rejection is reached through the ENOENT + symlink branch, not
 		// through a synchronous throw that skips it.
-		expect(order).toEqual(["lstat", "lock", "lstat", "release"])
+		// Same extra in-lock resolution as the case above: the recovery scan resolves the publish
+		// target before scanning for leftovers. The claim this case pins - the strict rejection
+		// happens inside the protected block, so the lock is released - is unchanged: the entry
+		// after "lock" is still a resolution that rejects, and "release" still follows it.
+		expect(order).toEqual(["lstat", "lock", "lstat", "lstat", "release"])
 	})
 
 	it("canonicalizes the parent directory when the file itself is not there yet", async () => {

@@ -190,6 +190,16 @@ export async function createIfAbsent(
 	// Lock the key every other writer to this file uses: the resolved publish
 	// target, so a symlink alias and its referent share one lock.
 	const lockKey = await resolveLockKey(absolutePath)
+	// Create the directory that would hold the lock before acquiring it. proper-lockfile
+	// builds its lock as "<key>.lock" with a non-recursive mkdir, so a create into a
+	// directory that does not exist yet fails with ENOENT at lock acquisition - before the
+	// writer below ever reaches the mkdir -p it performs itself. Measured on this repo's
+	// pinned runtime: acquireFileLock on <tmp>/missing-a/missing-b/target.json fails with
+	// ENOENT, resolveLockKey of the same path returns a key inside the missing directory and
+	// fails the same way, and the identical call after mkdir -p of that directory acquires
+	// and releases. This is the create path, so making the containing directory is part of
+	// what the caller already asked for.
+	await fs.mkdir(path.dirname(lockKey), { recursive: true })
 	return withFileLock(lockKey, async () => {
 		cancelledBeforePublish(absolutePath, displayPath, isCancelled)
 		// Bind the publish to the target the authorization check covers: the
@@ -267,11 +277,24 @@ export async function replaceIfVersion(
 ): Promise<string | undefined> {
 	// Lock the key every other writer to this file uses: the resolved publish
 	// target, so a symlink alias and its referent share one lock.
-	return withFileLock(await resolveLockKey(absolutePath), async () => {
+	const lockKey = await resolveLockKey(absolutePath)
+	return withFileLock(lockKey, async () => {
 		cancelledBeforePublish(absolutePath, displayPath, isCancelled)
 		// Bind first: the version comparison and the publish must act on the same
 		// target the authorization check covered.
 		const boundTarget = (await verifyTarget?.()) ?? absolutePath
+		// Re-derive the key from the target this call actually bound to. The key was computed
+		// before the lock was acquired, so a path repointed while this call waited is covered by
+		// a different lock: a writer holding that lock can publish between the version
+		// comparison below and this rename, and this write would overwrite its file while both
+		// sides believed they were serialized. Refuse instead, the way createIfAbsent does for
+		// the same window.
+		if ((await resolveLockKey(boundTarget)) !== lockKey) {
+			throw new GuardRejectedError(
+				"Path changed while this write waited for the lock -- re-read the file, then retry.",
+				displayPath,
+			)
+		}
 		let currentVersion: string
 		try {
 			currentVersion = await computeVersionToken(boundTarget)
@@ -475,7 +498,7 @@ async function realpathNearest(target: string, displayPath: string): Promise<str
 				const asLink = await fs.lstat(ancestor, { bigint: true }).catch(() => undefined)
 				if (asLink?.isSymbolicLink()) {
 					throw new GuardRejectedError(
-						`Path runs through a link (${ancestor}) that does not resolve -- retry with a path inside the workspace.`,
+						"Path runs through a link that does not resolve -- retry with a path inside the workspace.",
 						displayPath,
 					)
 				}
@@ -584,9 +607,16 @@ export async function guardedWrite(
 		}
 		return resolved
 	}
-	await verifyTarget()
 
 	return enqueue(absolutePath, async () => {
+		// Verify the target INSIDE the reserved link. Awaiting the verification before enqueueing
+		// would decide the order of two writes to one path by which verification finished first,
+		// not by which call was made first, and the chain's contract is submission order; the
+		// verification is an await, so a slow check on the first write would let the second
+		// publish and refresh the observation ahead of it. The publish helpers re-run this same
+		// verification under the lock, so moving it changes when a refusal is reported, never
+		// whether it is reported.
+		await verifyTarget()
 		// Cancellation is checked when the link is dequeued, not when it was enqueued:
 		// a write queued before an abort can still reach its turn on the chain after the
 		// task is gone, and the caller has already reported the write to the model.

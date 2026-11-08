@@ -9,6 +9,8 @@ import { historyItemSchema, type HistoryItem } from "@roo-code/types"
 import { GlobalFileNames } from "../../shared/globalFileNames"
 import { LOCK_STALE_MS, withFileLock } from "../../utils/fileLock"
 import { safeWriteJson } from "../../utils/safeWriteJson"
+import { deleteJsonFile, isReplacementLeftover, recoverMissingJsonFile } from "../../utils/jsonFileRecovery"
+import { getErrorCode, readFileWithMissingRetry } from "./readFileWithMissingRetry"
 import { resolveLockKey } from "../../services/file-safety/safeWriteText"
 import { getStorageBasePath } from "../../utils/storage"
 import { assertValidTransition, settleRejectedCreateSubtaskAction, type HistoryItemStatus } from "./taskLifecycle"
@@ -106,6 +108,14 @@ function errorCode(error: unknown): string | undefined {
 		? String((error as { code?: unknown }).code)
 		: undefined
 }
+/**
+ * What the locked removal observed. "blocked" is the resurrection guard firing: a leftover
+ * sibling of this task file could not be removed, so the canonical file was kept.
+ */
+type TaskFileRemoval =
+	| { outcome: "removed" | "absent" }
+	| { outcome: "blocked"; blockedOn: string; error: unknown }
+	| { outcome: "failed"; error: unknown }
 
 export class TaskHistoryStore {
 	private readonly globalStoragePath: string
@@ -311,6 +321,22 @@ export class TaskHistoryStore {
 			this.cache.delete(taskId)
 			this.taskFileMtimes.delete(taskId)
 
+			// The removal above swept this task file's .bak_/.new_ siblings under the per-file lock
+			// before it unlinked the canonical path. This is main's shared delete helper running
+			// once more after that lock was released: it collects anything a peer created in the
+			// window between our release and our return, and its ENOENT on the now-absent canonical
+			// path is the expected outcome rather than a failure. It takes the per-file lock for
+			// itself after ours was released, so the two never nest.
+			// Remove per-task file (best-effort)
+			try {
+				const filePath = await this.getTaskFilePath(taskId)
+				await deleteJsonFile(filePath)
+			} catch (error) {
+				if (getErrorCode(error) !== "ENOENT")
+					console.warn("[TaskHistoryStore] Failed to delete task history:", error)
+				// File may already be deleted
+			}
+
 			// Call onWrite callback inside the lock for serialized write-through
 			if (this.onWrite) {
 				await this.onWrite(this.getAll())
@@ -339,6 +365,22 @@ export class TaskHistoryStore {
 				this.cache.delete(taskId)
 				this.taskFileMtimes.delete(taskId)
 				deletedAny = true
+				// The removal above swept this task file's .bak_/.new_ siblings under the per-file lock
+				// before it unlinked the canonical path. This is main's shared delete helper running
+				// once more after that lock was released: it collects anything a peer created in the
+				// window between our release and our return, and its ENOENT on the now-absent canonical
+				// path is the expected outcome rather than a failure. It takes the per-file lock for
+				// itself after ours was released, so the two never nest.
+
+				// Remove per-task file (best-effort)
+				try {
+					const filePath = await this.getTaskFilePath(taskId)
+					await deleteJsonFile(filePath)
+				} catch (error) {
+					if (getErrorCode(error) !== "ENOENT")
+						console.warn("[TaskHistoryStore] Failed to delete task history:", error)
+					// File may already be deleted
+				}
 			}
 
 			// Call onWrite callback inside the lock for serialized write-through
@@ -389,45 +431,90 @@ export class TaskHistoryStore {
 			}
 		}
 
-		// The unlink's outcome is captured inside the locked operation rather than inferred from
-		// what withFileLock throws: that helper rethrows the operation's error unchanged, so a
-		// lock failure and an unlink failure arrive at the same place and cannot be told apart by
-		// their error code alone.
-		let unlinkOutcome: { outcome: "removed" | "absent" | "failed"; error?: unknown } | undefined
+		// The verdict is returned from inside the locked operation rather than inferred from what
+		// withFileLock throws: that helper rethrows the operation's error unchanged, so a lock
+		// failure and an unlink failure would otherwise arrive at the same place and could not be
+		// told apart by their error code alone. Returning the verdict keeps the stages apart -
+		// anything reaching the catch below failed at the lock, before any verdict existed.
+		let removal: TaskFileRemoval
 		try {
-			await withFileLock(lockKey, async () => {
+			removal = await withFileLock(lockKey, async (absoluteFilePath) => {
+				const containingDir = path.dirname(absoluteFilePath)
+				// Sweep the interrupted-write siblings before the canonical file, in the order
+				// jsonFileRecovery.deleteJsonFile uses. A leftover backup this sweep cannot remove
+				// must not survive beside a canonical file this delete removed: a later reader's
+				// recovery pass would resurrect content this delete was meant to destroy. Keeping
+				// the canonical file and reporting the delete as failed is the safe outcome.
+				let entries: string[]
 				try {
+					entries = await fs.readdir(containingDir)
+				} catch (readdirError: unknown) {
+					if (errorCode(readdirError) === "ENOENT") {
+						// The directory that would hold the file is gone: nothing to delete, and
+						// nothing left that a later reader could resurrect.
+						return { outcome: "absent" }
+					}
+					throw readdirError
+				}
+				for (const entry of entries) {
+					if (!isReplacementLeftover(absoluteFilePath, entry)) {
+						continue
+					}
+					try {
+						await fs.unlink(path.join(containingDir, entry))
+					} catch (leftoverError: unknown) {
+						if (errorCode(leftoverError) === "ENOENT") {
+							// A peer already collected it, which is the outcome this sweep wanted.
+							continue
+						}
+						return { outcome: "blocked", blockedOn: entry, error: leftoverError }
+					}
+				}
+				try {
+					// The named path, not the lock key: an alias is removed as its caller named it.
 					await fs.unlink(filePath)
-					unlinkOutcome = { outcome: "removed" }
+					return { outcome: "removed" }
 				} catch (unlinkError: unknown) {
-					unlinkOutcome = {
+					return {
 						outcome: errorCode(unlinkError) === "ENOENT" ? "absent" : "failed",
 						error: unlinkError,
 					}
 				}
 			})
 		} catch (lockError: unknown) {
-			// The lock stage failed, so the unlink never ran. Its ENOENT cannot settle anything on
-			// its own: proper-lockfile creates <key>.lock with mkdir, which reports ENOENT both when
-			// the directory that would hold the file is gone (nothing to delete) and when the key is
-			// an alias whose referent is missing (the named file may still be right there). Ask the
-			// named path itself rather than reading the lock's errno as a report about the file.
+			// The lock stage failed, so no stage of the removal ran. Its ENOENT cannot settle
+			// anything on its own: proper-lockfile creates <key>.lock with mkdir, which reports
+			// ENOENT both when the directory that would hold the file is gone (nothing to delete)
+			// and when the key is an alias whose referent is missing (the named file may still be
+			// right there). Ask the named path itself rather than read the lock's errno as a
+			// report about the file.
 			return await this._verdictAfterLockFailure(filePath, lockError)
 		}
 
-		if (unlinkOutcome === undefined) {
-			// The lock was taken and released without the unlink running. Nothing was observed,
-			// so nothing may be reported as deleted.
-			return { deleted: false, reason: "the unlink did not run", cause: undefined }
+		if (removal.outcome === "blocked") {
+			// The task file was kept, so the item must stay in the store: reporting a deletion
+			// here would be contradicted by the next reconciliation.
+			return {
+				deleted: false,
+				reason:
+					"a leftover " +
+					removal.blockedOn +
+					" from an interrupted write could not be removed (" +
+					(errorCode(removal.error) ?? "unknown error") +
+					")",
+				cause: removal.error,
+			}
 		}
-		if (unlinkOutcome.outcome === "removed" || unlinkOutcome.outcome === "absent") {
-			return { deleted: true }
+		if (removal.outcome === "failed") {
+			return {
+				deleted: false,
+				reason: errorCode(removal.error) ?? "unknown error",
+				cause: removal.error,
+			}
 		}
-		return {
-			deleted: false,
-			reason: errorCode(unlinkOutcome.error) ?? "unknown error",
-			cause: unlinkOutcome.error,
-		}
+		// Unlinked by this call, or already absent when the unlink or the containing
+		// directory said so. Either way the file is gone and the item may be evicted.
+		return { deleted: true }
 	}
 
 	/**
@@ -496,7 +583,11 @@ export class TaskHistoryStore {
 			for (const taskId of onDiskIds) {
 				try {
 					const taskFilePath = await this.getTaskFilePath(taskId)
-					const { mtimeMs } = await fs.stat(taskFilePath)
+					const { mtimeMs } = await fs.stat(taskFilePath).catch(async (error: unknown) => {
+						if (getErrorCode(error) !== "ENOENT") throw error
+						await recoverMissingJsonFile(taskFilePath, { waitForStaleLock: false })
+						return fs.stat(taskFilePath)
+					})
 					liveIds.add(taskId)
 					if (
 						!options.forceRefresh &&
@@ -514,7 +605,12 @@ export class TaskHistoryStore {
 							this.cache.set(taskId, item)
 						}
 					}
-				} catch {
+				} catch (error) {
+					if (getErrorCode(error) !== "ENOENT") {
+						liveIds.add(taskId)
+						console.warn("[TaskHistoryStore] Failed to reconcile task history:", error)
+						continue
+					}
 					// File may be temporarily absent during a peer's atomic
 					// rename window in safeWriteJson. The advisory lock is
 					// held for the entire write, so its presence means a
@@ -807,7 +903,7 @@ export class TaskHistoryStore {
 		const intentPath = await this.getDelegationRepairIntentPath()
 		let parsed: unknown
 		try {
-			parsed = JSON.parse(await fs.readFile(intentPath, "utf8")) as unknown
+			parsed = JSON.parse(await readFileWithMissingRetry(intentPath)) as unknown
 		} catch (error) {
 			if (this.isFileNotFoundError(error)) {
 				return null
@@ -867,7 +963,7 @@ export class TaskHistoryStore {
 
 	private async removeDelegationRepairIntent(): Promise<void> {
 		try {
-			await fs.unlink(await this.getDelegationRepairIntentPath())
+			await deleteJsonFile(await this.getDelegationRepairIntentPath())
 		} catch (error) {
 			console.warn("[TaskHistoryStore] Failed to remove completed delegation repair intent:", error)
 		}
@@ -975,10 +1071,21 @@ export class TaskHistoryStore {
 				try {
 					await fs.access(filePath)
 					// File already exists, skip (don't overwrite existing per-task files)
-				} catch {
-					// File doesn't exist, write it
-					await safeWriteJson(filePath, item)
-					this.cache.set(item.id, item)
+				} catch (error) {
+					if (getErrorCode(error) !== "ENOENT") throw error
+					// Recovery or a peer may supply a committed record after the access check.
+					let persisted = item
+					await safeWriteJson(filePath, item, {
+						merge: (existing) => {
+							if (existing !== null) {
+								const recovered = historyItemSchema.parse(existing)
+								if (recovered.id !== item.id) throw new Error("Migration task ID mismatch")
+								persisted = recovered
+							}
+							return persisted
+						},
+					})
+					this.cache.set(item.id, persisted)
 				}
 			}
 
@@ -1035,7 +1142,7 @@ export class TaskHistoryStore {
 		const filePath = await this.getTaskFilePath(taskId)
 
 		try {
-			const raw = await fs.readFile(filePath, "utf8")
+			const raw = await readFileWithMissingRetry(filePath)
 			const item: HistoryItem = JSON.parse(raw)
 			return item.id ? item : null
 		} catch {
