@@ -232,11 +232,17 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			const store = createStore()
 			await store.initialize()
 			await store.upsert(makeHistoryItem({ id: "readdir-fail" }))
+			// reconcile is the only writer of taskFileMtimes (external-change detection), so this store
+			// holds no mtime entry for the id until it has run: snapshotting before it compared false
+			// to false and proved nothing about what the failed delete kept.
+			await store.reconcile()
 			onWrite.mockClear()
 
 			const internals = storeInternals(store)
 			const hadCache = internals.cache.has("readdir-fail")
 			const hadMtime = internals.taskFileMtimes.has("readdir-fail")
+			expect(hadCache).toBe(true)
+			expect(hadMtime).toBe(true)
 			// The lock itself succeeds here: only the sweep's directory read fails.
 			const readdirSpy = vi
 				.spyOn(fs, "readdir")
@@ -259,6 +265,7 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			await expect(fs.access(historyFilePath(storagePath, "readdir-fail"))).resolves.toBeUndefined()
 			const after = storeInternals(store)
 			expect(after.cache.has("readdir-fail")).toBe(hadCache)
+			// The failed delete evicted neither the served item nor the mtime record it seeded.
 			expect(after.taskFileMtimes.has("readdir-fail")).toBe(hadMtime)
 			expect(store.get("readdir-fail")).toBeDefined()
 			expect(onWrite).not.toHaveBeenCalled()
@@ -348,6 +355,11 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			const store = createStore()
 			await store.initialize()
 			await store.upsert(makeHistoryItem({ id: "stale-lock-certified" }))
+			// reconcile is the only writer of taskFileMtimes, so seeding through it is the only way the
+			// post-delete absence below can read as an eviction rather than as a comparison of two
+			// absences. It runs while the file is still there, and it does not write through.
+			await store.reconcile()
+			expect(storeInternals(store).taskFileMtimes.has("stale-lock-certified")).toBe(true)
 			onWrite.mockClear()
 			const taskPath = historyFilePath(storagePath, "stale-lock-certified")
 			const lockKey = await canonicalKey(taskPath)
@@ -363,6 +375,8 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			await expect(store.delete("stale-lock-certified")).resolves.toBeUndefined()
 			// The lock was stolen, the named path was absent under it and nothing recoverable sat
 			// beside it, so the deletion is completed and the stolen lock is released again.
+			// The certified deletion evicted both the served item and the mtime record reconcile had
+			// seeded.
 			const { cache, taskFileMtimes } = storeInternals(store)
 			expect(cache.has("stale-lock-certified")).toBe(false)
 			expect(taskFileMtimes.has("stale-lock-certified")).toBe(false)
