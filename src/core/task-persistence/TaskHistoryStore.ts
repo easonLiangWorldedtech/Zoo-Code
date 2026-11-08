@@ -407,8 +407,17 @@ export class TaskHistoryStore {
 				// caller its artifact cleanup for a file that is no longer there.
 				failures.delete(taskId)
 				// Snapshot what this attempt serves away, so a later attempt of the same id that fails can put
-				// back exactly what was here rather than what a recovery pass would guess.
-				served.set(taskId, { entry: this.cache.get(taskId), mtime: this.taskFileMtimes.get(taskId) })
+				// back exactly what was here rather than what a recovery pass would guess. A duplicate id can
+				// succeed more than once, and a later success has nothing left in the cache to serve: writing
+				// that empty result over the snapshot would throw away the one record that holds anything, and
+				// a third attempt that then failed would report the id as retained while restoring nothing.
+				// Only an attempt that actually served something may replace the snapshot.
+				const servedNow = { entry: this.cache.get(taskId), mtime: this.taskFileMtimes.get(taskId) }
+				const servedBefore = served.get(taskId)
+				served.set(taskId, {
+					entry: servedNow.entry ?? servedBefore?.entry,
+					mtime: servedNow.mtime ?? servedBefore?.mtime,
+				})
 				this.cache.delete(taskId)
 				this.taskFileMtimes.delete(taskId)
 				deletedAny = true

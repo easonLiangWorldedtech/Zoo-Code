@@ -1534,5 +1534,66 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			const payload = onWrite.mock.calls[0]?.[0] as HistoryItem[]
 			expect(payload.some((entry: HistoryItem) => entry.id === "dup-restored")).toBe(true)
 		})
+
+		it("keeps the served entry through a second successful attempt of the same id", async () => {
+			// Three attempts on one id. The first removes and a peer republishes; the second removes the
+			// copy and finds nothing left in the cache to serve away; the third cannot take the lock. The
+			// last attempt decides the report, so what matters is what the second attempt left in the
+			// snapshot: an empty one there means the failure is reported for an id the cache and the
+			// write-through payload both omit.
+			const store = createStore()
+			await store.initialize()
+			const item = makeHistoryItem({ id: "dup-twice" })
+			await store.upsert(item)
+			await store.reconcile()
+			onWrite.mockClear()
+			const servedEntry = store.get("dup-twice")
+			const servedMtime = storeInternals(store).taskFileMtimes.get("dup-twice")
+			const taskPath = historyFilePath(storagePath, "dup-twice")
+			// Two locked calls per successful attempt: the removal, then main's delete helper running once
+			// more after that lock was released. The republishes land in the windows between attempts, and
+			// the fifth call is the third attempt's refused acquisition.
+			let lockedCalls = 0
+			vi.mocked(withFileLock).mockImplementation(async (key, operation) => {
+				lockedCalls++
+				if (lockedCalls === 2) {
+					const cleaned = await actualFileLock.withFileLock(key, operation)
+					await actualFs.writeFile(taskPath, JSON.stringify(item), "utf8")
+					return cleaned
+				}
+				if (lockedCalls === 4) {
+					const cleaned = await actualFileLock.withFileLock(key, operation)
+					await actualFs.writeFile(taskPath, JSON.stringify(item), "utf8")
+					return cleaned
+				}
+				if (lockedCalls === 5) {
+					throw Object.assign(new Error("EEXIST: file already exists, mkdir"), { code: "EEXIST" })
+				}
+				return actualFileLock.withFileLock(key, operation)
+			})
+			let failure: unknown
+			try {
+				failure = await store
+					.deleteMany(["dup-twice", "dup-twice", "dup-twice"])
+					.then(() => null)
+					.catch((error: unknown) => error)
+			} finally {
+				vi.mocked(withFileLock).mockImplementation(actualFileLock.withFileLock)
+			}
+			expect(lockedCalls).toBe(5)
+			expect(failure).toBeInstanceOf(TaskHistoryDeleteError)
+			expect((failure as TaskHistoryDeleteError).taskIds).toEqual(["dup-twice"])
+			// The peer copy is on disk and the store answers for the id with the entry and the mtime it
+			// served before any of the three attempts, not with an entry rebuilt from a recovery pass.
+			await expect(fs.access(taskPath)).resolves.toBeUndefined()
+			const after = storeInternals(store)
+			expect(after.cache.has("dup-twice")).toBe(true)
+			expect(store.get("dup-twice")).toEqual(servedEntry)
+			expect(after.taskFileMtimes.get("dup-twice")).toBe(servedMtime)
+			// One write-through, and the id the error names is in the payload it published.
+			expect(onWrite).toHaveBeenCalledTimes(1)
+			const payload = onWrite.mock.calls[0]?.[0] as HistoryItem[]
+			expect(payload.some((entry: HistoryItem) => entry.id === "dup-twice")).toBe(true)
+		})
 	})
 })
