@@ -116,4 +116,29 @@ describe("ClineProvider.deleteTaskWithId - partial batch failures", () => {
 			await fs.rm(storageDir, { recursive: true, force: true }).catch(() => {})
 		}
 	})
+
+	// A TaskHistoryDeleteError is the only thing that says which ids left the store. The instance test at
+	// ClineProvider.ts:2921 is what decides whether the provider cleans up after a failed batch, so a
+	// rejection of any other shape has to be seen leaving every artifact, the cache and the posted state
+	// exactly where the store still serves them.
+	it("leaves every artifact and the cache alone when the batch rejects with another error", async () => {
+		const foreignError = new Error("the store could not be reached")
+		const { provider, storageDir, taskDirs } = await makeFixture(vi.fn().mockRejectedValue(foreignError))
+
+		try {
+			await expect(ClineProvider.prototype.deleteTaskWithId.call(provider, "task-1")).rejects.toBe(foreignError)
+
+			// Nothing here is licensed by an error that names no ids: the artifacts stay, the recent-task
+			// cache keeps listing both tasks, and no state is posted that the store does not back.
+			expect(await exists(taskDirs["task-1"])).toBe(true)
+			expect(await exists(taskDirs["task-2"])).toBe(true)
+			expect((provider as unknown as { recentTasksCache?: string[] }).recentTasksCache).toEqual([
+				"task-1",
+				"task-2",
+			])
+			expect(provider.postStateToWebview).not.toHaveBeenCalled()
+		} finally {
+			await fs.rm(storageDir, { recursive: true, force: true }).catch(() => {})
+		}
+	})
 })
