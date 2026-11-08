@@ -116,11 +116,17 @@ function errorCode(error: unknown): string | undefined {
  * removal touched nothing.
  * "enumeration-failed" is the sweep's own read failing: the lock was held, so the stage that
  * failed is the directory read, not the lock, and neither the sweep nor the unlink ran.
+ * "named-present" and "named-uncheckable" are that same sweep read reporting its directory
+ * gone while the name this caller passed is still there, or is unreadable: the directory the
+ * sweep reads and the name the caller asked about are not the same thing when the name is an
+ * alias.
  */
 type TaskFileRemoval =
 	| { outcome: "removed" | "absent" | "retargeted" }
 	| { outcome: "blocked"; blockedOn: string; error: unknown }
 	| { outcome: "enumeration-failed"; error: unknown }
+	| { outcome: "named-present" }
+	| { outcome: "named-uncheckable"; error: unknown }
 	| { outcome: "failed"; error: unknown }
 
 export class TaskHistoryStore {
@@ -431,6 +437,10 @@ export class TaskHistoryStore {
 	 * from the named path rather than from the lock's errno, and it is made inside a fresh
 	 * acquisition of that same lock, so a file verified absent with nothing recoverable beside
 	 * it is a completed deletion while a lock that still refuses the retry is not.
+	 * The sweep's own read is held to the same standard: it reads the directory of the lock key,
+	 * which is the directory the name resolves to rather than the one the name sits in, so when
+	 * that read reports the directory gone the named path is asked before any deletion is
+	 * reported, and only a name that reports itself gone closes the deletion.
 	 */
 	private async removeTaskFile(taskId: string): Promise<{ deleted: boolean; reason?: string; cause?: unknown }> {
 		const filePath = await this.getTaskFilePath(taskId)
@@ -479,9 +489,26 @@ export class TaskHistoryStore {
 					entries = await fs.readdir(containingDir)
 				} catch (readdirError: unknown) {
 					if (errorCode(readdirError) === "ENOENT") {
-						// The directory that would hold the file is gone: nothing to delete, and
-						// nothing left that a later reader could resurrect.
-						return { outcome: "absent" }
+						// The directory the sweep looks in is gone. That is that directory's answer, not the
+						// named path's: this removal was asked about a name, and the sweep reads the directory of
+						// the lock key, which is the directory the name resolves to rather than the one the name
+						// itself sits in. A name can outlive that directory - an alias whose referent directory
+						// was removed elsewhere, a listing that raced a republish - so the named path is asked the
+						// way the lock-failure verdict asks it, and its own answer decides whether anything was
+						// left to delete.
+						try {
+							await fs.lstat(filePath)
+							// The name reports itself present: nothing was removed and no deletion happened.
+							return { outcome: "named-present" }
+						} catch (statError: unknown) {
+							if (errorCode(statError) !== "ENOENT") {
+								// Neither the sweep nor the unlink ran, and this read failed for another reason, so
+								// nothing here says the file is gone: the stage that failed is this read.
+								return { outcome: "named-uncheckable", error: statError }
+							}
+							// The name itself reports itself gone.
+							return { outcome: "absent" }
+						}
 					}
 					// Returned, not thrown: withFileLock rethrows an operation error unchanged, so a
 					// throw here would land in the lock catch and be reported as a lock failure even though
@@ -530,6 +557,24 @@ export class TaskHistoryStore {
 			return {
 				deleted: false,
 				reason: "the path resolved to a different lock key while this removal waited for the lock",
+			}
+		}
+		if (removal.outcome === "named-present") {
+			// The directory the sweep read is gone while the name this caller passed still reports
+			// itself present, so no deletion happened: reporting one would evict an item whose file is
+			// on disk, which the next reconciliation contradicts.
+			return {
+				deleted: false,
+				reason: "the named path still reports itself present although the directory the sweep read is gone",
+			}
+		}
+		if (removal.outcome === "named-uncheckable") {
+			// The sweep could not run and the name could not be read either, so the removal holds no
+			// observation about the file to report a deletion from.
+			return {
+				deleted: false,
+				reason: `the named path could not be checked (${errorCode(removal.error) ?? "unknown error"})`,
+				cause: removal.error,
 			}
 		}
 		if (removal.outcome === "blocked") {

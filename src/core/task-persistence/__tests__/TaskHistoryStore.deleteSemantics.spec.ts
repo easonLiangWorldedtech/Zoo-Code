@@ -808,6 +808,102 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			expect(storeInternals(store).cache.has("referent-side")).toBe(true)
 			expect(onWrite).not.toHaveBeenCalled()
 		})
+
+		it("asks the named path when the sweep's directory reports itself gone", async () => {
+			// The sweep reads the directory of the lock key, which is the directory the name resolves
+			// to, and the old code treated that read reporting no such directory as the name being gone
+			// too. The two are different things when the name is an alias: here the directory the sweep
+			// looks in is gone while the file the caller named is still on disk, and reporting a
+			// deletion evicted a served item whose file the next read would still find.
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "sweep-dir-gone" }))
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "sweep-dir-gone")
+			const sweepDir = path.join(storagePath, "sweep-dir")
+			await actualFs.mkdir(sweepDir, { recursive: true })
+			const referentFile = path.join(sweepDir, "history_item.json")
+			// The name resolves through an alias onto the target in sweepDir, so sweepDir is the
+			// directory the sweep reads - and it is the directory whose disappearance the read reports.
+			const realpathSpy = vi
+				.spyOn(fs, "realpath")
+				.mockImplementation(async (target) =>
+					String(target) === taskPath ? referentFile : actualFs.realpath(String(target)),
+				)
+			const readdirSpy = vi
+				.spyOn(fs, "readdir")
+				.mockRejectedValueOnce(
+					Object.assign(new Error("ENOENT: no such file or directory, scandir"), { code: "ENOENT" }),
+				)
+			let failure: unknown
+			try {
+				failure = await store
+					.delete("sweep-dir-gone")
+					.then(() => null)
+					.catch((error: unknown) => error)
+			} finally {
+				readdirSpy.mockRestore()
+				realpathSpy.mockRestore()
+			}
+			expect(failure).toBeInstanceOf(TaskHistoryDeleteError)
+			expect(String((failure as TaskHistoryDeleteError).reason)).toContain(
+				"the named path still reports itself present although the directory the sweep read is gone",
+			)
+			// The name is where the item says it is, and nothing was taken away.
+			await expect(fs.access(taskPath)).resolves.toBeUndefined()
+			expect(vi.mocked(fs.unlink)).not.toHaveBeenCalledWith(taskPath)
+			expect(storeInternals(store).cache.has("sweep-dir-gone")).toBe(true)
+			expect(onWrite).not.toHaveBeenCalled()
+		})
+
+		it("keeps the item when the sweep directory is gone and the named path cannot be read", async () => {
+			// The other answer the named path can give: it cannot be read at all. Neither the leftover
+			// sweep nor the unlink ran, and an unreadable name is not an absent name, so the removal
+			// holds no observation that a deletion happened - the reason names this read, the way the
+			// sweep's own failed read names the directory read.
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "sweep-gone-unreadable" }))
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "sweep-gone-unreadable")
+			const sweepDir = path.join(storagePath, "sweep-dir-2")
+			await actualFs.mkdir(sweepDir, { recursive: true })
+			const referentFile = path.join(sweepDir, "history_item.json")
+			const realpathSpy = vi
+				.spyOn(fs, "realpath")
+				.mockImplementation(async (target) =>
+					String(target) === taskPath ? referentFile : actualFs.realpath(String(target)),
+				)
+			const readdirSpy = vi
+				.spyOn(fs, "readdir")
+				.mockRejectedValueOnce(
+					Object.assign(new Error("ENOENT: no such file or directory, scandir"), { code: "ENOENT" }),
+				)
+			const lstatSpy = vi.spyOn(fs, "lstat").mockImplementation(async (p: unknown) => {
+				if (String(p) === taskPath) {
+					throw Object.assign(new Error("EACCES: permission denied, lstat"), { code: "EACCES" })
+				}
+				return await actualFs.lstat(String(p))
+			})
+			let failure: unknown
+			try {
+				failure = await store
+					.delete("sweep-gone-unreadable")
+					.then(() => null)
+					.catch((error: unknown) => error)
+			} finally {
+				readdirSpy.mockRestore()
+				lstatSpy.mockRestore()
+				realpathSpy.mockRestore()
+			}
+			expect(failure).toBeInstanceOf(TaskHistoryDeleteError)
+			expect(String((failure as TaskHistoryDeleteError).reason)).toContain(
+				"the named path could not be checked (EACCES)",
+			)
+			expect(vi.mocked(fs.unlink)).not.toHaveBeenCalledWith(taskPath)
+			expect(storeInternals(store).cache.has("sweep-gone-unreadable")).toBe(true)
+			expect(onWrite).not.toHaveBeenCalled()
+		})
 	})
 
 	describe("reconcile()", () => {
