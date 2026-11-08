@@ -125,6 +125,7 @@ type TaskFileRemoval =
 	| { outcome: "removed" | "absent" | "retargeted" }
 	| { outcome: "blocked"; blockedOn: string; error: unknown }
 	| { outcome: "enumeration-failed"; error: unknown }
+	| { outcome: "revalidation-failed"; error: unknown }
 	| { outcome: "named-present" }
 	| { outcome: "named-uncheckable"; error: unknown }
 	| { outcome: "failed"; error: unknown }
@@ -427,9 +428,10 @@ export class TaskHistoryStore {
 	 *
 	 * Only the unlink's own ENOENT counts as gone: the file was there to delete and is not there
 	 * now. Every other failure means the file may still exist and the item must stay in the store
-	 * - a lock-key that cannot be resolved, a lock that could not be taken (proper-lockfile
-	 * reports ENOENT for a missing key), a lock timeout, a containing-directory read that failed
-	 * while the lock was held, or any non-ENOENT unlink error. Those stages reach the caller with a
+	 * - a lock-key that cannot be resolved, a lock-key that cannot be re-derived while its own lock is
+	 * held, a lock that could not be taken (proper-lockfile reports ENOENT for a missing key), a lock
+	 * timeout, a containing-directory read that failed while the lock was held, or any non-ENOENT
+	 * unlink error. Those stages reach the caller with a
 	 * reason naming the stage, because "ENOENT" on its own does not say which of them happened, and
 	 * a store that evicts an item whose file survived
 	 * reports a deletion the next reconciliation contradicts. The one stage where an ENOENT may
@@ -475,7 +477,18 @@ export class TaskHistoryStore {
 				// lock now covers. Re-derive the key from the name this removal was asked to remove and
 				// refuse when it no longer matches, the way the guarded writes refuse the same window
 				// (src/core/tools/guardedWrite.ts:215-220), rather than removing beside it.
-				if ((await resolveLockKey(filePath)) !== lockKey) {
+				let rederivedKey: string
+				try {
+					rederivedKey = await resolveLockKey(filePath)
+				} catch (revalidationError: unknown) {
+					// Returned, not thrown, for the reason the directory read below states for itself: withFileLock
+					// rethrows an operation error unchanged, so a throw here would land in the lock catch and be
+					// reported as a lock that could not be taken even though this call is standing inside that
+					// lock. The stage that failed is this re-derivation, and only a reason naming it keeps the
+					// two apart for whoever reads the report.
+					return { outcome: "revalidation-failed", error: revalidationError }
+				}
+				if (rederivedKey !== lockKey) {
 					return { outcome: "retargeted" }
 				}
 				const containingDir = path.dirname(absoluteFilePath)
@@ -557,6 +570,18 @@ export class TaskHistoryStore {
 			return {
 				deleted: false,
 				reason: "the path resolved to a different lock key while this removal waited for the lock",
+			}
+		}
+		if (removal.outcome === "revalidation-failed") {
+			// The lock was held and the key could not be re-derived from the name, so this call cannot prove
+			// it is holding the lock a writer is using. Nothing was removed and the item stays, which is the
+			// same retention as the retargeted verdict: only the stage named in the reason differs, because a
+			// reason that says the lock could not be taken while the lock was in fact taken is a wrong
+			// statement about the world, not a different outcome.
+			return {
+				deleted: false,
+				reason: `the lock key could not be re-derived while this removal held the lock (${errorCode(removal.error) ?? "unknown error"})`,
+				cause: removal.error,
 			}
 		}
 		if (removal.outcome === "named-present") {

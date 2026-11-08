@@ -271,6 +271,58 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			expect(onWrite).not.toHaveBeenCalled()
 		})
 
+		it("names the re-derivation when the lock key cannot be resolved under the held lock", async () => {
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "revalidate-fail" }))
+			await store.reconcile()
+			onWrite.mockClear()
+
+			const taskPath = historyFilePath(storagePath, "revalidate-fail")
+			const internals = storeInternals(store)
+			expect(internals.cache.has("revalidate-fail")).toBe(true)
+			expect(internals.taskFileMtimes.has("revalidate-fail")).toBe(true)
+
+			// Two derivations touch this directory: the one that computes the key before the acquisition, and
+			// the revalidation inside the locked operation. The flag is what tells them apart, so the forced
+			// failure lands on the second one - a path that stops resolving after the lock was taken - and not
+			// on the resolution that precedes the acquisition.
+			let lockEntered = false
+			const lockSpy = vi.mocked(withFileLock).mockImplementation(async (key, operation) => {
+				lockEntered = true
+				return actualFileLock.withFileLock(key, operation)
+			})
+			const realpathSpy = vi.spyOn(fs, "realpath").mockImplementation(async (target) => {
+				if (lockEntered && path.normalize(String(target)) === path.normalize(path.dirname(taskPath))) {
+					throw Object.assign(new Error("EACCES: permission denied, realpath"), { code: "EACCES" })
+				}
+				return actualFs.realpath(String(target))
+			})
+
+			let rejection: unknown
+			try {
+				rejection = await store.delete("revalidate-fail").catch((error: unknown) => error)
+			} finally {
+				realpathSpy.mockRestore()
+				lockSpy.mockRestore()
+			}
+
+			expect(rejection).toBeInstanceOf(TaskHistoryDeleteError)
+			// The stage that failed is the re-derivation, with the lock held. Naming it a lock that could not
+			// be taken would send the reader looking for an acquisition that in fact succeeded.
+			const reason = String((rejection as TaskHistoryDeleteError).reason)
+			expect(reason).toContain("the lock key could not be re-derived while this removal held the lock (EACCES)")
+			expect(reason).not.toContain("could not be taken")
+			// Reporting only: the removal still refuses, so the served item and the mtime record it seeded
+			// stay exactly where they were.
+			await expect(fs.access(taskPath)).resolves.toBeUndefined()
+			const after = storeInternals(store)
+			expect(after.cache.has("revalidate-fail")).toBe(true)
+			expect(after.taskFileMtimes.has("revalidate-fail")).toBe(true)
+			expect(store.get("revalidate-fail")).toBeDefined()
+			expect(onWrite).not.toHaveBeenCalled()
+		})
+
 		it("keeps the item when the lock fails, the named path is absent, and a recovery leftover remains", async () => {
 			const store = createStore()
 			await store.initialize()
