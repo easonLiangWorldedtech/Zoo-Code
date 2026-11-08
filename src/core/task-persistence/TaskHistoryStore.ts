@@ -685,7 +685,13 @@ export class TaskHistoryStore {
 	 * the retry cannot create the lock at all, that failure's errno is still not the verdict: the
 	 * named path is asked again and its own answer closes or blocks the deletion, and the scan
 	 * covers both the name the caller passed and the target that name resolves to, which is the
-	 * directory a writer actually stages in.
+	 * directory a writer actually stages in. The retry is used only after the name is resolved again
+	 * under the lock that retry holds: a key that no longer matches the one this deletion locked, or
+	 * one that cannot be resolved at all, refuses the certification, because holding the key of a
+	 * location a writer has moved away from says nothing about what sits beside the name. The scan
+	 * follows the spelling rather than the directory - leftovers are named after the target basename,
+	 * so a name whose referent lives in the same directory under a different basename still gets the
+	 * scan of that spelling.
 	 */
 	private async _certifyAbsentUnderLock(
 		filePath: string,
@@ -732,6 +738,30 @@ export class TaskHistoryStore {
 			}
 		}
 		try {
+			// The removal path re-derives the key inside the lock it holds and refuses a mismatch; this
+			// certification is the other half of the same rule and had not been given it. Without the
+			// re-derivation here, a name that moves between the failed acquisition and this retry leaves the
+			// retry holding the key of a location the writer has already moved away from: the reads below
+			// look in directories no writer is using, and a publish onto the new target lands after the
+			// deletion is reported. Ask the name again under the lock this retry holds, and refuse the
+			// certification when the answer is a different key or no answer at all.
+			let currentKey: string
+			try {
+				currentKey = await resolveLockKey(filePath)
+			} catch (revalidationError: unknown) {
+				return {
+					deleted: false,
+					reason: `${lockReason}; the lock key could not be re-derived while the retry lock was held (${errorCode(revalidationError) ?? "unknown error"})`,
+					cause: revalidationError,
+				}
+			}
+			if (currentKey !== lockKey) {
+				return {
+					deleted: false,
+					reason: `${lockReason}; the path resolved to a different lock key while this deletion waited, so the lock held here keys a location a writer has moved away from`,
+					cause: lockError,
+				}
+			}
 			// With the lock held, the named path is asked first: a publish that completed while
 			// the delete was refused the lock means there is a file here again.
 			try {
@@ -757,10 +787,14 @@ export class TaskHistoryStore {
 			// basename rather than the alias's, so one lookup here would be a claim about a directory no
 			// writer used. Read both spellings' directories, each against the spelling whose basename its
 			// leftovers are named after.
+			// Leftovers are named after the target basename, so the second spelling is owed whenever the two
+			// spellings differ - including an alias that links to a differently named file in its own
+			// directory, where the directories match and only the basenames do not. Comparing spellings
+			// rather than directories is what makes that case get two scans; they collapse into one only when
+			// both spellings name the same file.
 			const scans: { dir: string; against: string }[] = [{ dir: path.dirname(filePath), against: filePath }]
-			const keyDir = path.dirname(lockKey)
-			if (keyDir !== path.dirname(filePath)) {
-				scans.push({ dir: keyDir, against: lockKey })
+			if (lockKey !== filePath) {
+				scans.push({ dir: path.dirname(lockKey), against: lockKey })
 			}
 			for (const scan of scans) {
 				let entries: string[]

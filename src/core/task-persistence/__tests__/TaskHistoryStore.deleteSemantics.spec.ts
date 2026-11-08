@@ -764,6 +764,62 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			expect(onWrite).not.toHaveBeenCalled()
 		})
 
+		it("refuses the certification when the name retargets while its retry lock is held", async () => {
+			// The removal re-derives the key inside the lock it holds and refuses a mismatch; this is the same
+			// rule on the certification side, where the retry acquires the key computed before the first
+			// attempt. Here the name resolves onto A when that key is computed and onto B by the time the
+			// retry holds it, so the scans below would read directories no writer is using while a publish
+			// onto B proceeded, and the absence would be certified beside a live writer.
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "moved-while-certifying" }))
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "moved-while-certifying")
+			const dirA = path.join(storagePath, "cert-dir-a")
+			const fileA = path.join(dirA, "a-history.json")
+			const dirB = path.join(storagePath, "cert-dir-b")
+			const fileB = path.join(dirB, "b-history.json")
+			await actualFs.mkdir(dirA, { recursive: true })
+			await actualFs.mkdir(dirB, { recursive: true })
+			await actualFs.writeFile(fileA, "{}", "utf8")
+			await actualFs.writeFile(fileB, "{}", "utf8")
+			await actualFs.rm(taskPath)
+			let resolution = fileA
+			const realpathSpy = vi
+				.spyOn(fs, "realpath")
+				.mockImplementation(async (target) =>
+					String(target) === taskPath ? resolution : actualFs.realpath(String(target)),
+				)
+			// The first acquisition is refused, and the move lands between that refusal and the retry, the
+			// way a rename in that window would.
+			let refusedOnce = false
+			const lockSpy = vi.mocked(withFileLock).mockImplementation(async (key, operation) => {
+				if (!refusedOnce) {
+					refusedOnce = true
+					resolution = fileB
+					throw Object.assign(new Error("EEXIST: file already exists, mkdir"), { code: "EEXIST" })
+				}
+				return actualFileLock.withFileLock(key, operation)
+			})
+			let rejection: unknown
+			try {
+				rejection = await store.delete("moved-while-certifying").catch((error: unknown) => error)
+			} finally {
+				realpathSpy.mockRestore()
+				lockSpy.mockRestore()
+			}
+			expect(rejection).toBeInstanceOf(TaskHistoryDeleteError)
+			expect(String((rejection as TaskHistoryDeleteError).reason)).toContain(
+				"resolved to a different lock key while this deletion waited",
+			)
+			// Nothing was certified: the item is still served, the new target is untouched, and the store
+			// wrote nothing through for a deletion that did not happen.
+			expect(storeInternals(store).cache.has("moved-while-certifying")).toBe(true)
+			expect(store.get("moved-while-certifying")).toBeDefined()
+			await expect(actualFs.access(fileB)).resolves.toBeUndefined()
+			expect(onWrite).not.toHaveBeenCalled()
+		})
+
 		it("keeps the item when the file reappears after the directory on the way to the lock goes missing", async () => {
 			// The lock failed, the name read as absent outside any lock, and the retry then found the
 			// directory it would have created the lock in gone. The old code concluded from that errno
@@ -872,6 +928,48 @@ describe("TaskHistoryStore best-effort deletion semantics", () => {
 			// The recovery file is untouched and the item is still served next to it.
 			await expect(fs.access(leftover)).resolves.toBeUndefined()
 			expect(storeInternals(store).cache.has("referent-side")).toBe(true)
+			expect(onWrite).not.toHaveBeenCalled()
+		})
+
+		it("blocks on a referent-named leftover inside the directory the alias itself sits in", async () => {
+			// Leftovers are named after the target basename, so this is the combination the certification scan
+			// skipped when it compared directories: the alias and its referent share a directory and only the
+			// basenames differ. One scan against the alias basename found nothing recoverable, certified the
+			// deletion, evicted the item, and left a copy that a later recovery pass would restore over a task
+			// the store had already reported gone.
+			const store = createStore()
+			await store.initialize()
+			await store.upsert(makeHistoryItem({ id: "same-dir-leftover" }))
+			onWrite.mockClear()
+			const taskPath = historyFilePath(storagePath, "same-dir-leftover")
+			const containingDir = path.dirname(taskPath)
+			const referentPath = path.join(containingDir, "referent-history.json")
+			const leftover = path.join(containingDir, ".referent-history.json.bak_1_saved.tmp")
+			await actualFs.writeFile(leftover, JSON.stringify(makeHistoryItem({ id: "same-dir-leftover" })), "utf8")
+			await actualFs.rm(taskPath)
+			const realpathSpy = vi
+				.spyOn(fs, "realpath")
+				.mockImplementation(async (target) =>
+					String(target) === taskPath ? referentPath : actualFs.realpath(String(target)),
+				)
+			vi.mocked(withFileLock).mockRejectedValueOnce(
+				Object.assign(new Error("EEXIST: file already exists, mkdir"), { code: "EEXIST" }),
+			)
+			let rejection: unknown
+			try {
+				rejection = await store.delete("same-dir-leftover").catch((error: unknown) => error)
+			} finally {
+				realpathSpy.mockRestore()
+			}
+			expect(rejection).toBeInstanceOf(TaskHistoryDeleteError)
+			const reason = String((rejection as TaskHistoryDeleteError).reason)
+			expect(reason).toContain("can still be recovered")
+			expect(reason).toContain(path.basename(leftover))
+			// The recovery copy is untouched, the item is still served beside it, and nothing was written
+			// through for a deletion that did not happen.
+			await expect(actualFs.access(leftover)).resolves.toBeUndefined()
+			expect(storeInternals(store).cache.has("same-dir-leftover")).toBe(true)
+			expect(store.get("same-dir-leftover")).toBeDefined()
 			expect(onWrite).not.toHaveBeenCalled()
 		})
 
