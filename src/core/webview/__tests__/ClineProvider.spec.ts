@@ -6343,6 +6343,723 @@ describe("ClineProvider", () => {
 			expect(posted.currentApiConfigName).toBe("shared-cfg")
 		})
 	})
+	describe("view state claim binding", () => {
+		it("refuses a viewStateId bound by a concurrent registration through setViewStateId", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			const beforeViewStateId = provider["viewStateId"]
+			const postSpy = vi.spyOn(provider, "postMessageToWebview").mockResolvedValue(true)
+			// A claim-less entry is adoptable at the first read, but a concurrent registration
+			// binds the key while this launch's queued re-bind is waiting its turn.
+			await provider.contextProxy.setValue("viewStates", { "legacy-view": { updatedAt: 1 } })
+			ClineProvider["pendingViewStateWrites"] = []
+			ClineProvider["viewStateWritesPump"] = Promise.resolve().then(async () => {
+				await provider.contextProxy.setValue("viewStates", {
+					"legacy-view": { claimToken: "winner", updatedAt: 2 },
+				})
+			})
+
+			await provider["setViewStateId"]("legacy-view")
+
+			// The launch must not adopt a key another webview now owns: no claim is delivered,
+			// the provider stays on its temporary id, and the winner's claim is untouched.
+			expect(postSpy).not.toHaveBeenCalledWith(expect.objectContaining({ type: "viewStateClaim" }))
+			expect(provider["viewStateId"]).toBe(beforeViewStateId)
+			const states = provider.contextProxy.getValue("viewStates") as Record<string, { claimToken?: string }>
+			expect(states["legacy-view"].claimToken).toBe("winner")
+			ClineProvider["pendingViewStateWrites"] = []
+			ClineProvider["viewStateWritesPump"] = Promise.resolve()
+			postSpy.mockRestore()
+			await provider.dispose()
+		})
+
+		it("does not overwrite a claim bound by a concurrent registration", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			await provider.contextProxy.setValue("viewStates", { "legacy-view": { updatedAt: 1 } })
+			// A concurrent registration binds this key while the re-bind write is queued.
+			ClineProvider["pendingViewStateWrites"] = []
+			ClineProvider["viewStateWritesPump"] = Promise.resolve().then(async () => {
+				await provider.contextProxy.setValue("viewStates", {
+					"legacy-view": { claimToken: "winner", updatedAt: 2 },
+				})
+			})
+
+			const claim = await provider["rebindUnboundViewStateEntry"]("legacy-view")
+
+			// The queued re-bind must not replace the claim the other registration wrote; it
+			// reports that nothing was rebound so the caller can refuse the stale adoption.
+			expect(claim).toBeUndefined()
+			const states = provider.contextProxy.getValue("viewStates") as Record<string, { claimToken?: string }>
+			expect(states["legacy-view"].claimToken).toBe("winner")
+			ClineProvider["pendingViewStateWrites"] = []
+			ClineProvider["viewStateWritesPump"] = Promise.resolve()
+			await provider.dispose()
+		})
+
+		const createProvider = () =>
+			new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+
+		const storedEntries = () =>
+			mockContext.globalState.get<Record<string, { claimToken?: string; mode?: string }>>("viewStates") ?? {}
+
+		test("refuses a disposed view's id when no claim is presented, and loads nothing", async () => {
+			// The vulnerable path: a view registers a durable entry, is disposed, and a second
+			// webview presents the same id. dispose() removes the instance but leaves the entry,
+			// so only the claim can stop the second webview from loading the first one's pinned
+			// profile (and the profile's secrets) through the state post.
+			const owner = createProvider()
+			await owner["setViewStateId"]("closed-view")
+			await owner.saveViewState("mode", "architect")
+			await owner.saveViewState("currentApiConfigName", "profile-with-secrets")
+
+			const storedClaim = storedEntries()["closed-view"]?.claimToken
+			expect(storedClaim).toEqual(expect.any(String))
+
+			await owner.dispose()
+
+			const intruder = createProvider()
+			const postMessageSpy = vi.spyOn(intruder, "postMessageToWebview").mockResolvedValue(true)
+
+			await intruder["setViewStateId"]("closed-view")
+
+			// Fail closed: the id is not adopted, no selections reach this view and no state is
+			// posted back to the webview that asked for it.
+			expect(intruder["viewStateId"]).toBe(intruder.viewId)
+			expect(intruder["viewLocalState"]).toStrictEqual({})
+			expect((await intruder.getState()).currentApiConfigName).not.toBe("profile-with-secrets")
+			expect(postMessageSpy).not.toHaveBeenCalled()
+
+			// A refused adoption is side-effect free: presenting an id must not probe or rewrite
+			// the entry that a different webview owns.
+			expect(storedEntries()["closed-view"]).toMatchObject({
+				mode: "architect",
+				currentApiConfigName: "profile-with-secrets",
+				claimToken: storedClaim,
+			})
+
+			await intruder.dispose()
+		})
+
+		test("refuses a mismatched claim", async () => {
+			const owner = createProvider()
+			await owner["setViewStateId"]("closed-view")
+			await owner.saveViewState("currentApiConfigName", "profile-with-secrets")
+			await owner.dispose()
+
+			const intruder = createProvider()
+			const postMessageSpy = vi.spyOn(intruder, "postMessageToWebview").mockResolvedValue(true)
+
+			// A webview-generated value is not a claim: only the token the host minted matches.
+			await intruder["setViewStateId"]("closed-view", "webview-chosen-claim")
+
+			expect(intruder["viewStateId"]).toBe(intruder.viewId)
+			expect(intruder["viewLocalState"]).toStrictEqual({})
+			expect(postMessageSpy).not.toHaveBeenCalled()
+
+			await intruder.dispose()
+		})
+
+		test("does not churn the claim on later writes to the same entry", async () => {
+			// Claims go to the view's webview: attach the shared double so this exercises delivery
+			// rather than the no-view path. The post itself is spied below.
+			provider["view"] = mockWebviewView
+			// The webview has launched and attached its listener: claims are posted live from here on.
+			provider.isViewLaunched = true
+
+			const postMessageSpy = vi.spyOn(provider, "postMessageToWebview").mockResolvedValue(true)
+			await provider["setViewStateId"]("minted-view")
+			await provider.saveViewState("mode", "architect")
+
+			const mintedClaim = storedEntries()["minted-view"]?.claimToken
+			expect(mintedClaim).toEqual(expect.any(String))
+
+			await provider.saveViewState("currentApiConfigName", "profile-b")
+
+			// A merge into an entry this view already owns keeps its token, so the claim the
+			// webview holds keeps working and is not re-sent.
+			expect(storedEntries()["minted-view"]?.claimToken).toBe(mintedClaim)
+			expect(
+				postMessageSpy.mock.calls.map(([message]) => message).filter((m) => m.type === "viewStateClaim"),
+			).toHaveLength(1)
+		})
+
+		test("resolves the persistence write only after the minted claim has been posted", async () => {
+			const gated = createProvider()
+			// The claim is posted to this view's webview: attach the shared double so the write resolves
+			// after a real delivery attempt. The post itself is spied below.
+			gated["view"] = mockWebviewView
+			// A launched webview: the claim post this write performs can actually be received.
+			gated.isViewLaunched = true
+
+			let posted = false
+			const postSpy = vi.spyOn(gated, "postMessageToWebview").mockImplementation(async () => {
+				// A real webview post settles on a later turn: a write that reported success before
+				// this resolved would leave the view without the claim it just made durable.
+				await new Promise((resolve) => setTimeout(resolve, 0))
+				posted = true
+				return true
+			})
+
+			await gated.saveViewState("mode", "architect")
+
+			expect(storedEntries()[gated.viewId]?.claimToken).toEqual(expect.any(String))
+			expect(posted).toBe(true)
+
+			postSpy.mockRestore()
+			await gated.dispose()
+		})
+
+		test("logs a claim that cannot be delivered because no webview is attached", async () => {
+			const detached = createProvider()
+			// Nothing is attached in this harness: the post is dropped and the claim is durable
+			// anyway, so the gap has to reach the log instead of leaving a silent mismatch.
+			expect(detached["view"]).toBeUndefined()
+			const loggedBefore = (mockOutputChannel.appendLine as ReturnType<typeof vi.fn>).mock.calls.length
+
+			await detached.saveViewState("mode", "architect")
+
+			const loggedLines: string[] = (mockOutputChannel.appendLine as ReturnType<typeof vi.fn>).mock.calls
+				.slice(loggedBefore)
+				.map((call: unknown[]) => String(call[0]))
+			const claimLines = loggedLines.filter((line) => line.includes("[viewStateClaim]"))
+			expect(claimLines).toHaveLength(1)
+			expect(claimLines[0]).toContain("not delivered")
+
+			await detached.dispose()
+		})
+
+		test("reports a claim as undelivered when the attached webview rejects the message", async () => {
+			// A hidden or closing webview resolves postMessage as false: the claim must be reported as
+			// not delivered and kept for retry, because the durable entry already carries this token.
+			const rejecting = createProvider()
+			const hiddenView = {
+				...mockWebviewView,
+				webview: { ...mockWebviewView.webview, postMessage: vi.fn().mockResolvedValue(false) },
+			}
+			rejecting["view"] = hiddenView
+			// Launched but closing: the post is attempted and the webview refuses it.
+			rejecting.isViewLaunched = true
+			const loggedBefore = (mockOutputChannel.appendLine as ReturnType<typeof vi.fn>).mock.calls.length
+
+			const delivered = await rejecting["postViewStateClaimToWebview"]("hidden-view", "host-minted-token")
+
+			expect(delivered).toBe("queued")
+			expect(hiddenView.webview.postMessage).toHaveBeenCalledWith({
+				type: "viewStateClaim",
+				viewStateId: "hidden-view",
+				viewStateClaim: "host-minted-token",
+			})
+			const loggedLines: string[] = (mockOutputChannel.appendLine as ReturnType<typeof vi.fn>).mock.calls
+				.slice(loggedBefore)
+				.map((call: unknown[]) => String(call[0]))
+			expect(loggedLines.some((line) => line.includes("[viewStateClaim] Claim for hidden-view"))).toBe(true)
+			expect(loggedLines.some((line) => line.includes("the webview rejected the message"))).toBe(true)
+			expect(rejecting["pendingViewStateClaims"].get("hidden-view")).toBe("host-minted-token")
+
+			await rejecting.dispose()
+		})
+
+		test("redelivers the queued claim with the same token when the webview launches", async () => {
+			// Nothing is attached yet: the claim is durable but undelivered, so it is queued. Once a
+			// webview attaches it must receive the exact token the entry stores, not a re-minted one.
+			const detached = createProvider()
+			expect(detached["view"]).toBeUndefined()
+
+			await detached.saveViewState("mode", "architect")
+
+			const storedClaim = storedEntries()[detached.viewId]?.claimToken
+			expect(storedClaim).toEqual(expect.any(String))
+			expect(detached["pendingViewStateClaims"].get(detached.viewId)).toBe(storedClaim)
+
+			const attachedView = {
+				...mockWebviewView,
+				webview: { ...mockWebviewView.webview, postMessage: vi.fn().mockResolvedValue(true) },
+			}
+			await detached.resolveWebviewView(attachedView)
+
+			// Attaching the view is not the delivery point: the renderer only has a message listener
+			// once it launches, so the held claim goes out from the webviewDidLaunch handler.
+			const launchedMessageHandler = (attachedView.webview.onDidReceiveMessage as ReturnType<typeof vi.fn>).mock
+				.calls[0][0]
+			await launchedMessageHandler({ type: "webviewDidLaunch" })
+
+			const claimPosts = attachedView.webview.postMessage.mock.calls
+				.map((call: unknown[]) => call[0])
+				.filter(
+					(message: unknown): message is { type: string; viewStateId: string; viewStateClaim: string } =>
+						typeof message === "object" &&
+						message !== null &&
+						(message as { type?: unknown }).type === "viewStateClaim",
+				)
+			expect(claimPosts).toHaveLength(1)
+			expect(claimPosts[0]).toEqual({
+				type: "viewStateClaim",
+				viewStateId: detached.viewId,
+				viewStateClaim: storedClaim,
+			})
+			expect(detached["pendingViewStateClaims"].size).toBe(0)
+
+			await detached.dispose()
+		})
+
+		test("holds a claim minted after a renderer replacement and delivers it on the next launch", async () => {
+			// The interleaving the queue exists for: replacing the view drops the renderer's message
+			// listener, a durable view-state mutation mints a claim while the replacement renderer has
+			// no listener yet, and a post that resolves true against the page being replaced deletes a
+			// claim that renderer never received, so its launch cannot adopt this view's state.
+			const replaced = createProvider()
+			const firstView = {
+				...mockWebviewView,
+				webview: {
+					...mockWebviewView.webview,
+					onDidReceiveMessage: vi.fn(),
+					postMessage: vi.fn().mockResolvedValue(true),
+				},
+			}
+			await replaced.resolveWebviewView(firstView)
+			const firstLaunch = (firstView.webview.onDidReceiveMessage as ReturnType<typeof vi.fn>).mock.calls[0][0]
+			await firstLaunch({ type: "webviewDidLaunch" })
+			expect(replaced.isViewLaunched).toBe(true)
+
+			// A different view replaces the first one. The replacement renderer has not sent
+			// `webviewDidLaunch`, so nothing listens yet, yet its postMessage still resolves true -
+			// exactly the webview that swallows a claim the host believes was delivered.
+			const secondView = {
+				...mockWebviewView,
+				webview: {
+					...mockWebviewView.webview,
+					onDidReceiveMessage: vi.fn(),
+					postMessage: vi.fn().mockResolvedValue(true),
+				},
+			}
+			await replaced.resolveWebviewView(secondView)
+			expect(replaced.isViewLaunched).toBe(false)
+
+			const result = await replaced.saveViewState("mode", "architect")
+			const mintedClaim = storedEntries()[replaced.viewId]?.claimToken
+
+			// Held rather than posted: the entry keeps the token it just minted and the queue holds
+			// that same token for the launch that can actually receive it.
+			expect(result).toEqual({ persisted: true, claim: "queued" })
+			expect(mintedClaim).toEqual(expect.any(String))
+			expect(replaced["pendingViewStateClaims"].get(replaced.viewId)).toBe(mintedClaim)
+			expect(
+				secondView.webview.postMessage.mock.calls
+					.map((call: unknown[]) => call[0])
+					.filter(
+						(message: unknown): message is { type: string; viewStateId: string; viewStateClaim: string } =>
+							typeof message === "object" &&
+							message !== null &&
+							(message as { type?: unknown }).type === "viewStateClaim",
+					),
+			).toEqual([])
+
+			// The replacement renderer launches: the claim it never received arrives carrying the token
+			// the record already stores, which is what lets that launch adopt this view's state.
+			const secondLaunch = (secondView.webview.onDidReceiveMessage as ReturnType<typeof vi.fn>).mock.calls[0][0]
+			await secondLaunch({ type: "webviewDidLaunch" })
+
+			const claimPosts = secondView.webview.postMessage.mock.calls
+				.map((call: unknown[]) => call[0])
+				.filter(
+					(message: unknown): message is { type: string; viewStateId: string; viewStateClaim: string } =>
+						typeof message === "object" &&
+						message !== null &&
+						(message as { type?: unknown }).type === "viewStateClaim",
+				)
+			expect(claimPosts).toEqual([
+				{ type: "viewStateClaim", viewStateId: replaced.viewId, viewStateClaim: mintedClaim },
+			])
+			expect(replaced["pendingViewStateClaims"].size).toBe(0)
+
+			await replaced.dispose()
+		})
+
+		test("lowers the launched flag when recovery replaces the renderer's HTML", async () => {
+			// Assigning new HTML discards the live document, listener included. A provider that still
+			// believes the renderer is launched posts claims into a page that is being replaced.
+			// Recovery schedules its own confirmation timer; fake timers keep it off the run so it
+			// cannot log after the environment is gone.
+			vi.useFakeTimers()
+			const recovered = createProvider()
+			recovered["view"] = mockWebviewView
+			recovered.isViewLaunched = true
+			recovered["getWebviewHtml"] = vi.fn().mockResolvedValue("recovered-html")
+			const postMessageSpy = vi.spyOn(recovered, "postMessageToWebview").mockResolvedValue(true)
+
+			await recovered["reloadWebviewForRecovery"]()
+
+			expect(recovered.isViewLaunched).toBe(false)
+
+			// A claim minted after the swap is held for the regenerated renderer's own launch instead
+			// of being posted into a page whose listener is already gone.
+			const result = await recovered.saveViewState("mode", "architect")
+			const storedClaim = storedEntries()[recovered.viewId]?.claimToken
+			expect(result).toEqual({ persisted: true, claim: "queued" })
+			expect(storedClaim).toEqual(expect.any(String))
+			expect(recovered["pendingViewStateClaims"].get(recovered.viewId)).toBe(storedClaim)
+			expect(
+				postMessageSpy.mock.calls
+					.map((call: unknown[]) => call[0])
+					.filter(
+						(message: unknown): message is { type: string; viewStateId: string; viewStateClaim: string } =>
+							typeof message === "object" &&
+							message !== null &&
+							(message as { type?: unknown }).type === "viewStateClaim",
+					),
+			).toEqual([])
+
+			// The regenerated renderer reports its own launch and the held claim reaches it.
+			recovered.isViewLaunched = true
+			await recovered.deliverPendingViewStateClaims()
+			expect(
+				postMessageSpy.mock.calls
+					.map((call: unknown[]) => call[0])
+					.filter(
+						(message: unknown): message is { type: string; viewStateId: string; viewStateClaim: string } =>
+							typeof message === "object" &&
+							message !== null &&
+							(message as { type?: unknown }).type === "viewStateClaim",
+					),
+			).toEqual([{ type: "viewStateClaim", viewStateId: recovered.viewId, viewStateClaim: storedClaim }])
+
+			recovered["clearWebviewRecoveryConfirmation"]()
+			postMessageSpy.mockRestore()
+			await recovered.dispose()
+			vi.useRealTimers()
+		})
+		test("reports a queued claim on the save result when the webview has not launched", async () => {
+			// The persistence-integrity gap this result exists to close: the durable entry carries a
+			// claim the webview has never been handed. A save that resolves as a complete success
+			// hides an identity the next launch still has to deliver.
+			const detached = createProvider()
+			detached["view"] = mockWebviewView
+			const postMessageSpy = vi.spyOn(detached, "postMessageToWebview").mockResolvedValue(true)
+
+			const result = await detached.saveViewState("mode", "architect")
+
+			expect(result).toEqual({ persisted: true, claim: "queued" })
+			expect(storedEntries()[detached.viewId]?.claimToken).toEqual(expect.any(String))
+			expect(detached["pendingViewStateClaims"].get(detached.viewId)).toBe(
+				storedEntries()[detached.viewId]?.claimToken,
+			)
+			// Nothing was posted: the renderer has no listener yet, and a post that resolved true
+			// here would delete the claim the launch flush exists to deliver.
+			expect(postMessageSpy).not.toHaveBeenCalled()
+
+			postMessageSpy.mockRestore()
+			await detached.dispose()
+		})
+
+		test("reports a delivered claim on the save result once the webview has launched", async () => {
+			const launched = createProvider()
+			launched["view"] = mockWebviewView
+			launched.isViewLaunched = true
+			const postMessageSpy = vi.spyOn(launched, "postMessageToWebview").mockResolvedValue(true)
+
+			const result = await launched.saveViewState("mode", "architect")
+
+			expect(result).toEqual({ persisted: true, claim: "delivered" })
+			expect(launched["pendingViewStateClaims"].size).toBe(0)
+
+			postMessageSpy.mockRestore()
+			await launched.dispose()
+		})
+
+		test("reports a queued claim on the registration result of an unlaunched view", async () => {
+			// Re-keying a pre-launch selection onto its stable id re-affirms that entry's claim. Until
+			// the renderer launches the reaffirmation is held, and the registration result has to say
+			// that rather than report an adoption whose identity never reached the webview.
+			const minted = createProvider()
+			minted["view"] = mockWebviewView
+			const postMessageSpy = vi.spyOn(minted, "postMessageToWebview").mockResolvedValue(true)
+			await minted.saveViewState("mode", "architect")
+			const mintedClaim = storedEntries()[minted.viewId]?.claimToken
+
+			const registered = await minted["setViewStateId"]("rekeyed-view")
+
+			expect(registered).toEqual({ adopted: true, claim: "queued" })
+			expect(storedEntries()["rekeyed-view"]?.claimToken).toBe(mintedClaim)
+			expect(postMessageSpy).not.toHaveBeenCalledWith(
+				expect.objectContaining({ type: "viewStateClaim", viewStateId: "rekeyed-view" }),
+			)
+
+			postMessageSpy.mockRestore()
+			await minted.dispose()
+		})
+
+		test("reports a delivered claim on the registration result of a launched view", async () => {
+			const launched = createProvider()
+			launched["view"] = mockWebviewView
+			launched.isViewLaunched = true
+			const postMessageSpy = vi.spyOn(launched, "postMessageToWebview").mockResolvedValue(true)
+			await launched.saveViewState("mode", "architect")
+			const mintedClaim = storedEntries()[launched.viewId]?.claimToken
+			postMessageSpy.mockClear()
+
+			const registered = await launched["setViewStateId"]("launched-view")
+
+			expect(registered).toEqual({ adopted: true, claim: "delivered" })
+			expect(storedEntries()["launched-view"]?.claimToken).toBe(mintedClaim)
+			expect(
+				postMessageSpy.mock.calls
+					.map(([message]) => message)
+					.filter((message) => message.type === "viewStateClaim"),
+			).toEqual([{ type: "viewStateClaim", viewStateId: "launched-view", viewStateClaim: mintedClaim }])
+
+			postMessageSpy.mockRestore()
+			await launched.dispose()
+		})
+
+		test("re-binds a claim-less legacy entry instead of loading its selections", async () => {
+			// An entry written before claims existed cannot be attributed to any webview: its
+			// selections are refused, and the key is re-bound with a fresh host-minted claim so
+			// the upgrade does not brick per-view persistence.
+			await provider.contextProxy.setValue("viewStates", {
+				"legacy-view": { mode: "architect", currentApiConfigName: "profile-a", updatedAt: 1 },
+			})
+
+			// Claims go to the view's webview: attach the shared double so this exercises delivery
+			// rather than the no-view path. The post itself is spied below.
+			provider["view"] = mockWebviewView
+			// The re-bind hands the fresh claim to a launched webview.
+			provider.isViewLaunched = true
+
+			const postMessageSpy = vi.spyOn(provider, "postMessageToWebview").mockResolvedValue(true)
+
+			await provider["setViewStateId"]("legacy-view")
+
+			// No stored selection is adopted...
+			expect(provider["viewStateId"]).toBe("legacy-view")
+			expect(provider["viewLocalState"]).toStrictEqual({})
+
+			// ...the old entry is replaced by a claim-bearing one with the unbound selections gone...
+			const rebound = storedEntries()["legacy-view"]
+			expect(rebound).toEqual({ claimToken: expect.any(String), updatedAt: expect.any(Number) })
+			expect(rebound).not.toHaveProperty("mode")
+			expect(rebound).not.toHaveProperty("currentApiConfigName")
+
+			// ...and the fresh claim is handed to this webview so the next launch can prove ownership.
+			expect(postMessageSpy).toHaveBeenCalledWith({
+				type: "viewStateClaim",
+				viewStateId: "legacy-view",
+				viewStateClaim: rebound?.claimToken,
+			})
+
+			await provider.dispose()
+
+			const reopened = createProvider()
+			await reopened["setViewStateId"]("legacy-view", rebound?.claimToken)
+
+			expect(reopened["viewStateId"]).toBe("legacy-view")
+			expect(reopened["viewLocalState"]).toStrictEqual({})
+
+			await reopened.dispose()
+		})
+
+		test("still refuses an id a live view holds, even when the claim matches", async () => {
+			const owner = createProvider()
+			await owner["setViewStateId"]("shared-live-view")
+			await owner.saveViewState("mode", "architect")
+			const claim = storedEntries()["shared-live-view"]?.claimToken
+
+			const sibling = createProvider()
+
+			try {
+				await sibling["setViewStateId"]("shared-live-view", claim)
+
+				// The live-instance guard runs first and keeps working: a second live view never
+				// shares a key with the view that holds it.
+				expect(sibling["viewStateId"]).toBe(sibling.viewId)
+				expect(sibling["viewLocalState"]).toStrictEqual({})
+				expect(owner["viewStateId"]).toBe("shared-live-view")
+			} finally {
+				await sibling.dispose()
+				await owner.dispose()
+			}
+		})
+	})
+
+	const seedPreLaunchEntry = async (provider: ClineProvider) => {
+		// A pre-launch selection under the instance's temporary id, authored by this instance.
+		await provider["savePersistedViewState"]({ mode: "architect", updatedAt: 1 })
+		expect(provider["wroteUnderTemporaryViewStateId"]).toBe(true)
+		return provider.viewId
+	}
+
+	// Moves the provider's view-state generation while its own storage write is in flight,
+	// which is what a dispose or a re-registration during the write does. The double delegates
+	// to the real setter so the write still lands: replacing it outright would hide the move.
+	const moveGenerationDuringViewStatesWrite = (provider: ClineProvider) => {
+		const original = provider.contextProxy.setValue.bind(provider.contextProxy)
+		vi.spyOn(provider.contextProxy, "setValue").mockImplementation(async (...args: unknown[]) => {
+			await (original as (...a: unknown[]) => Promise<void>)(...args)
+			if (args[0] === "viewStates") {
+				provider["viewStateGeneration"]++
+			}
+		})
+	}
+	it("keeps a pre-launch selection when registration re-keys it onto an existing stable entry", async () => {
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			new ContextProxy(mockContext),
+			new WebviewFocusTracker(),
+		)
+
+		await provider["savePersistedViewState"]({ mode: "architect", updatedAt: 1 })
+		const seeded = provider.contextProxy.getValue("viewStates") ?? {}
+		await provider.contextProxy.setValue("viewStates", {
+			...seeded,
+			"stable-view": { claimToken: "host-token", updatedAt: 2 },
+		})
+
+		await provider["rekeyPersistedViewStateEntry"]("stable-view")
+
+		expect(mockContext.globalState.get("viewStates")).toMatchObject({
+			"stable-view": { mode: "architect", claimToken: "host-token" },
+		})
+
+		await provider.dispose()
+	})
+
+	it("puts a re-key back under the temporary id when the view died before the entry reached a renderer", async () => {
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			new ContextProxy(mockContext),
+			new WebviewFocusTracker(),
+		)
+		const temporaryId = await seedPreLaunchEntry(provider)
+		moveGenerationDuringViewStatesWrite(provider)
+
+		await provider["rekeyPersistedViewStateEntry"]("stable-view")
+
+		// The move committed before the generation check ran. Leaving it applied binds the entry
+		// to a view id no renderer will ever present, and clears nothing: a later launch reads
+		// the temporary id as unauthored and the selection is stranded under the dead claim.
+		const states = mockContext.globalState.get<Record<string, { mode?: string }>>("viewStates") ?? {}
+		expect(states[temporaryId]?.mode).toBe("architect")
+		expect(states["stable-view"]).toBeUndefined()
+		expect(provider["wroteUnderTemporaryViewStateId"]).toBe(true)
+
+		await provider.dispose()
+	})
+
+	it("clears authorship when the dead view had already merged the pre-launch entry", async () => {
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			new ContextProxy(mockContext),
+			new WebviewFocusTracker(),
+		)
+		const temporaryId = await seedPreLaunchEntry(provider)
+		const seeded = provider.contextProxy.getValue("viewStates") ?? {}
+		await provider.contextProxy.setValue("viewStates", {
+			...seeded,
+			"stable-view": { claimToken: "host-token", updatedAt: 2 },
+		})
+		moveGenerationDuringViewStatesWrite(provider)
+
+		await provider["rekeyPersistedViewStateEntry"]("stable-view")
+
+		// A merged entry cannot be pulled back out whole, so the temporary name is gone either
+		// way; authorship must not survive it, or every later launch keeps treating this view as
+		// the author of an entry that no longer exists under the temporary id.
+		const states =
+			mockContext.globalState.get<Record<string, { mode?: string; claimToken?: string }>>("viewStates") ?? {}
+		expect(states["stable-view"]).toMatchObject({ mode: "architect", claimToken: "host-token" })
+		expect(states[temporaryId]).toBeUndefined()
+		expect(provider["wroteUnderTemporaryViewStateId"]).toBe(false)
+
+		await provider.dispose()
+	})
+
+	it("leaves the entry under the temporary id and keeps authorship when the compensating re-key write also fails", async () => {
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			new ContextProxy(mockContext),
+			new WebviewFocusTracker(),
+		)
+		const temporaryId = await seedPreLaunchEntry(provider)
+		moveGenerationDuringViewStatesWrite(provider)
+
+		// The move is already stored when the generation check runs, so the recovery path is the
+		// compensating write. Reject the storage update whose payload puts the entry back under the
+		// temporary id and leave every other write behaving normally - payload-keyed so it hits that
+		// write and not the queue calls that precede it.
+		let compensatingWrites = 0
+		const mementoUpdate = mockContext.globalState.update
+		mockContext.globalState.update = ((key: string, value: unknown) => {
+			const payload = value as Record<string, unknown> | undefined
+			if (key === "viewStates" && payload && Object.prototype.hasOwnProperty.call(payload, temporaryId)) {
+				compensatingWrites++
+				return Promise.reject(new Error("storage rejected the compensating write"))
+			}
+			return mementoUpdate(key, value)
+		}) as typeof mockContext.globalState.update
+
+		await provider["rekeyPersistedViewStateEntry"]("stable-view")
+
+		expect(compensatingWrites).toBe(1) // the recovery write was attempted exactly once
+		const stored = mockContext.globalState.get<Record<string, { mode?: string }>>("viewStates") ?? {}
+		const cached =
+			(provider.contextProxy.getValue("viewStates") as Record<string, { mode?: string }> | undefined) ?? {}
+		// The recovery write never landed, so storage still holds the entry under the stable id from the
+		// forward write. The rollback exists so the cache ContextProxy keeps for the key says the same
+		// thing: without it the cache claims the entry moved back under a temporary id that durable
+		// storage never received, and every later read of the key serves a value nothing backs.
+		expect(stored["stable-view"]?.mode).toBe("architect")
+		expect(cached["stable-view"]?.mode).toBe("architect")
+		expect(cached[temporaryId]).toBeUndefined()
+		// Authorship stays claimed: storage still holds the entry under the stable id and a later launch
+		// has to re-key it, which is what the forward path already guarantees for its own failures.
+		expect(provider["wroteUnderTemporaryViewStateId"]).toBe(true)
+
+		await provider.dispose()
+	})
+
+	it("keeps the re-key applied and clears authorship while the view generation is live", async () => {
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			new ContextProxy(mockContext),
+			new WebviewFocusTracker(),
+		)
+		const temporaryId = await seedPreLaunchEntry(provider)
+
+		await provider["rekeyPersistedViewStateEntry"]("stable-view")
+
+		const states = mockContext.globalState.get<Record<string, { mode?: string }>>("viewStates") ?? {}
+		expect(states["stable-view"]?.mode).toBe("architect")
+		expect(states[temporaryId]).toBeUndefined()
+		expect(provider["wroteUnderTemporaryViewStateId"]).toBe(false)
+
+		await provider.dispose()
+	})
 })
 
 describe("webviewMessageHandler no-floating-promises coverage", () => {
