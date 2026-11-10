@@ -4147,4 +4147,222 @@ Instructions`)
 			})
 		})
 	})
+	it("stops creating watchers once the manager is disposed", async () => {
+		const createWatcher = vi.mocked(vscode.workspace.createFileSystemWatcher)
+		const originalNodeEnv = process.env.NODE_ENV
+		process.env.NODE_ENV = "development"
+		try {
+			createWatcher.mockClear()
+			await skillsManager["setupFileWatchers"]()
+			expect(createWatcher).toHaveBeenCalled()
+
+			createWatcher.mockClear()
+			await skillsManager.dispose()
+			await skillsManager["setupFileWatchers"]()
+			expect(createWatcher).not.toHaveBeenCalled()
+		} finally {
+			process.env.NODE_ENV = originalNodeEnv
+		}
+	})
+
+	it("sweeps only a staged sidecar left by a previous host", async () => {
+		const staleName = ".SKILL.md.123.abc.tmp"
+		const freshName = ".SKILL.md.456.def.tmp"
+		mockReaddir.mockImplementation(async (_dir: string, options?: { withFileTypes?: boolean }) => {
+			if (options?.withFileTypes) {
+				return []
+			}
+			return [staleName, freshName]
+		})
+		mockStat.mockImplementation(async (pathArg: string) => {
+			if (pathArg.endsWith(staleName)) {
+				// Older than the stale threshold: abandoned by a previous host.
+				return { mtimeMs: Date.now() - 60 * 60 * 1000 }
+			}
+			if (pathArg.endsWith(freshName)) {
+				return { mtimeMs: Date.now() }
+			}
+			throw enoent()
+		})
+		mockUnlink.mockResolvedValue(undefined)
+
+		await skillsManager["sweepStaleSkillTempFiles"]()
+
+		expect(mockUnlink).toHaveBeenCalledWith(p(globalSkillsDir, staleName))
+		// A fresh matching sidecar may belong to a live write and must survive.
+		expect(mockUnlink).not.toHaveBeenCalledWith(p(globalSkillsDir, freshName))
+	})
+
+	it("revisits fresh sidecars once the delayed sweep fires", async () => {
+		// The first sweep skips sidecars younger than the freshness window because they may belong to
+		// a live write in another process, and nothing else ever revisits them. The one delayed retry
+		// is what does, so both halves are pinned: no second sweep inside the window, one after it.
+		vi.useFakeTimers()
+		// vi.useFakeTimers() takes over Date as well as the timers, so a sidecar stamped with the
+		// planted reading ages exactly as the clock is advanced: the retry's verdict changes because
+		// the window closed, not because the fixture changed.
+		const sidecarName = ".SKILL.md.789.ghi.tmp"
+		const sidecarPath = p(globalSkillsDir, sidecarName)
+		// What the retry changes is the sidecar's age relative to now, and this suite's fake timers do
+		// not fake Date (measured: the two fires land milliseconds apart on the real clock), so the
+		// fixture ages the sidecar between the fires instead of pretending the clock carried it past
+		// the window.
+		let sidecarAgeMs = 0
+		mockReaddir.mockImplementation(async (_dir: string, options?: { withFileTypes?: boolean }) =>
+			options?.withFileTypes ? [] : [sidecarName],
+		)
+		mockStat.mockImplementation(async (pathArg: string) =>
+			pathArg.endsWith(sidecarName) ? { mtimeMs: Date.now() - sidecarAgeMs } : Promise.reject(enoent()),
+		)
+		mockUnlink.mockResolvedValue(undefined)
+		const unlinkedSoFar = () => mockUnlink.mock.calls.map((call) => String(call[0]))
+		let sweeps = 0
+		const originalSweep = skillsManager["sweepStaleSkillTempFiles"]
+		skillsManager["sweepStaleSkillTempFiles"] = async () => {
+			sweeps += 1
+			// Count the fires and let the real sweep run beneath the counter: a counter that swallowed
+			// the body would pin the timing without proving the removal the retry exists to perform.
+			// call() rather than originalSweep(): the captured method is unbound, and an unbound call
+			// loses the manager instance, throws inside the sweep, and gets swallowed by the retry's own
+			// catch - which is how the first version of this test passed while never removing anything.
+			await originalSweep.call(skillsManager)
+			if (sweeps === 1) {
+				// The retry only makes sense once the freshness window has closed on this sidecar.
+				sidecarAgeMs = 10 * 60 * 1000
+			}
+		}
+		try {
+			await skillsManager.initialize()
+			expect(sweeps).toBe(1)
+			expect(unlinkedSoFar(), "the first sweep leaves a fresh sidecar alone").not.toContain(sidecarPath)
+			// SKILL_TEMP_SIDECAR_STALE_MS is ten minutes and module-private, so the window is written
+			// here and the assertions below pin which side of it fires.
+			await vi.advanceTimersByTimeAsync(10 * 60 * 1000 - 1)
+			expect(sweeps).toBe(1)
+			expect(unlinkedSoFar()).not.toContain(sidecarPath)
+			await vi.advanceTimersByTimeAsync(1)
+			expect(sweeps).toBe(2)
+			// The removal itself: the retry is what turns a skipped sidecar into a deleted one.
+			expect(unlinkedSoFar(), "the delayed sweep removes the sidecar the first sweep skipped").toContain(
+				sidecarPath,
+			)
+		} finally {
+			skillsManager["sweepStaleSkillTempFiles"] = originalSweep
+			vi.useRealTimers()
+		}
+	})
+
+	it("cancels the delayed sweep when disposal lands inside the window", async () => {
+		// A host that stops inside the freshness window must not sweep again after it: dispose()
+		// clears the retry timer, and without that clear the pending callback would run.
+		vi.useFakeTimers()
+		let sweeps = 0
+		const originalSweep = skillsManager["sweepStaleSkillTempFiles"]
+		skillsManager["sweepStaleSkillTempFiles"] = async () => {
+			sweeps += 1
+		}
+		try {
+			await skillsManager.initialize()
+			expect(sweeps).toBe(1)
+			await skillsManager.dispose()
+			await vi.advanceTimersByTimeAsync(10 * 60 * 1000 + 1)
+			expect(sweeps).toBe(1)
+		} finally {
+			skillsManager["sweepStaleSkillTempFiles"] = originalSweep
+			vi.useRealTimers()
+		}
+	})
+
+	it("shares one directory queue across symlink aliases", async () => {
+		const order: string[] = []
+		let releaseFirst!: () => void
+		const firstGate = new Promise<void>((resolve) => {
+			releaseFirst = resolve
+		})
+		const alias = p("/alias", "skills")
+		mockRealpath.mockImplementation(async (pathArg: string) => (pathArg === alias ? globalSkillsDir : pathArg))
+
+		const first = skillsManager["withDirectoryLock"](alias, async () => {
+			order.push("first:start")
+			await firstGate
+			order.push("first:end")
+		})
+		try {
+			// The lock key is resolved through realpath asynchronously before the operation runs.
+			await vi.waitFor(() => expect(order).toEqual(["first:start"]))
+			const second = skillsManager["withDirectoryLock"](globalSkillsDir, async () => {
+				order.push("second")
+			})
+			await Promise.resolve()
+			// The alias resolves to the same real directory, so the second operation waits.
+			expect(order).toEqual(["first:start"])
+
+			releaseFirst()
+			await Promise.all([first, second])
+			expect(order).toEqual(["first:start", "first:end", "second"])
+		} finally {
+			// Never leave the shared queue holding a gate if an assertion above fails.
+			releaseFirst()
+			await first.catch(() => undefined)
+		}
+	})
+
+	it("does not start watchers when initialization runs after disposal", async () => {
+		const createWatcher = vi.mocked(vscode.workspace.createFileSystemWatcher)
+		await skillsManager.dispose()
+		createWatcher.mockClear()
+
+		await skillsManager.initialize()
+
+		expect(createWatcher).not.toHaveBeenCalled()
+	})
+
+	it("rejects a queued write once the manager is disposed", async () => {
+		await skillsManager.dispose()
+		mockWriteFile.mockResolvedValue(undefined)
+		mockUnlink.mockResolvedValue(undefined)
+
+		await expect(
+			skillsManager["writeSkillFileAtomically"](p(globalSkillsDir, "SKILL.md"), "content"),
+		).rejects.toThrow("SkillsManager is disposed")
+		expect(mockWriteFile).not.toHaveBeenCalled()
+		expect(mockRename).not.toHaveBeenCalled()
+	})
+
+	it("never runs a queued directory operation after the manager is disposed", async () => {
+		let releaseFirst!: () => void
+		const firstGate = new Promise<void>((resolve) => {
+			releaseFirst = resolve
+		})
+		let firstStarted = false
+		let secondRan = false
+
+		const first = skillsManager["withDirectoryLock"](globalSkillsDir, async () => {
+			firstStarted = true
+			await firstGate
+		})
+		await vi.waitFor(() => expect(firstStarted).toBe(true))
+
+		// The second operation is queued behind the first and must be rejected after disposal
+		// without running its callback.
+		const second = skillsManager["withDirectoryLock"](globalSkillsDir, async () => {
+			secondRan = true
+		})
+		await skillsManager.dispose()
+		releaseFirst()
+
+		await first
+		await expect(second).rejects.toThrow("SkillsManager is disposed")
+		expect(secondRan).toBe(false)
+	})
+
+	it("removes tracked temp sidecars on dispose", async () => {
+		mockUnlink.mockResolvedValue(undefined)
+		skillsManager["activeTempFiles"].add("/mock/skills/foo/.SKILL.md.123.abc.tmp")
+
+		await skillsManager.dispose()
+
+		expect(mockUnlink).toHaveBeenCalledWith("/mock/skills/foo/.SKILL.md.123.abc.tmp")
+		expect(skillsManager["activeTempFiles"].size).toBe(0)
+	})
 })
