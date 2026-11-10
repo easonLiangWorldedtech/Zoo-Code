@@ -15,6 +15,7 @@ import {
 	type ClineMessage,
 	type ExtensionMessage,
 	type ExtensionState,
+	type GlobalState,
 	type RooCodeSettings,
 	type WebviewMessage,
 	ORGANIZATION_ALLOW_ALL,
@@ -5816,6 +5817,407 @@ describe("ClineProvider", () => {
 			expect(updateGlobalStateSpy).toHaveBeenCalledWith("listApiConfigMeta", [
 				{ name: "test-config", id: "test-id", apiProvider: providerIdentifiers.anthropic },
 			])
+		})
+	})
+
+	describe("setViewStateId", () => {
+		it('should ignore "__proto__" and keep the temporary viewId', async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+
+			await provider["setViewStateId"]("__proto__")
+
+			// "__proto__" is rejected before assignment, so nothing is persisted under it.
+			expect(provider["viewStateId"]).toBe(provider.viewId)
+			expect(mockContext.globalState.get("viewStates")).toBeUndefined()
+			expect(provider["viewLocalState"]).toEqual({})
+
+			await provider.dispose()
+		})
+
+		it("rejects a non-string viewStateId from a crafted message and stays on the temporary id", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			// The message type declares a string, but a crafted postMessage can carry any JSON
+			// value, so the double assertion here is the crafted payload, not the call site.
+			const crafted = JSON.parse('{"viewStateId": 42}') as { viewStateId: string }
+			const statesBefore = mockContext.globalState.get("viewStates")
+			const postMessageSpy = vi.spyOn(provider, "postMessageToWebview").mockResolvedValue(true)
+			const loggedBefore = (mockOutputChannel.appendLine as ReturnType<typeof vi.fn>).mock.calls.length
+
+			await provider["setViewStateId"](crafted.viewStateId)
+
+			expect(provider["viewStateId"]).toBe(provider.viewId)
+			// Nothing registered means nothing persisted, nothing loaded, and no claim posted.
+			expect(mockContext.globalState.get("viewStates")).toBe(statesBefore)
+			expect(provider["viewLocalState"]).toEqual({})
+			expect(
+				postMessageSpy.mock.calls
+					.map(([message]) => message)
+					.filter((message) => message.type === "viewStateClaim"),
+			).toHaveLength(0)
+			const loggedLines = (mockOutputChannel.appendLine as ReturnType<typeof vi.fn>).mock.calls
+				.slice(loggedBefore)
+				.map((call: unknown[]) => String(call[0]))
+			expect(
+				loggedLines.some((line) => line.includes("[setViewStateId] Ignoring a non-string viewStateId")),
+			).toBe(true)
+
+			postMessageSpy.mockRestore()
+			await provider.dispose()
+		})
+
+		it("rejects an empty viewStateId and keeps the temporary viewId", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			const statesBefore = mockContext.globalState.get("viewStates")
+			const postMessageSpy = vi.spyOn(provider, "postMessageToWebview").mockResolvedValue(true)
+
+			await provider["setViewStateId"]("")
+
+			// The empty id returns without a log line; the absence of every side effect is the
+			// evidence that registration never happened.
+			expect(provider["viewStateId"]).toBe(provider.viewId)
+			// Nothing registered means nothing persisted, nothing loaded, and no claim posted.
+			expect(mockContext.globalState.get("viewStates")).toBe(statesBefore)
+			expect(provider["viewLocalState"]).toEqual({})
+			expect(
+				postMessageSpy.mock.calls
+					.map(([message]) => message)
+					.filter((message) => message.type === "viewStateClaim"),
+			).toHaveLength(0)
+			postMessageSpy.mockRestore()
+			await provider.dispose()
+		})
+
+		it("rejects a whitespace-only viewStateId that normalizes to empty", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			const statesBefore = mockContext.globalState.get("viewStates")
+			const postMessageSpy = vi.spyOn(provider, "postMessageToWebview").mockResolvedValue(true)
+
+			// Whitespace normalizes to the empty string, which is the same rejection.
+			await provider["setViewStateId"]("   ")
+
+			expect(provider["viewStateId"]).toBe(provider.viewId)
+			// Nothing registered means nothing persisted, nothing loaded, and no claim posted.
+			expect(mockContext.globalState.get("viewStates")).toBe(statesBefore)
+			expect(provider["viewLocalState"]).toEqual({})
+			expect(
+				postMessageSpy.mock.calls
+					.map(([message]) => message)
+					.filter((message) => message.type === "viewStateClaim"),
+			).toHaveLength(0)
+			postMessageSpy.mockRestore()
+			await provider.dispose()
+		})
+
+		it("rejects a viewStateId longer than the bound and logs the length", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			const statesBefore = mockContext.globalState.get("viewStates")
+			const postMessageSpy = vi.spyOn(provider, "postMessageToWebview").mockResolvedValue(true)
+			const loggedBefore = (mockOutputChannel.appendLine as ReturnType<typeof vi.fn>).mock.calls.length
+
+			// The webview generates a UUID; a 65-character value is not a view id and an
+			// unbounded key is unbounded growth in the shared viewStates map.
+			await provider["setViewStateId"]("v".repeat(65))
+
+			expect(provider["viewStateId"]).toBe(provider.viewId)
+			// Nothing registered means nothing persisted, nothing loaded, and no claim posted.
+			expect(mockContext.globalState.get("viewStates")).toBe(statesBefore)
+			expect(provider["viewLocalState"]).toEqual({})
+			expect(
+				postMessageSpy.mock.calls
+					.map(([message]) => message)
+					.filter((message) => message.type === "viewStateClaim"),
+			).toHaveLength(0)
+			const loggedLines = (mockOutputChannel.appendLine as ReturnType<typeof vi.fn>).mock.calls
+				.slice(loggedBefore)
+				.map((call: unknown[]) => String(call[0]))
+			expect(loggedLines.some((line) => line.includes("Ignoring an oversized viewStateId (65 chars)"))).toBe(true)
+			expect(mockContext.globalState.get("viewStates")).toBe(statesBefore)
+
+			postMessageSpy.mockRestore()
+			await provider.dispose()
+		})
+
+		it("loads the persisted selections of the registered view", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			await provider.contextProxy.setValue("viewStates", {
+				"stable-view": { claimToken: "host-token", mode: "architect", currentApiConfigName: "cfg-a" },
+			})
+
+			await provider["setViewStateId"]("stable-view", "host-token")
+
+			// Registration is what loads a view's own selections.
+			expect(provider["viewLocalState"].mode).toBe("architect")
+			expect(provider["viewLocalState"].currentApiConfigName).toBe("cfg-a")
+
+			await provider.dispose()
+		})
+		it("normalises a registered viewStateId and keys the adopted entry by it", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			// The key the host may store, plus a decoy under the raw name a normalizer never
+			// produces: adopting that entry would load another view's selections.
+			await provider.contextProxy.setValue("viewStates", {
+				norm_view: { claimToken: "norm-token", mode: "architect", currentApiConfigName: "cfg-norm" },
+				"norm/view": { claimToken: "decoy-token", mode: "code", currentApiConfigName: "cfg-decoy" },
+				"norm/view ": { claimToken: "decoy2-token", mode: "ask", currentApiConfigName: "cfg-decoy2" },
+			})
+			const result = await provider["setViewStateId"]("  norm/view  ", "norm-token")
+			expect(result.adopted).toBe(true)
+			expect(provider["viewStateId"]).toBe("norm_view")
+			// The selections that came through are the normalized key's, not the decoy's.
+			expect(provider["viewLocalState"].mode).toBe("architect")
+			expect(provider["viewLocalState"].currentApiConfigName).toBe("cfg-norm")
+			const states = provider["getPersistedViewStates"]()
+			// The durable entry the registration read and adopted is the normalized one, and
+			// nothing was ever stored under the padded name the webview actually sent.
+			expect(states["norm_view"].claimToken).toBe("norm-token")
+			expect(Object.keys(states)).not.toContain("  norm/view  ")
+			// The decoys sit under names a normalizer never produces: adopted, they would load
+			// another view's selections; here they stay exactly as seeded.
+			expect(states["norm/view"].claimToken).toBe("decoy-token")
+			expect(states["norm/view"].mode).toBe("code")
+			expect(states["norm/view "].claimToken).toBe("decoy2-token")
+			await provider.dispose()
+		})
+
+		it("resolves to true when the webview accepts the message", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			await provider.resolveWebviewView({ ...mockWebviewView, webview: { ...mockWebviewView.webview, html: "" } })
+			// The spy replaces the resolve-time double so only this post is under test.
+			const postMessage = vi.spyOn(provider["view"]!.webview, "postMessage").mockResolvedValue(true)
+			await expect(provider.postMessageToWebview({ type: "action", action: "focusInput" })).resolves.toBe(true)
+			expect(postMessage).toHaveBeenCalledWith({ type: "action", action: "focusInput" })
+			// The delivery result must reach the caller: a caller that rolls back on a failed
+			// post needs the true case to be true, not merely non-throwing.
+			await provider.dispose()
+		})
+
+		it("resolves to false when the webview refuses the delivery", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			await provider.resolveWebviewView({ ...mockWebviewView, webview: { ...mockWebviewView.webview, html: "" } })
+			const postMessage = vi.spyOn(provider["view"]!.webview, "postMessage").mockResolvedValue(false)
+			await expect(provider.postMessageToWebview({ type: "action", action: "focusInput" })).resolves.toBe(false)
+			expect(postMessage).toHaveBeenCalledWith({ type: "action", action: "focusInput" })
+			await provider.dispose()
+		})
+
+		it("restores the previous view id when the registration write fails so a later launch retries", async () => {
+			const contextProxy = new ContextProxy(mockContext)
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				contextProxy,
+				new WebviewFocusTracker(),
+			)
+			// Seed a pre-launch entry through the real write path so the re-key has work to do.
+			await provider["savePersistedViewState"]({ mode: "architect", updatedAt: 1 })
+
+			const setValueSpy = vi.spyOn(contextProxy, "setValue").mockRejectedValue(new Error("storage down"))
+
+			await expect(provider["setViewStateId"]("stable-sidebar-view")).rejects.toThrow("storage down")
+
+			// The failed id must not stick: the provider keeps its previous (temporary) id.
+			expect(provider["viewStateId"]).toBe(provider.viewId)
+
+			// A later retry succeeds once the storage write works again.
+			setValueSpy.mockRestore()
+			await provider["setViewStateId"]("stable-sidebar-view")
+			expect(provider["viewStateId"]).toBe("stable-sidebar-view")
+			expect(mockContext.globalState.get("viewStates")).toEqual({
+				"stable-sidebar-view": { mode: "architect", updatedAt: 1, claimToken: expect.any(String) },
+			})
+
+			await provider.dispose()
+		})
+	})
+
+	describe("persisted viewStates record hygiene", () => {
+		it("drops non-object entries so a corrupt record cannot reject a save", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			// Test data only, hence the assertion: a null or primitive entry is exactly what the
+			// persisted schema forbids and what a half-written or hand-edited record can still hold.
+			const corruptStates = {
+				"corrupt-view": null,
+				"primitive-view": "not-an-entry",
+				"healthy-view": { claimToken: "host-token", mode: "code", updatedAt: 5 },
+			} as unknown as GlobalState["viewStates"]
+			await provider.contextProxy.setValue("viewStates", corruptStates)
+
+			// Both read paths filter: the ContextProxy-cached copy (loadViewState reads it) and the
+			// fresh storage copy every serialized writer reads.
+			expect(provider["getPersistedViewStates"]()).not.toHaveProperty("corrupt-view")
+			expect(provider["getPersistedViewStates"]()).not.toHaveProperty("primitive-view")
+			expect(provider["getPersistedViewStates"]({ fresh: true })["corrupt-view"]).toBeUndefined()
+			expect(provider["getPersistedViewStates"]({ fresh: true })["healthy-view"]).toMatchObject({
+				claimToken: "host-token",
+				mode: "code",
+			})
+
+			// Before the filter this rejects: prunePersistedViewStates sorts every entry by
+			// `updatedAt`, and reading it from a null entry throws inside the queued write.
+			await provider["savePersistedViewState"]({ mode: "architect", updatedAt: 10 })
+
+			const stored = mockContext.globalState.get<Record<string, { mode?: string }>>("viewStates") ?? {}
+			expect(stored[provider["viewStateId"]]).toMatchObject({ mode: "architect" })
+			expect(stored).not.toHaveProperty("corrupt-view")
+			expect(stored).not.toHaveProperty("primitive-view")
+
+			await provider.dispose()
+		})
+
+		it("deletes the persisted mode when a view-local save clears it", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			const stored = () =>
+				mockContext.globalState.get<Record<string, { mode?: string; currentApiConfigName?: string }>>(
+					"viewStates",
+				) ?? {}
+
+			await provider.saveViewState("mode", "architect")
+			await provider.saveViewState("currentApiConfigName", "cfg-a")
+			expect(stored()[provider["viewStateId"]]).toMatchObject({
+				mode: "architect",
+				currentApiConfigName: "cfg-a",
+			})
+
+			const cleared = await provider.saveViewState("mode", undefined)
+			expect(cleared).toEqual({ persisted: true, claim: "none" })
+			expect(stored()[provider["viewStateId"]]).not.toHaveProperty("mode")
+			expect(stored()[provider["viewStateId"]]).toMatchObject({ currentApiConfigName: "cfg-a" })
+			expect(provider["viewLocalState"]).not.toHaveProperty("mode")
+			expect(provider["viewLocalState"].currentApiConfigName).toBe("cfg-a")
+
+			await provider.dispose()
+		})
+
+		it("removes the record when the last persisted field is cleared", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			const stored = () =>
+				mockContext.globalState.get<Record<string, { mode?: string; currentApiConfigName?: string }>>(
+					"viewStates",
+				) ?? {}
+
+			await provider.saveViewState("mode", "architect")
+			await provider.saveViewState("currentApiConfigName", "cfg-a")
+			expect(stored()).toHaveProperty(provider["viewStateId"])
+
+			await provider.saveViewState("mode", undefined)
+			const cleared = await provider.saveViewState("currentApiConfigName", undefined)
+			expect(cleared).toEqual({ persisted: true, claim: "none" })
+			// Deleting the last field deletes the entry rather than leaving an empty shell behind.
+			expect(stored()).not.toHaveProperty(provider["viewStateId"])
+			expect(provider["viewLocalState"]).toStrictEqual({})
+
+			await provider.dispose()
+		})
+		it("evicts exactly the oldest entry when a save crosses the persisted-view cap", async () => {
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			const cap = ClineProvider["MAX_PERSISTED_VIEW_STATES"]
+			expect(cap).toBe(50)
+
+			// One entry over the cap, each with its own timestamp so the eviction order is forced
+			// rather than left to insertion order.
+			const seeded: Record<string, { claimToken: string; mode: string; updatedAt: number }> = {}
+
+			for (let i = 0; i < cap; i++) {
+				seeded["seed-" + i] = { claimToken: "token-" + i, mode: "code", updatedAt: i + 1 }
+			}
+
+			await provider.contextProxy.setValue("viewStates", seeded as GlobalState["viewStates"])
+
+			const saved = await provider["savePersistedViewState"]({ mode: "architect", updatedAt: cap + 1 })
+			expect(saved).toEqual({ persisted: true, claim: "queued" })
+
+			const stored =
+				mockContext.globalState.get<Record<string, { mode?: string; updatedAt?: number }>>("viewStates") ?? {}
+			expect(Object.keys(stored)).toHaveLength(cap)
+			expect(stored[provider["viewStateId"]]).toMatchObject({ mode: "architect", updatedAt: cap + 1 })
+			// The oldest entry is the one that goes. A cap that evicted an arbitrary survivor
+			// would satisfy the count above just as easily.
+			expect(stored).not.toHaveProperty("seed-0")
+			expect(stored["seed-1"]).toMatchObject({ updatedAt: 2 })
+			expect(stored["seed-" + (cap - 1)]).toMatchObject({ updatedAt: cap })
+			// And the write that triggered the eviction is never the entry evicted by it.
+			expect(Object.keys(stored).filter((key) => key.startsWith("seed-"))).toHaveLength(cap - 1)
+
+			await provider.dispose()
 		})
 	})
 })
