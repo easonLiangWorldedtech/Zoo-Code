@@ -1662,6 +1662,8 @@ export class ClineProvider
 		}
 
 		this.scheduledViewStateWrites = []
+		// A claim that never reached a webview dies with this view: nothing may re-post it later.
+		this.pendingViewStateClaims.clear()
 		this._postStateToWebviewThrottled.cancel()
 		this.stopWebviewWatchdog()
 		this.diagnosticsRecorder.record({ boundary: "provider", phase: "start", type: "dispose" })
