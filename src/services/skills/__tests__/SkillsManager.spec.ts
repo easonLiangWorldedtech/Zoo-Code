@@ -2050,7 +2050,12 @@ Instructions`)
 			mockMkdir.mockResolvedValue(undefined)
 			mockWriteFile.mockResolvedValue(undefined)
 
-			const createdPath = await skillsManager.createSkill("new-skill", "global", "A new skill description")
+			// Longer than js-yaml's default 80-column fold width: createSkill must
+			// write it as a single description line, not a folded scalar.
+			const description =
+				'Use when implementing features. Triggers on: "TDD", "test-driven development" and "refactoring" workflows'
+
+			const createdPath = await skillsManager.createSkill("new-skill", "global", description)
 
 			expect(createdPath).toBe(p(GLOBAL_ROO_DIR, "skills", "new-skill", "SKILL.md"))
 			expect(mockMkdir).toHaveBeenCalledWith(p(GLOBAL_ROO_DIR, "skills", "new-skill"), { recursive: true })
@@ -2058,9 +2063,14 @@ Instructions`)
 
 			// Verify the content written
 			const writeCall = mockWriteFile.mock.calls[0]
-			expect(writeCall[0]).toBe(p(GLOBAL_ROO_DIR, "skills", "new-skill", "SKILL.md"))
-			expect(writeCall[1]).toContain("name: new-skill")
-			expect(writeCall[1]).toContain("description: A new skill description")
+			expect(String(writeCall[0])).toMatch(/[/\\]new-skill[/\\]\.SKILL\.md\.[^/\\]+\.tmp$/)
+			expect(mockRename).toHaveBeenCalledWith(writeCall[0], p(GLOBAL_ROO_DIR, "skills", "new-skill", "SKILL.md"))
+			const written = String(writeCall[1])
+			expect(written).toContain("name: new-skill")
+			const descriptionLine = written.split("\n").find((line) => line.startsWith("description:"))
+			// Long descriptions are quoted (js-yaml quotes strings containing quotes).
+			expect(descriptionLine).toBe(`description: '${description}'`)
+			expect(written).not.toContain("> ")
 		})
 
 		it("should create a mode-specific skill with modeSlugs array", async () => {
@@ -2174,7 +2184,9 @@ Instructions`)
 			const created = await skillsManager.createSkill("my-skill", "global", "Description")
 
 			expect(created).toBe(rooSkillMd)
-			expect(mockWriteFile).toHaveBeenCalledWith(rooSkillMd, expect.any(String), "utf-8")
+			const staged = mockWriteFile.mock.calls[0][0]
+			expect(String(staged)).toMatch(/\.SKILL\.md\.[^/\\]+\.tmp$/)
+			expect(mockRename).toHaveBeenCalledWith(staged, rooSkillMd)
 		})
 	})
 
