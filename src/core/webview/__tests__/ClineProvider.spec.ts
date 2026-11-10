@@ -6898,6 +6898,102 @@ describe("ClineProvider", () => {
 			}
 		})
 	})
+	describe("delivery of claims the flush guard holds back", () => {
+		const createProvider = () =>
+			new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+
+		// The flush at the head of deliverPendingViewStateClaims reads four conditions before it
+		// clears the map: disposed, no webview attached, renderer not launched, no queued claims.
+		// Each test holds the other three on the passing side, so a change to the fourth has to
+		// show up here instead of being masked by a condition the inner gate still enforces. The
+		// attempt recorder below is what makes a dropped condition visible: the private post helper
+		// re-queues the same token on every non-delivery, so a flush that should not have run at
+		// all still leaves the map holding the right token and the webview holding no message.
+		const recordDeliveryAttempts = (provider: ClineProvider) => {
+			const attemptSpy = vi.fn().mockResolvedValue("delivered")
+			provider["postViewStateClaimToWebview"] = attemptSpy
+			return attemptSpy
+		}
+
+		test("delivers every queued claim once a launched webview is attached", async () => {
+			const provider = createProvider()
+			provider["view"] = mockWebviewView
+			provider.isViewLaunched = true
+			provider["pendingViewStateClaims"].set("view-a", "claim-a")
+			provider["pendingViewStateClaims"].set("view-b", "claim-b")
+			const postMessageSpy = vi.spyOn(provider, "postMessageToWebview").mockResolvedValue(true)
+
+			await provider.deliverPendingViewStateClaims()
+
+			expect(postMessageSpy.mock.calls.map((call) => call[0])).toEqual([
+				{ type: "viewStateClaim", viewStateId: "view-a", viewStateClaim: "claim-a" },
+				{ type: "viewStateClaim", viewStateId: "view-b", viewStateClaim: "claim-b" },
+			])
+			expect(provider["pendingViewStateClaims"].size).toBe(0)
+
+			postMessageSpy.mockRestore()
+			await provider.dispose()
+		})
+
+		test("releases a disposed provider's queued claim without attempting delivery", async () => {
+			const provider = createProvider()
+			provider["view"] = mockWebviewView
+			provider.isViewLaunched = true
+			provider["pendingViewStateClaims"].set("view-a", "claim-a")
+			await provider.dispose()
+			const attemptSpy = recordDeliveryAttempts(provider)
+			const postMessageSpy = vi.spyOn(provider, "postMessageToWebview").mockResolvedValue(true)
+
+			await provider.deliverPendingViewStateClaims()
+
+			expect(attemptSpy).not.toHaveBeenCalled()
+			expect(provider["pendingViewStateClaims"].get("view-a")).toBeUndefined()
+			expect(postMessageSpy).not.toHaveBeenCalled()
+
+			postMessageSpy.mockRestore()
+		})
+
+		test("holds the queued claim while no webview is attached and the launched flag is set", async () => {
+			const provider = createProvider()
+			provider.isViewLaunched = true
+			provider["pendingViewStateClaims"].set("view-a", "claim-a")
+			const attemptSpy = recordDeliveryAttempts(provider)
+			const postMessageSpy = vi.spyOn(provider, "postMessageToWebview").mockResolvedValue(true)
+
+			await provider.deliverPendingViewStateClaims()
+
+			expect(attemptSpy).not.toHaveBeenCalled()
+			expect(provider["pendingViewStateClaims"].get("view-a")).toBe("claim-a")
+			expect(postMessageSpy).not.toHaveBeenCalled()
+
+			postMessageSpy.mockRestore()
+			await provider.dispose()
+		})
+
+		test("holds the queued claim while the renderer has not launched its listener", async () => {
+			const provider = createProvider()
+			provider["view"] = mockWebviewView
+			provider.isViewLaunched = false
+			provider["pendingViewStateClaims"].set("view-a", "claim-a")
+			const attemptSpy = recordDeliveryAttempts(provider)
+			const postMessageSpy = vi.spyOn(provider, "postMessageToWebview").mockResolvedValue(true)
+
+			await provider.deliverPendingViewStateClaims()
+
+			expect(attemptSpy).not.toHaveBeenCalled()
+			expect(provider["pendingViewStateClaims"].get("view-a")).toBe("claim-a")
+			expect(postMessageSpy).not.toHaveBeenCalled()
+
+			postMessageSpy.mockRestore()
+			await provider.dispose()
+		})
+	})
 
 	const seedPreLaunchEntry = async (provider: ClineProvider) => {
 		// A pre-launch selection under the instance's temporary id, authored by this instance.
