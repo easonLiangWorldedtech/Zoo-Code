@@ -7393,6 +7393,138 @@ describe("ClineProvider", () => {
 			await blocked.dispose()
 		})
 	})
+	describe("disposal of a write the queue has already drained", () => {
+		const createProvider = () =>
+			new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+
+		beforeEach(() => {
+			// The write queue is static and shared, so this group starts from a drained queue
+			// the way the neighbouring group does: an entry an earlier test left on it would
+			// otherwise decide which assertions this group can even reach.
+			ClineProvider["pendingViewStateWrites"] = []
+			ClineProvider["viewStateWritesPump"] = Promise.resolve()
+		})
+
+		it("takes only the disposed provider's entry out of the shared queue", async () => {
+			// Two providers are queued behind a storage call that never returns, so both of
+			// their entries are still on the shared array when the disposal runs. The entry to
+			// be removed sits at index 0 and the entry that must survive is the last one, which
+			// is the pair of outcomes an unconditional splice cannot produce at once.
+			const blocked = createProvider()
+			let releaseBlocked!: () => void
+			const blockedGate = new Promise<void>((resolve) => {
+				releaseBlocked = resolve
+			})
+			const blockedWriteSpy = vi.spyOn(blocked.contextProxy, "setValue").mockImplementation(async () => {
+				await blockedGate
+			})
+			const victim = createProvider()
+			const keeper = createProvider()
+
+			const blockedWrite = blocked.saveViewState("mode", "plan")
+			await vi.waitFor(() => {
+				expect(blockedWriteSpy).toHaveBeenCalled()
+			})
+			const victimWrite = victim.saveViewState("mode", "act")
+			const keeperWrite = keeper.saveViewState("mode", "code")
+
+			await vi.waitFor(() => {
+				expect(ClineProvider["pendingViewStateWrites"]).toHaveLength(2)
+			})
+			const victimEntry = victim["scheduledViewStateWrites"][0]
+			const keeperEntry = keeper["scheduledViewStateWrites"][0]
+			expect(ClineProvider["pendingViewStateWrites"]).toEqual([victimEntry, keeperEntry])
+
+			await victim.dispose()
+
+			// The guard found this entry at its real index and removed that index, so the entry
+			// left behind is the keeper's own and not an element shifted down by the removal.
+			expect(ClineProvider["pendingViewStateWrites"]).toEqual([keeperEntry])
+			expect(victimEntry.provider).toBeNull()
+			expect(victim["scheduledViewStateWrites"]).toHaveLength(0)
+
+			releaseBlocked()
+			await blockedWrite
+			await victimWrite
+			await keeperWrite
+
+			expect(ClineProvider["pendingViewStateWrites"]).toHaveLength(0)
+			expect(keeper["scheduledViewStateWrites"]).toHaveLength(0)
+
+			await keeper.dispose()
+			await blocked.dispose()
+			blockedWriteSpy.mockRestore()
+		})
+
+		it("leaves the queued entry that displaced a write already being run", async () => {
+			// The queue step takes an entry off the shared array before it runs the entry, and
+			// it clears the provider's own list only in the finally once the run settles, so a
+			// disposal that happens inside the storage call sees an entry the shared array no
+			// longer holds. That is the only path on which the index lookup answers -1, and it
+			// is the path the guard exists for: the entry that displaced this write is sitting
+			// at the end of the shared array at exactly that moment.
+			const drained = createProvider()
+			let releaseDisposal!: () => void
+			const disposalGate = new Promise<void>((resolve) => {
+				releaseDisposal = resolve
+			})
+			let capturedQueueAtDisposal: unknown[] = []
+			let capturedOwnListLength = 0
+			const drainedWriteSpy = vi.spyOn(drained.contextProxy, "setValue").mockImplementation(async () => {
+				await disposalGate
+				capturedQueueAtDisposal = [...ClineProvider["pendingViewStateWrites"]]
+				capturedOwnListLength = drained["scheduledViewStateWrites"].length
+				const disposal = drained.dispose()
+				await disposal
+			})
+			const trailing = createProvider()
+			const trailingWriteSpy = vi.spyOn(trailing.contextProxy, "setValue")
+
+			const drainedWrite = drained.saveViewState("mode", "plan")
+			await vi.waitFor(() => {
+				expect(drainedWriteSpy).toHaveBeenCalled()
+			})
+			const trailingWrite = trailing.saveViewState("mode", "act")
+
+			await vi.waitFor(() => {
+				expect(ClineProvider["pendingViewStateWrites"]).toHaveLength(1)
+			})
+			const trailingEntry = trailing["scheduledViewStateWrites"][0]
+			expect(ClineProvider["pendingViewStateWrites"]).toEqual([trailingEntry])
+
+			releaseDisposal()
+			await drainedWrite
+			await trailingWrite
+
+			// Both preconditions are recorded from inside the storage call rather than asserted
+			// from outside it, so the witness states what the guard saw rather than what the
+			// test hoped it saw: this provider's entry was still on its own list and was not on
+			// the shared array, and the trailing entry was the array's last element.
+			expect(capturedOwnListLength).toBe(1)
+			expect(capturedQueueAtDisposal).toEqual([trailingEntry])
+
+			// Removing the last element on an index of -1 would have taken the trailing
+			// provider's entry instead, skipping its turn and leaving it stranded in its
+			// provider's list, so the storage call and the list both testify that the guard
+			// left the queue alone.
+			expect(trailingWriteSpy).toHaveBeenCalledTimes(1)
+			expect(trailingEntry.provider).toBe(trailing)
+			expect(trailing["scheduledViewStateWrites"]).toHaveLength(0)
+			expect(drained["scheduledViewStateWrites"]).toHaveLength(0)
+			expect(ClineProvider["pendingViewStateWrites"]).toHaveLength(0)
+
+			await trailing.dispose()
+			trailingWriteSpy.mockRestore()
+			drainedWriteSpy.mockRestore()
+		})
+	})
+
 	describe("webview-originated configuration boundary", () => {
 		it("refuses a viewStates key carried by a newTask taskConfiguration", async () => {
 			const provider = new ClineProvider(
