@@ -425,6 +425,140 @@ description: Name doesn't match directory
 			expect(skills).toHaveLength(0)
 		})
 
+		it("should skip skills with invalid YAML frontmatter and log the real cause (issue #859)", async () => {
+			const badSkillDir = p(globalSkillsDir, "test-skill")
+			const badSkillMd = p(badSkillDir, "SKILL.md")
+			mockDirectoryExists.mockImplementation(async (dir: string) => {
+				return dir === globalSkillsDir
+			})
+			mockRealpath.mockImplementation(async (pathArg: string) => pathArg)
+			mockReaddir.mockImplementation(async (dir: string) => {
+				return dir === globalSkillsDir ? ["test-skill"] : []
+			})
+			mockStat.mockImplementation(async (pathArg: string) => {
+				if (pathArg === badSkillDir) {
+					return { isDirectory: () => true }
+				}
+				throw new Error("Not found")
+			})
+			mockFileExists.mockImplementation(async (file: string) => file === badSkillMd)
+			mockReadFile.mockImplementation(async (file: string) => {
+				if (file === badSkillMd) {
+					return `---
+name: test-skill
+description: Use when implementing features. Triggers on: "TDD", "test-driven development"
+---
+# Test Skill
+Instructions here.`
+				}
+				throw new Error("File not found")
+			})
+			const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+			try {
+				await skillsManager.discoverSkills()
+				// The skill is skipped...
+				expect(skillsManager.getAllSkills()).toHaveLength(0)
+				// ...and the real cause (a YAML syntax error) is reported instead
+				// of the misleading "missing required 'name' field" message.
+				const logged = consoleErrorSpy.mock.calls.map((call) => call.join(" "))
+				expect(logged.some((line) => line.includes("YAMLException"))).toBe(true)
+				expect(logged.some((line) => line.includes("missing required 'name' field"))).toBe(false)
+				// The unescaped-double-quotes hint points at the exact problem.
+				expect(logged.some((line) => line.includes("unescaped double quotes"))).toBe(true)
+				// The structured diagnostic captures the parse failure location.
+				const diagnostics = skillsManager.getSkillDiagnostics()
+				expect(diagnostics).toHaveLength(1)
+				expect(diagnostics[0].path).toBe(badSkillMd)
+				expect(diagnostics[0].source).toBe("global")
+				expect(typeof diagnostics[0].message).toBe("string")
+				expect(diagnostics[0].line).toBe(3)
+			} finally {
+				consoleErrorSpy.mockRestore()
+			}
+		})
+		it("should log a distinct YAML error for other malformed frontmatter (no quote hint)", async () => {
+			const badSkillDir = p(globalSkillsDir, "broken-skill")
+			const badSkillMd = p(badSkillDir, "SKILL.md")
+			mockDirectoryExists.mockImplementation(async (dir: string) => {
+				return dir === globalSkillsDir
+			})
+			mockRealpath.mockImplementation(async (pathArg: string) => pathArg)
+			mockReaddir.mockImplementation(async (dir: string) => {
+				return dir === globalSkillsDir ? ["broken-skill"] : []
+			})
+			mockStat.mockImplementation(async (pathArg: string) => {
+				if (pathArg === badSkillDir) {
+					return { isDirectory: () => true }
+				}
+				throw new Error("Not found")
+			})
+			mockFileExists.mockImplementation(async (file: string) => file === badSkillMd)
+			mockReadFile.mockImplementation(async (file: string) => {
+				if (file === badSkillMd) {
+					return `---
+name broken-skill
+description: Missing colon makes this invalid YAML
+---
+# Broken skill`
+				}
+				throw new Error("File not found")
+			})
+			const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+			try {
+				await skillsManager.discoverSkills()
+				expect(skillsManager.getAllSkills()).toHaveLength(0)
+				const logged = consoleErrorSpy.mock.calls.map((call) => call.join(" "))
+				expect(logged.some((line) => line.includes("YAMLException"))).toBe(true)
+				expect(skillsManager.getSkillDiagnostics()).toHaveLength(1)
+				// The unescaped-quotes hint only applies when the description line
+				// actually contains double quotes.
+				expect(logged.some((line) => line.includes("unescaped double quotes"))).toBe(false)
+			} finally {
+				consoleErrorSpy.mockRestore()
+			}
+		})
+		it("should skip skills with unterminated frontmatter and a dangling quote (no line hint)", async () => {
+			const badSkillDir = p(globalSkillsDir, "unclosed-skill")
+			const badSkillMd = p(badSkillDir, "SKILL.md")
+			mockDirectoryExists.mockImplementation(async (dir: string) => {
+				return dir === globalSkillsDir
+			})
+			mockRealpath.mockImplementation(async (pathArg: string) => pathArg)
+			mockReaddir.mockImplementation(async (dir: string) => {
+				return dir === globalSkillsDir ? ["unclosed-skill"] : []
+			})
+			mockStat.mockImplementation(async (pathArg: string) => {
+				if (pathArg === badSkillDir) {
+					return { isDirectory: () => true }
+				}
+				throw new Error("Not found")
+			})
+			mockFileExists.mockImplementation(async (file: string) => file === badSkillMd)
+			mockReadFile.mockImplementation(async (file: string) => {
+				if (file === badSkillMd) {
+					// Unterminated frontmatter: the opening --- is never closed, and the
+					// dangling double quote makes gray-matter throw. The raw-line lookup
+					// cannot find a closing delimiter, so no quote hint is possible.
+					return `---
+name: unclosed-skill
+description: "unclosed quote
+rest of the file`
+				}
+				throw new Error("File not found")
+			})
+			const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+			try {
+				await skillsManager.discoverSkills()
+				expect(skillsManager.getAllSkills()).toHaveLength(0)
+				const logged = consoleErrorSpy.mock.calls.map((call) => call.join(" "))
+				expect(logged.some((line) => line.includes("YAMLException"))).toBe(true)
+				expect(skillsManager.getSkillDiagnostics()).toHaveLength(1)
+				// Without a closing frontmatter delimiter there is no line to hint at.
+				expect(logged.some((line) => line.includes("unescaped double quotes"))).toBe(false)
+			} finally {
+				consoleErrorSpy.mockRestore()
+			}
+		})
 		it("should skip skills with invalid name formats (spec compliance)", async () => {
 			const invalidNames = [
 				"PDF-processing", // uppercase
