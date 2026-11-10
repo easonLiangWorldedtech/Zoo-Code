@@ -19,6 +19,7 @@ const {
 	mockLstat,
 	mockSymlink,
 	mockUnlink,
+	mockChmod,
 } = vi.hoisted(() => ({
 	mockReadlink: vi.fn(),
 	mockCp: vi.fn(),
@@ -37,6 +38,7 @@ const {
 	mockRmdir: vi.fn(),
 	mockSymlink: vi.fn(),
 	mockUnlink: vi.fn(),
+	mockChmod: vi.fn(),
 }))
 
 import { enoent, GLOBAL_AGENTS_DIR, GLOBAL_ROO_DIR, HOME_DIR, p, PROJECT_DIR, SHARED_DIR } from "./skillsTestHarness"
@@ -61,6 +63,7 @@ vi.mock("fs/promises", () => ({
 		readlink: mockReadlink,
 		symlink: mockSymlink,
 		unlink: mockUnlink,
+		chmod: mockChmod,
 	},
 	stat: mockStat,
 	readFile: mockReadFile,
@@ -76,6 +79,7 @@ vi.mock("fs/promises", () => ({
 	readlink: mockReadlink,
 	symlink: mockSymlink,
 	unlink: mockUnlink,
+	chmod: mockChmod,
 }))
 
 // Mock os module
@@ -2092,6 +2096,109 @@ Instructions`)
 			expect(writeCall[1]).toContain("- code")
 		})
 
+		it("cleans the temp file and the newly created skill directory when persistence fails", async () => {
+			mockDirectoryExists.mockResolvedValue(false)
+			mockRealpath.mockImplementation(async (p: string) => p)
+			mockReaddir.mockResolvedValue([])
+			mockFileExists.mockResolvedValue(false)
+			const createdDir = p(GLOBAL_ROO_DIR, "skills", "failing-skill")
+			mockMkdir.mockResolvedValue(createdDir)
+			mockWriteFile.mockRejectedValueOnce(Object.assign(new Error("ENOSPC"), { code: "ENOSPC" }))
+			mockUnlink.mockResolvedValue(undefined)
+			mockRm.mockResolvedValue(undefined)
+			mockRmdir.mockResolvedValue(undefined)
+			await expect(skillsManager.createSkill("failing-skill", "global", "Description")).rejects.toThrow("ENOSPC")
+			// The partially written temp file is removed and the directory this call created is
+			// removed only while empty (rmdir, never a recursive rm that could take ancestors
+			// reported by mkdir(recursive) with unrelated skills); the original persistence
+			// error is what the caller sees.
+			expect(mockUnlink).toHaveBeenCalledWith(expect.stringMatching(/\.SKILL\.md\.[^/\\]+\.tmp$/))
+			expect(mockRmdir).toHaveBeenCalledWith(p(GLOBAL_ROO_DIR, "skills", "failing-skill"))
+			expect(mockRm).not.toHaveBeenCalled()
+		})
+		it("leaves a non-empty skill directory alone when the empty-only removal fails", async () => {
+			mockDirectoryExists.mockResolvedValue(false)
+			mockRealpath.mockImplementation(async (p: string) => p)
+			mockReaddir.mockResolvedValue([])
+			mockFileExists.mockResolvedValue(false)
+			mockMkdir.mockResolvedValue(p(GLOBAL_ROO_DIR, "skills", "busy-skill"))
+			mockWriteFile.mockRejectedValueOnce(Object.assign(new Error("ENOSPC"), { code: "ENOSPC" }))
+			mockUnlink.mockResolvedValue(undefined)
+			mockRmdir.mockRejectedValueOnce(Object.assign(new Error("ENOTEMPTY"), { code: "ENOTEMPTY" }))
+			// A failed cleanup (the temp file survived, another skill appeared, ...) must not
+			// mask or replace the persistence failure.
+			await expect(skillsManager.createSkill("busy-skill", "global", "Description")).rejects.toThrow("ENOSPC")
+			expect(mockRmdir).toHaveBeenCalledWith(p(GLOBAL_ROO_DIR, "skills", "busy-skill"))
+			expect(mockRm).not.toHaveBeenCalled()
+		})
+		it("never recursively removes an ancestor reported by recursive mkdir", async () => {
+			mockDirectoryExists.mockResolvedValue(false)
+			mockRealpath.mockImplementation(async (p: string) => p)
+			mockReaddir.mockResolvedValue([])
+			mockFileExists.mockResolvedValue(false)
+			// mkdir(recursive) reports the first ancestor it created; removing that value
+			// recursively could take the sibling skill directories under it with it.
+			mockMkdir.mockResolvedValue(p(GLOBAL_ROO_DIR, "skills"))
+			mockWriteFile.mockRejectedValueOnce(Object.assign(new Error("ENOSPC"), { code: "ENOSPC" }))
+			mockUnlink.mockResolvedValue(undefined)
+			mockRm.mockResolvedValue(undefined)
+			mockRmdir.mockResolvedValue(undefined)
+			await expect(skillsManager.createSkill("isolated-skill", "global", "Description")).rejects.toThrow("ENOSPC")
+			// Only this skill's directory is considered, and only for an empty-only removal.
+			expect(mockRmdir).toHaveBeenCalledWith(p(GLOBAL_ROO_DIR, "skills", "isolated-skill"))
+			expect(mockRm).not.toHaveBeenCalled()
+		})
+		it("preserves an existing file when exclusive staging fails because the name exists", async () => {
+			mockDirectoryExists.mockResolvedValue(false)
+			mockRealpath.mockImplementation(async (p: string) => p)
+			mockReaddir.mockResolvedValue([])
+			mockFileExists.mockResolvedValue(false)
+			mockMkdir.mockResolvedValue(p(GLOBAL_ROO_DIR, "skills", "exists"))
+			const existsError = Object.assign(new Error("EEXIST: file already exists"), { code: "EEXIST" })
+			mockWriteFile.mockRejectedValueOnce(existsError)
+			mockUnlink.mockResolvedValue(undefined)
+			await expect(skillsManager.createSkill("exists", "global", "Description")).rejects.toBe(existsError)
+			// wx failed before this write owned the path: the existing file must not be unlinked.
+			expect(mockUnlink).not.toHaveBeenCalled()
+			expect(mockRename).not.toHaveBeenCalled()
+			expect(skillsManager["activeTempFiles"].size).toBe(0)
+		})
+		it("removes the temp file and rethrows the original error when the create rename fails", async () => {
+			mockDirectoryExists.mockResolvedValue(false)
+			mockRealpath.mockImplementation(async (p: string) => p)
+			mockReaddir.mockResolvedValue([])
+			mockFileExists.mockResolvedValue(false)
+			mockMkdir.mockResolvedValue(p(GLOBAL_ROO_DIR, "skills", "rename-fails"))
+			mockWriteFile.mockResolvedValue(undefined)
+			const renameError = Object.assign(new Error("EEXIST: rename failed"), { code: "EEXIST" })
+			mockRename.mockRejectedValueOnce(renameError)
+			mockUnlink.mockResolvedValue(undefined)
+			mockRmdir.mockResolvedValue(undefined)
+			await expect(skillsManager.createSkill("rename-fails", "global", "Description")).rejects.toBe(renameError)
+			const temporaryPath = String(mockWriteFile.mock.calls[0][0])
+			expect(temporaryPath).toMatch(/\.SKILL\.md\.[^/\\]+\.tmp$/)
+			expect(mockUnlink).toHaveBeenCalledWith(temporaryPath)
+			// The half-created skill directory goes as well: rmdir (not rm) so only the empty
+			// directory this call introduced is removed, and no recursive removal is reached.
+			expect(mockRmdir).toHaveBeenCalledWith(p(GLOBAL_ROO_DIR, "skills", "rename-fails"))
+			expect(mockRm).not.toHaveBeenCalled()
+			expect(skillsManager["activeTempFiles"].size).toBe(0)
+		})
+		it("does not remove a pre-existing skill directory when persistence fails", async () => {
+			mockDirectoryExists.mockResolvedValue(false)
+			mockRealpath.mockImplementation(async (p: string) => p)
+			mockReaddir.mockResolvedValue([])
+			mockFileExists.mockResolvedValue(false)
+			// mkdir resolves undefined when the directory already existed: it is not ours to remove.
+			mockMkdir.mockResolvedValue(undefined)
+			mockWriteFile.mockRejectedValueOnce(new Error("EACCES"))
+			mockUnlink.mockResolvedValue(undefined)
+			mockRm.mockResolvedValue(undefined)
+			await expect(skillsManager.createSkill("owned-skill", "global", "Description")).rejects.toThrow("EACCES")
+			expect(mockRm).not.toHaveBeenCalled()
+			expect(mockRmdir).not.toHaveBeenCalled()
+			expect(mockUnlink).toHaveBeenCalledWith(expect.stringMatching(/\.SKILL\.md\.[^/\\]+\.tmp$/))
+		})
 		it("should create a project skill", async () => {
 			mockDirectoryExists.mockResolvedValue(false)
 			mockRealpath.mockImplementation(async (p: string) => p)
@@ -2105,6 +2212,44 @@ Instructions`)
 			expect(createdPath).toBe(p(PROJECT_DIR, ".roo", "skills", "project-skill", "SKILL.md"))
 		})
 
+		it("preserves the existing SKILL.md permission bits through the atomic rewrite", async () => {
+			// rename replaces the target's inode: without an explicit chmod the new file gets
+			// the process default mode, so a user-restricted SKILL.md (0600) would come back
+			// readable by other local users after an unrelated mode-restriction edit.
+			const skillDir = p(globalSkillsDir, "mode-preserved-skill")
+			const skillMd = p(skillDir, "SKILL.md")
+			const originalContent = `---
+name: mode-preserved-skill
+description: 'Mode preserved'
+---
+Body.`
+			mockDirectoryExists.mockImplementation(async (dir: string) => dir === globalSkillsDir)
+			mockRealpath.mockImplementation(async (pathArg: string) => pathArg)
+			mockReaddir.mockImplementation(async (dir: string) =>
+				dir === globalSkillsDir ? ["mode-preserved-skill"] : [],
+			)
+			mockStat.mockImplementation(async (pathArg: string) => {
+				if (pathArg === skillDir) {
+					return { isDirectory: () => true }
+				}
+				if (pathArg === skillMd) {
+					// 0600 regular file: the mode the rewrite must keep.
+					return { isDirectory: () => false, mode: 0o100600 }
+				}
+				throw new Error("Not found")
+			})
+			mockFileExists.mockImplementation(async (file: string) => file === skillMd)
+			mockReadFile.mockResolvedValue(originalContent)
+			mockWriteFile.mockResolvedValue(undefined)
+			await skillsManager.discoverSkills()
+			expect(skillsManager.getAllSkills()).toHaveLength(1)
+			await skillsManager.updateSkillModes("mode-preserved-skill", "global", ["code"])
+			const temporaryPath = mockWriteFile.mock.calls[0][0] as string
+			expect(mockChmod).toHaveBeenCalledWith(temporaryPath, 0o600)
+			// The mode has to be in place before the rename publishes the file.
+			expect(mockChmod.mock.invocationCallOrder[0]).toBeLessThan(mockRename.mock.invocationCallOrder[0])
+			expect(mockRename).toHaveBeenCalledWith(temporaryPath, skillMd)
+		})
 		it("should throw error for invalid skill name", async () => {
 			await expect(skillsManager.createSkill("Invalid-Name", "global", "Description")).rejects.toThrow(
 				"Skill name must be lowercase letters/numbers/hyphens only",
