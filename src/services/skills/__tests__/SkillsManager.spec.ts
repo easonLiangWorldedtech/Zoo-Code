@@ -135,6 +135,7 @@ vi.mock("../../../i18n", () => ({
 			"skills:errors.already_exists": `Skill "${params?.name}" already exists at ${params?.path}`,
 			"skills:errors.not_found": `Skill "${params?.name}" not found in ${params?.source}${params?.modeInfo}`,
 			"skills:errors.move_restore_failed": `Moving the skill failed (${params?.error}) and its original folder couldn't be restored to ${params?.path}. Your skill is safe in ${params?.backupPath}; move it back manually.`,
+			"skills:errors.outside_skills_root": `Refusing to update SKILL.md outside the ${params?.source} skills directories: ${params?.path}`,
 		}
 		return translations[key] || key
 	},
@@ -2403,6 +2404,243 @@ Body.`
 			// The mode has to be in place before the rename publishes the file.
 			expect(mockChmod.mock.invocationCallOrder[0]).toBeLessThan(mockRename.mock.invocationCallOrder[0])
 			expect(mockRename).toHaveBeenCalledWith(temporaryPath, skillMd)
+		})
+		it("propagates a realpath failure instead of writing through the unresolved path", async () => {
+			const skillDir = p(globalSkillsDir, "unresolvable-skill")
+			const skillMd = p(skillDir, "SKILL.md")
+			mockDirectoryExists.mockImplementation(async (dir: string) => dir === globalSkillsDir)
+			mockReaddir.mockImplementation(async (dir: string) =>
+				dir === globalSkillsDir ? ["unresolvable-skill"] : [],
+			)
+			mockStat.mockImplementation(async (pathArg: string) => {
+				if (pathArg === skillDir) {
+					return { isDirectory: () => true }
+				}
+				throw enoent()
+			})
+			mockFileExists.mockImplementation(async (file: string) => file === skillMd)
+			mockReadFile.mockResolvedValue("---\nname: unresolvable-skill\ndescription: A skill\n---\nInstructions")
+			await skillsManager.discoverSkills()
+			// The discovered path resolves, but the publish-time resolution fails: the write must
+			// not fall back to the unresolved (potentially symlinked) path.
+			const resolutionError = Object.assign(new Error("ENOENT: no such file or directory"), { code: "ENOENT" })
+			mockRealpath.mockRejectedValueOnce(resolutionError)
+			await expect(skillsManager.updateSkillModes("unresolvable-skill", "global", ["code"])).rejects.toBe(
+				resolutionError,
+			)
+			expect(mockWriteFile).not.toHaveBeenCalled()
+			expect(mockRename).not.toHaveBeenCalled()
+		})
+		it("removes the temp file and rethrows the original error when the update rename fails", async () => {
+			const skillDir = p(globalSkillsDir, "rename-update")
+			const skillMd = p(skillDir, "SKILL.md")
+			mockDirectoryExists.mockImplementation(async (dir: string) => dir === globalSkillsDir)
+			mockReaddir.mockImplementation(async (dir: string) => (dir === globalSkillsDir ? ["rename-update"] : []))
+			mockStat.mockImplementation(async (pathArg: string) => {
+				if (pathArg === skillDir) {
+					return { isDirectory: () => true }
+				}
+				throw enoent()
+			})
+			mockFileExists.mockImplementation(async (file: string) => file === skillMd)
+			mockReadFile.mockResolvedValue("---\nname: rename-update\ndescription: A skill\n---\nInstructions")
+			mockRealpath.mockImplementation(async (pathArg: string) => pathArg)
+			mockWriteFile.mockResolvedValue(undefined)
+			const renameError = Object.assign(new Error("EIO: rename failed"), { code: "EIO" })
+			mockRename.mockRejectedValueOnce(renameError)
+			mockUnlink.mockResolvedValue(undefined)
+			await skillsManager.discoverSkills()
+			await expect(skillsManager.updateSkillModes("rename-update", "global", ["code"])).rejects.toBe(renameError)
+			const temporaryPath = String(mockWriteFile.mock.calls[0][0])
+			expect(temporaryPath).toMatch(/\.SKILL\.md\.[^/\\]+\.tmp$/)
+			expect(mockWriteFile.mock.calls[0][2]).toEqual(expect.objectContaining({ flag: "wx" }))
+			expect(mockUnlink).toHaveBeenCalledWith(temporaryPath)
+			// The existing SKILL.md was never replaced: the only write went to the temp sidecar and
+			// the failed rename never committed.
+			expect(mockWriteFile).toHaveBeenCalledTimes(1)
+			expect(mockRename).toHaveBeenCalledWith(temporaryPath, skillMd)
+			// The existing SKILL.md and its directory remain untouched.
+			expect(mockReadFile).toHaveBeenCalledWith(skillMd, "utf-8")
+			expect(mockWriteFile).not.toHaveBeenCalledWith(skillMd, expect.anything(), expect.anything())
+			expect(mockRmdir).not.toHaveBeenCalled()
+			expect(mockRm).not.toHaveBeenCalled()
+			expect(skillsManager["activeTempFiles"].size).toBe(0)
+		})
+		it("queues a second update's read behind the first update's rename", async () => {
+			// Both calls queue on the skill directory. Reading SKILL.md outside that queue let the
+			// second call read before the first had published, so the first rename committed a
+			// value the second call had already read past. Pinning the event order pins the fix.
+			const skillDir = p(globalSkillsDir, "queue-order")
+			const skillMd = p(skillDir, "SKILL.md")
+			const skillContent = "---\nname: queue-order\ndescription: A skill\n---\nInstructions"
+			const events: string[] = []
+			mockDirectoryExists.mockImplementation(async (dir: string) => dir === globalSkillsDir)
+			mockReaddir.mockImplementation(async (dir: string) => (dir === globalSkillsDir ? ["queue-order"] : []))
+			mockStat.mockImplementation(async (pathArg: string) => {
+				if (pathArg === skillDir) {
+					return { isDirectory: () => true }
+				}
+				throw enoent()
+			})
+			mockFileExists.mockImplementation(async (file: string) => file === skillMd)
+			mockRealpath.mockImplementation(async (pathArg: string) => pathArg)
+			mockReadFile.mockResolvedValue(skillContent)
+			mockWriteFile.mockResolvedValue(undefined)
+			mockRename.mockResolvedValue(undefined)
+			await skillsManager.discoverSkills()
+			// Discovery is finished reading: from here every read of this SKILL.md belongs to an
+			// update, so the recorded order is the write path's own.
+			mockDirectoryExists.mockResolvedValue(false)
+			// What SKILL.md holds right now. A rename publishes what that update staged, so from the
+			// first rename on the file no longer holds the text the first update read. Returning one
+			// constant for both reads let a producer whose queued read was discarded look correct,
+			// because nothing distinguished the two reads.
+			let diskContent = skillContent
+			const editedContent =
+				"---\nname: queue-order\ndescription: A skill\nmodeSlugs:\n  - code\n---\nInstructions edited after the first rename"
+			const stagedPayloads: string[] = []
+			mockReadFile.mockImplementation(async (file: string) => {
+				if (file === skillMd) {
+					events.push("read")
+				}
+				return diskContent
+			})
+			mockWriteFile.mockImplementation(async (_file: string, payload: string) => {
+				stagedPayloads.push(payload)
+			})
+			mockRename.mockImplementation(async (_from: string, to: string) => {
+				if (to === skillMd) {
+					events.push("rename")
+					diskContent = editedContent
+				}
+			})
+			const first = skillsManager.updateSkillModes("queue-order", "global", ["code"])
+			const second = skillsManager.updateSkillModes("queue-order", "global", ["debug"])
+			await Promise.all([first, second])
+			// Each update reads and publishes before the next update reads.
+			expect(events).toEqual(["read", "rename", "read", "rename"])
+			expect(mockRename).toHaveBeenCalledTimes(2)
+			expect(stagedPayloads.length).toBe(2)
+			// The second update's staged payload carries the body that follows the first rename: an
+			// update whose queued read was discarded would republish the body the first update read.
+			expect(stagedPayloads[0]).not.toContain("edited after the first rename")
+			expect(stagedPayloads[1]).toContain("edited after the first rename")
+		})
+		it("binds the queued read and the publish to the target resolved before the queue", async () => {
+			// The path discovery saw is a link whose resolution this update must keep. The retarget
+			// lands after this call resolved the link and while it waits in the directory queue,
+			// which is the window where reading through the link would compose the new target's
+			// contents and rename them over the file the update was asked for.
+			const skillDir = p(globalSkillsDir, "retargeted")
+			const linkMd = p(skillDir, "SKILL.md")
+			const originalTarget = p(globalSkillsDir, "shared-target", "SKILL.md")
+			const movedTarget = p(globalSkillsDir, "moved-target", "SKILL.md")
+			const originalContent =
+				"---\nname: retargeted\ndescription: A skill\n---\nInstructions on the file the update was asked for"
+			const movedContent =
+				"---\nname: retargeted\ndescription: A skill\n---\nInstructions on the file the link moved to"
+			let retargeted = false
+			mockDirectoryExists.mockImplementation(async (dir: string) => dir === globalSkillsDir)
+			mockReaddir.mockImplementation(async (dir: string) => (dir === globalSkillsDir ? ["retargeted"] : []))
+			mockStat.mockImplementation(async (pathArg: string) => {
+				if (pathArg === skillDir) {
+					return { isDirectory: () => true }
+				}
+				throw enoent()
+			})
+			mockFileExists.mockImplementation(async (file: string) => file === linkMd)
+			// Both targets stay inside the skills roots, so the publish-time containment check cannot
+			// be what rejects this update.
+			mockRealpath.mockImplementation(async (pathArg: string) => {
+				if (pathArg === linkMd) {
+					return retargeted ? movedTarget : originalTarget
+				}
+				return pathArg
+			})
+			mockReadFile.mockImplementation(async (file: string) => {
+				if (file === originalTarget) {
+					// The queued read is the moment the retarget becomes visible.
+					retargeted = true
+					return originalContent
+				}
+				return file === linkMd || file === movedTarget ? movedContent : originalContent
+			})
+			mockWriteFile.mockResolvedValue(undefined)
+			mockUnlink.mockResolvedValue(undefined)
+			mockRename.mockResolvedValue(undefined)
+			await skillsManager.discoverSkills()
+			await expect(skillsManager.updateSkillModes("retargeted", "global", ["code"])).rejects.toThrow(
+				"no longer resolves to",
+			)
+			// Discovery read through the link; every read that belongs to the update read the target.
+			expect(mockReadFile.mock.calls.filter((call: unknown[]) => call[0] === linkMd).length).toBe(1)
+			expect(mockReadFile.mock.calls.some((call: unknown[]) => call[0] === originalTarget)).toBe(true)
+			// The payload was composed from the original target, and nothing was renamed over it.
+			expect(String(mockWriteFile.mock.calls[0][1])).toContain("the file the update was asked for")
+			expect(mockRename).not.toHaveBeenCalled()
+			expect(mockUnlink).toHaveBeenCalledWith(String(mockWriteFile.mock.calls[0][0]))
+		})
+		it("fails closed when the pre-rename target resolution fails", async () => {
+			const skillDir = p(globalSkillsDir, "resolution-fails")
+			const skillMd = p(skillDir, "SKILL.md")
+			mockDirectoryExists.mockImplementation(async (dir: string) => dir === globalSkillsDir)
+			mockReaddir.mockImplementation(async (dir: string) => (dir === globalSkillsDir ? ["resolution-fails"] : []))
+			mockStat.mockImplementation(async (pathArg: string) => {
+				if (pathArg === skillDir) {
+					return { isDirectory: () => true }
+				}
+				throw enoent()
+			})
+			mockFileExists.mockImplementation(async (file: string) => file === skillMd)
+			mockReadFile.mockResolvedValue("---\nname: resolution-fails\ndescription: A skill\n---\nInstructions")
+			// The first resolution succeeds; the immediate pre-rename resolution fails and must
+			// propagate instead of publishing through the stale path.
+			let resolutions = 0
+			mockRealpath.mockImplementation(async (pathArg: string) => {
+				if (pathArg === skillMd) {
+					resolutions += 1
+					if (resolutions === 1) {
+						return skillMd
+					}
+					throw Object.assign(new Error("EIO: resolution failed"), { code: "EIO" })
+				}
+				return pathArg
+			})
+			mockWriteFile.mockResolvedValue(undefined)
+			mockUnlink.mockResolvedValue(undefined)
+			await skillsManager.discoverSkills()
+			await expect(skillsManager.updateSkillModes("resolution-fails", "global", ["code"])).rejects.toThrow(
+				"EIO: resolution failed",
+			)
+			const temporaryPath = String(mockWriteFile.mock.calls[0][0])
+			expect(mockUnlink).toHaveBeenCalledWith(temporaryPath)
+			expect(mockRename).not.toHaveBeenCalled()
+		})
+		it("refuses to update a SKILL.md that resolves outside the skills roots", async () => {
+			const skillDir = p(globalSkillsDir, "escaping")
+			const skillMd = p(skillDir, "SKILL.md")
+			const outsidePath = p("/outside/root", "SKILL.md")
+			mockDirectoryExists.mockImplementation(async (dir: string) => dir === globalSkillsDir)
+			mockReaddir.mockImplementation(async (dir: string) => (dir === globalSkillsDir ? ["escaping"] : []))
+			mockStat.mockImplementation(async (pathArg: string) => {
+				if (pathArg === skillDir) {
+					return { isDirectory: () => true }
+				}
+				throw enoent()
+			})
+			mockFileExists.mockImplementation(async (file: string) => file === skillMd)
+			mockReadFile.mockResolvedValue("---\nname: escaping\ndescription: A skill\n---\nInstructions")
+			// Discovery saw the root path, but the publish-time resolution points outside every
+			// configured skills root: a direct skill-dir symlink must not let the write escape.
+			mockRealpath.mockImplementation(async (pathArg: string) => (pathArg === skillMd ? outsidePath : pathArg))
+			mockWriteFile.mockResolvedValue(undefined)
+			mockRename.mockResolvedValue(undefined)
+			await skillsManager.discoverSkills()
+			await expect(skillsManager.updateSkillModes("escaping", "global", ["code"])).rejects.toThrow(
+				/Refusing to update SKILL\.md outside the global skills directories/,
+			)
+			expect(mockWriteFile).not.toHaveBeenCalled()
+			expect(mockRename).not.toHaveBeenCalled()
 		})
 		it("should throw error for invalid skill name", async () => {
 			await expect(skillsManager.createSkill("Invalid-Name", "global", "Description")).rejects.toThrow(
