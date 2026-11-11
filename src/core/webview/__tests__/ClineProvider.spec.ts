@@ -5690,6 +5690,127 @@ describe("ClineProvider", () => {
 			await pinned.dispose()
 		})
 
+		it("leaves the selection on the deleted profile when the settings under it cannot be replaced, and reports it", async () => {
+			const contextProxy = new ContextProxy(mockContext)
+			const deleter = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				contextProxy,
+				new WebviewFocusTracker(),
+			)
+			const profileToDelete: ProviderSettingsEntry = { name: "deleted", id: "deleted-id" }
+			const deletedSettings = { apiProvider: providerIdentifiers.openrouter, openRouterModelId: "deleted-model" }
+
+			await contextProxy.setValue("listApiConfigMeta", [
+				{ name: "deleted", id: "deleted-id" },
+				{ name: "survivor", id: "survivor-id" },
+			])
+			await contextProxy.setValue("currentApiConfigName", "deleted")
+			await contextProxy.setProviderSettings(deletedSettings)
+			await deleter.saveViewState("currentApiConfigName", "deleted")
+			await deleter["_saveViewLocalStateFromMutation"]({ apiConfiguration: deletedSettings })
+
+			vi.spyOn(deleter["providerSettingsManager"], "deleteConfig").mockResolvedValue(undefined)
+			vi.spyOn(deleter["providerSettingsManager"], "activateProfile").mockResolvedValue({
+				name: "survivor",
+				id: "survivor-id",
+				apiProvider: providerIdentifiers.anthropic,
+			})
+			vi.spyOn(deleter["providerSettingsManager"], "getProfile").mockResolvedValue({
+				name: "survivor",
+				id: "survivor-id",
+				apiProvider: providerIdentifiers.anthropic,
+				apiKey: "survivor-key",
+			})
+			vi.spyOn(contextProxy, "setProviderSettings").mockRejectedValueOnce(new Error("settings store unavailable"))
+
+			await expect(deleter.deleteProviderProfile(profileToDelete)).rejects.toThrow(
+				/was deleted but this view's selection/,
+			)
+
+			// The selection and the configuration under it move together or not at all. With the settings
+			// write failing, this view keeps the deleted profile's own name rather than taking the survivor's
+			// name over the deleted profile's configuration; its overlay is dropped so the deleted profile's
+			// configuration is not left parked under it, and the half-done repair is reported rather than
+			// passing as success.
+			expect(deleter["viewLocalState"].currentApiConfigName).toBe("deleted")
+			expect(deleter["viewLocalState"]).not.toHaveProperty("apiConfiguration")
+			expect(contextProxy.getValue("currentApiConfigName")).toBe("deleted")
+			expect(contextProxy.getProviderSettings()).toEqual(deletedSettings)
+
+			await deleter.dispose()
+		})
+
+		it("keeps re-pointing the remaining views when one re-point fails, and names the views left behind", async () => {
+			const contextProxy = new ContextProxy(mockContext)
+			const deleter = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				contextProxy,
+				new WebviewFocusTracker(),
+			)
+			const sibling = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"editor",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			const profileToDelete: ProviderSettingsEntry = { name: "deleted", id: "deleted-id" }
+			const deletedSettings = { apiProvider: providerIdentifiers.openrouter, openRouterModelId: "deleted-model" }
+
+			await contextProxy.setValue("listApiConfigMeta", [
+				{ name: "deleted", id: "deleted-id" },
+				{ name: "survivor", id: "survivor-id" },
+			])
+			await contextProxy.setValue("currentApiConfigName", "deleted")
+			await contextProxy.setProviderSettings(deletedSettings)
+			for (const view of [deleter, sibling]) {
+				await view.saveViewState("currentApiConfigName", "deleted")
+				await view["_saveViewLocalStateFromMutation"]({ apiConfiguration: deletedSettings })
+			}
+
+			vi.spyOn(deleter["providerSettingsManager"], "deleteConfig").mockResolvedValue(undefined)
+			vi.spyOn(deleter["providerSettingsManager"], "activateProfile").mockResolvedValue({
+				name: "survivor",
+				id: "survivor-id",
+				apiProvider: providerIdentifiers.anthropic,
+			})
+			vi.spyOn(deleter["providerSettingsManager"], "getProfile").mockResolvedValue({
+				name: "survivor",
+				id: "survivor-id",
+				apiProvider: providerIdentifiers.anthropic,
+				apiKey: "survivor-key",
+			})
+			// One view's failed write used to abort the sweep: the views after it kept the deleted profile's
+			// name and configuration and nobody reported it.
+			// spyOn needs a method key, and a private method is not reachable through keyof from
+			// outside the class, so the shape has to be spelled out here.
+			const siblingStore = vi.spyOn(
+				sibling as unknown as {
+					_saveViewLocalStateFromMutation: (values: Record<string, unknown>) => Promise<void>
+				},
+				"_saveViewLocalStateFromMutation",
+			)
+			siblingStore.mockRejectedValueOnce(new Error("view store unavailable"))
+
+			const failure = await deleter.deleteProviderProfile(profileToDelete).then(
+				() => undefined,
+				(error: unknown) => (error instanceof Error ? error.message : String(error)),
+			)
+
+			expect(failure).toContain("were left pointing at it")
+			expect(failure).toContain(sibling.viewId)
+			expect(deleter["viewLocalState"].currentApiConfigName).toBe("survivor")
+			expect(sibling["viewLocalState"].currentApiConfigName).toBe("deleted")
+			expect(contextProxy.getValue("currentApiConfigName")).toBe("survivor")
+
+			await deleter.dispose()
+			await sibling.dispose()
+		})
+
 		it("rebuilds a live task that still runs on the deleted profile, in this view and in a sibling view", async () => {
 			const contextProxy = new ContextProxy(mockContext)
 			const deleter = new ClineProvider(
