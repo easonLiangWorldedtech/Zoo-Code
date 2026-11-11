@@ -7,7 +7,7 @@ import { TelemetryService } from "@roo-code/telemetry"
 import { ClineProvider } from "../ClineProvider"
 import { ContextProxy } from "../../config/ContextProxy"
 import { Task } from "../../task/Task"
-import type { HistoryItem } from "@roo-code/types"
+import type { HistoryItem, ModeConfig } from "@roo-code/types"
 import { providerIdentifiers } from "@roo-code/types/provider-identifiers"
 
 vi.mock("vscode", () => ({
@@ -1430,6 +1430,132 @@ describe("ClineProvider - Sticky Mode", () => {
 				expect(other["viewStateId"]).toBe("claimed-by-other-view")
 			} finally {
 				await other.dispose()
+			}
+		})
+	})
+
+	describe("webviewDidLaunch identity round trip", () => {
+		beforeEach(async () => {
+			// An earlier test pins getModeBySlug to undefined for its deleted-custom-mode scenario and
+			// nothing restores it, while loadViewState validates every persisted mode through that
+			// lookup. Re-arm it here or these assertions would only prove that the stub was off.
+			const { getModeBySlug } = await import("../../../shared/modes")
+			const standardModes: ModeConfig[] = [
+				{ slug: "code", name: "Code Mode", roleDefinition: "You are a code assistant", groups: ["read"] },
+				{ slug: "architect", name: "Architect Mode", roleDefinition: "You are an architect", groups: ["read"] },
+			]
+			vi.mocked(getModeBySlug).mockImplementation((slug: string, customModes?: ModeConfig[]) => {
+				return (
+					customModes?.find((mode: ModeConfig) => mode.slug === slug) ??
+					standardModes.find((mode) => mode.slug === slug)
+				)
+			})
+		})
+		const newProvider = (proxy: ContextProxy) =>
+			new ClineProvider(mockContext, mockOutputChannel, "sidebar", proxy, new WebviewFocusTracker())
+
+		it("restores each view's own mode when both providers are recreated", async () => {
+			// Two views choose different modes under their own durable keys, then both providers are
+			// recreated - the reload path - each presenting the id and the claim its webview stored.
+			// Before this round trip nothing carried the id out of the webview, so a recreated
+			// provider fell back to the shared mode that both views had overwritten. One proxy per
+			// scenario, as in the app: the revived providers have to read the same cache the writes
+			// landed in, or nothing here would prove that anything was restored.
+			const proxy = new ContextProxy(mockContext)
+			const alpha = newProvider(proxy)
+			const beta = newProvider(proxy)
+			let alphaClaim: string | undefined
+			let betaClaim: string | undefined
+
+			try {
+				await alpha.setViewStateId("round-trip-alpha")
+				await beta.setViewStateId("round-trip-beta")
+				await alpha.saveViewState("mode", "architect")
+				await beta.saveViewState("mode", "code")
+				await proxy.setValue("mode", "orchestrator")
+
+				const states = alpha["getPersistedViewStates"]({ fresh: true })
+				alphaClaim = states["round-trip-alpha"]?.claimToken
+				betaClaim = states["round-trip-beta"]?.claimToken
+				expect(typeof alphaClaim).toBe("string")
+				expect(typeof betaClaim).toBe("string")
+			} finally {
+				await alpha.dispose()
+				await beta.dispose()
+			}
+
+			const revivedAlpha = newProvider(proxy)
+			const revivedBeta = newProvider(proxy)
+			try {
+				await revivedAlpha.setViewStateId("round-trip-alpha", alphaClaim)
+				await revivedBeta.setViewStateId("round-trip-beta", betaClaim)
+
+				// Each view reads back the mode it chose: not the shared one, and not each other's.
+				expect((await revivedAlpha.getState()).mode).toBe("architect")
+				expect((await revivedBeta.getState()).mode).toBe("code")
+				// The shared selection is untouched by either view's own choice.
+				expect(await proxy.getValue("mode")).toBe("orchestrator")
+			} finally {
+				await revivedAlpha.dispose()
+				await revivedBeta.dispose()
+			}
+		})
+
+		it("refuses a recreated registration whose claim does not match, without touching the entry", async () => {
+			const proxy = new ContextProxy(mockContext)
+			const owner = newProvider(proxy)
+			let ownerClaim: string | undefined
+			try {
+				await owner.setViewStateId("mismatched-claim-view")
+				await owner.saveViewState("mode", "architect")
+				ownerClaim = owner["getPersistedViewStates"]({ fresh: true })["mismatched-claim-view"]?.claimToken
+			} finally {
+				await owner.dispose()
+			}
+
+			const impostor = newProvider(proxy)
+			try {
+				await impostor.setViewStateId("mismatched-claim-view", `${ownerClaim}-but-wrong`)
+
+				// Fail closed: the id stays temporary, so none of the owner's state is loaded...
+				expect(impostor["viewStateId"]).toBe(impostor.viewId)
+				expect(impostor["viewLocalState"].mode).toBeUndefined()
+				// ...and the owner's entry survives unchanged for the view that holds the claim.
+				const states = impostor["getPersistedViewStates"]({ fresh: true })
+				expect(states["mismatched-claim-view"].mode).toBe("architect")
+				expect(states["mismatched-claim-view"].claimToken).toBe(ownerClaim)
+			} finally {
+				await impostor.dispose()
+			}
+		})
+
+		it("re-mints and delivers a claim when the durable entry lost its token", async () => {
+			const proxy = new ContextProxy(mockContext)
+			await proxy.setValue("viewStates", { "claimless-view": { mode: "plan", updatedAt: 1 } })
+
+			const fresh = newProvider(proxy)
+			try {
+				// The claim is delivered to a webview, so this view needs one before it registers.
+				await fresh.resolveWebviewView(mockWebviewView)
+				await fresh.setViewStateId("claimless-view", "a-stale-token-from-a-previous-session")
+
+				// A claim-less entry cannot be attributed to any webview, so its selections are dropped
+				// rather than loaded, and the fresh token goes to the view that just adopted the key.
+				expect(fresh["viewStateId"]).toBe("claimless-view")
+				expect(fresh["viewLocalState"].mode).toBeUndefined()
+				const states = fresh["getPersistedViewStates"]({ fresh: true })
+				expect(states["claimless-view"].mode).toBeUndefined()
+				expect(typeof states["claimless-view"].claimToken).toBe("string")
+
+				expect(mockPostMessage).toHaveBeenCalledWith(
+					expect.objectContaining({
+						type: "viewStateClaim",
+						viewStateId: "claimless-view",
+						viewStateClaim: states["claimless-view"].claimToken,
+					}),
+				)
+			} finally {
+				await fresh.dispose()
 			}
 		})
 	})

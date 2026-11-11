@@ -594,6 +594,11 @@ export const webviewMessageHandler = async (
 			}
 			break
 		case "webviewDidLaunch":
+			// Re-bind the identity this webview carried before the reload before anything reads
+			// per-view state: getState() resolves mode and profile from the view's buffer, so a
+			// registration that lands after the first state post serves shared values once.
+			await provider.setViewStateId(message.viewStateId, message.viewStateClaim)
+
 			// Load custom modes first
 			const customModes = await provider.customModesManager.getCustomModes()
 			await updateGlobalState("customModes", customModes)

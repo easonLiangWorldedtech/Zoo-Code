@@ -26,6 +26,7 @@ import {
 	DEFAULT_DIFF_FUZZY_THRESHOLD,
 	DEFAULT_WRITE_DELAY_MS,
 } from "@roo-code/types"
+import { getViewStateIdentity, rememberViewStateClaim } from "../utils/viewStateIdentity"
 
 import { findLastIndex } from "@roo/array"
 
@@ -478,6 +479,14 @@ export const ExtensionStateContextProvider: React.FC<{
 					}
 					break
 				}
+				case "viewStateClaim": {
+					// The host owns claim minting; this view only stores what it was handed, so a reload
+					// can prove it still holds the persisted key it made its selections under.
+					if (typeof message.viewStateId === "string" && typeof message.viewStateClaim === "string") {
+						rememberViewStateClaim(message.viewStateId, message.viewStateClaim)
+					}
+					break
+				}
 				case "action": {
 					if (message.action === "toggleAutoApprove") {
 						// Toggle the auto-approval state
@@ -632,7 +641,14 @@ export const ExtensionStateContextProvider: React.FC<{
 	}, [handleMessage])
 
 	useEffect(() => {
-		vscode.postMessage({ type: "webviewDidLaunch" })
+		// Carry the identity this view held before the reload so the host re-binds it before the
+		// first state post; without it a recreated provider reads the shared mode instead.
+		const identity = getViewStateIdentity()
+		vscode.postMessage({
+			type: "webviewDidLaunch",
+			viewStateId: identity.viewStateId,
+			viewStateClaim: identity.viewStateClaim,
+		})
 	}, [])
 
 	// Apply the configurable chat font size as a CSS variable. When unset, the
