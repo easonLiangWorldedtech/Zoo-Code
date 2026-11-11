@@ -6952,6 +6952,18 @@ describe("ClineProvider", () => {
 			// next view adopts it; the durable entry it wrote stays in storage.
 			await writer.dispose()
 
+			// A different profile sits in the shared store: it is the profile the last view to commit
+			// chose, and this view has to report the one its own record pins it to, not that one.
+			await provider.contextProxy.setValue("listApiConfigMeta", [
+				{ name: "my-profile", id: "my-profile-id" },
+				{ name: "shared-profile", id: "shared-profile-id" },
+			])
+			await provider.contextProxy.setValue("currentApiConfigName", "shared-profile")
+			await provider.contextProxy.setProviderSettings({
+				apiProvider: providerIdentifiers.anthropic,
+				apiModelId: "claude-sonnet",
+			})
+
 			await provider.contextProxy.setValue(
 				"viewStates",
 				mockContext.globalState.get<RooCodeSettings["viewStates"]>("viewStates"),
@@ -6965,6 +6977,20 @@ describe("ClineProvider", () => {
 			})
 			expect(getProfileSpy).toHaveBeenCalledWith({ name: "my-profile" })
 			expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Loaded state for viewId"))
+
+			// getState() is what task creation and getStateToPostToWebview read: the restored name and the
+			// configuration that belongs to it have to arrive together, because reporting this view's
+			// profile over the shared profile's settings would seed a task on the wrong provider.
+			const state = await provider.getState()
+			expect(state.currentApiConfigName).toBe("my-profile")
+			expect(state.apiConfiguration).toMatchObject({
+				apiProvider: providerIdentifiers.openrouter,
+				openRouterModelId: "model-x",
+			})
+			const posted = await provider.getStateToPostToWebview()
+			expect(posted.currentApiConfigName).toBe("my-profile")
+			expect(posted.apiConfiguration).toMatchObject({ apiProvider: providerIdentifiers.openrouter })
+
 			await provider.dispose()
 		})
 

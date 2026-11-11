@@ -4339,6 +4339,20 @@ export class ClineProvider
 			providerSettings.apiProvider = apiProvider
 		}
 
+		// This view's buffer carries the profile it is pinned to *and* the configuration that profile
+		// resolved to, because activation and restoration write the two as one unit. The shared store only
+		// carries the profile the last committing view chose, so taking the name from the buffer and the
+		// settings from shared state would report a profile whose configuration this view is not using;
+		// the pair moves together, and falls back to shared state together when the buffer has no
+		// resolved configuration yet.
+		const pinnedProfileName = this.viewLocalState.currentApiConfigName
+		const pinnedConfiguration = this.viewLocalState.apiConfiguration
+		const servesPinnedProfile = pinnedProfileName !== undefined && pinnedConfiguration !== undefined
+		const apiConfiguration = servesPinnedProfile ? pinnedConfiguration : providerSettings
+		const currentApiConfigName = servesPinnedProfile
+			? pinnedProfileName
+			: (stateValues.currentApiConfigName ?? "default")
+
 		let organizationAllowList = ORGANIZATION_ALLOW_ALL
 
 		try {
@@ -4390,7 +4404,7 @@ export class ClineProvider
 
 		// Return the same structure as before.
 		return {
-			apiConfiguration: providerSettings,
+			apiConfiguration,
 			lastShownAnnouncementId: stateValues.lastShownAnnouncementId,
 			customInstructions: stateValues.customInstructions,
 			apiModelId: stateValues.apiModelId,
@@ -4447,7 +4461,7 @@ export class ClineProvider
 			language: stateValues.language ?? formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,
 			mcpServers: this.mcpHub?.getAllServers() ?? [],
-			currentApiConfigName: stateValues.currentApiConfigName ?? "default",
+			currentApiConfigName,
 			listApiConfigMeta: stateValues.listApiConfigMeta ?? [],
 			pinnedApiConfigs: stateValues.pinnedApiConfigs ?? {},
 			modeApiConfigs: stateValues.modeApiConfigs ?? ({} as Record<Mode, string>),
