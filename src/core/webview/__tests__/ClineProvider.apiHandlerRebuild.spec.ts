@@ -240,9 +240,15 @@ describe("ClineProvider - API Handler Rebuild Guard", () => {
 			new WebviewFocusTracker(),
 		)
 
-		// Mock providerSettingsManager
+		// Mock providerSettingsManager. saveConfig repoints the CURRENT getProfile mock at
+		// the record it wrote: the real manager reads back the stored record, and
+		// persistProviderProfile builds its activation writes from that read-back.
+		const currentGetProfile = () => provider["providerSettingsManager"].getProfile as ReturnType<typeof vi.fn>
 		;(provider as any).providerSettingsManager = {
-			saveConfig: vi.fn().mockResolvedValue("test-id"),
+			saveConfig: vi.fn().mockImplementation(async (name: string, config: Record<string, unknown>) => {
+				currentGetProfile().mockResolvedValue({ name, id: "test-id", ...config })
+				return "test-id"
+			}),
 			listConfig: vi.fn().mockResolvedValue([
 				{
 					name: "test-config",
@@ -851,8 +857,10 @@ describe("ClineProvider - API Handler Rebuild Guard", () => {
 			const first = provider.activateProviderProfile({ name: "first-profile" })
 			const second = provider.activateProviderProfile({ name: "second-profile" })
 
-			await Promise.resolve()
-			expect(events).toEqual(["first:start"])
+			// The mutation now reads the manager selection snapshot before the
+			// manager write, so the first call lands a few microtasks later than a
+			// single tick would assume; wait for it deterministically instead.
+			await vi.waitFor(() => expect(events).toEqual(["first:start"]))
 
 			resolveFirst()
 			await first
@@ -880,7 +888,58 @@ describe("ClineProvider - API Handler Rebuild Guard", () => {
 			expect(setValueSpy).toHaveBeenCalledWith("currentApiConfigName", "second-profile")
 		})
 
-		test("timed-out mutations abort before writing state and advance the queue", async () => {
+		test("an activation that times out while queued behind another never starts", async () => {
+			vi.useFakeTimers()
+			let releaseFirst!: () => void
+			const firstActivation = new Promise<void>((resolve) => {
+				releaseFirst = resolve
+			})
+			provider["providerSettingsManager"].activateProfile = vi
+				.fn()
+				.mockImplementationOnce(async () => {
+					await firstActivation
+					return {
+						name: "first-profile",
+						id: "first-id",
+						apiProvider: providerIdentifiers.openrouter,
+						openRouterModelId: "openai/gpt-4",
+					}
+				})
+				.mockResolvedValueOnce({
+					name: "second-profile",
+					id: "second-id",
+					apiProvider: providerIdentifiers.openrouter,
+					openRouterModelId: "openai/gpt-4.1-mini",
+				})
+			const setValueSpy = vi.spyOn(provider.contextProxy, "setValue")
+
+			try {
+				// The first activation outlives the second call's timeout window: the
+				// second caller rejects while its callback is still queued.
+				const first = provider.activateProviderProfile({ name: "first-profile" })
+				const firstResult = expect(first).rejects.toThrow("Provider profile mutation timed out")
+				await vi.advanceTimersByTimeAsync(1000)
+				const second = provider.activateProviderProfile({ name: "second-profile" })
+				const secondResult = expect(second).rejects.toThrow("Provider profile mutation timed out")
+				await vi.advanceTimersByTimeAsync(ClineProvider.PENDING_OPERATION_TIMEOUT_MS)
+				await firstResult
+				await secondResult
+
+				// The first activation settles and the queue advances: the second must
+				// not start after its caller already saw a timeout, or it would change
+				// the selected profile while reporting failure.
+				releaseFirst()
+				// The queue tail settles only after the second run has been evaluated.
+				await provider["providerProfileMutationQueue"].catch(() => undefined)
+				expect(provider.contextProxy.getValue("currentApiConfigName")).toBe("first-profile")
+				expect(provider["providerSettingsManager"].activateProfile).toHaveBeenCalledTimes(1)
+				expect(setValueSpy).not.toHaveBeenCalledWith("currentApiConfigName", "second-profile")
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		test("timed-out activations run to completion and hold the queue", async () => {
 			vi.useFakeTimers()
 			const logSpy = vi.spyOn(provider, "log")
 			const setValueSpy = vi.spyOn(provider.contextProxy, "setValue")
@@ -912,20 +971,26 @@ describe("ClineProvider - API Handler Rebuild Guard", () => {
 				await vi.advanceTimersByTimeAsync(ClineProvider.PENDING_OPERATION_TIMEOUT_MS)
 				await firstResult
 
-				// Queue advanced immediately on timeout — second enqueues now.
+				// The queue stays owned until the hung activation settles: the second
+				// activation waits, so the late rollback cannot land on top of it.
 				const second = provider.activateProviderProfile({ name: "second-profile" })
-				// activateProfile not yet called for second (it runs in the next microtask).
+				await vi.advanceTimersByTimeAsync(0)
 				expect(provider["providerSettingsManager"].activateProfile).toHaveBeenCalledTimes(1)
 
-				// Resolve the first activation's inner promise so its in-flight mock can return.
-				// The aborted signal prevents it from writing any state.
+				// The first activation was not aborted: it completes its writes before
+				// the queue advances to the second.
 				resolveFirst()
+				await vi.advanceTimersByTimeAsync(0)
 				await expect(second).resolves.toBeUndefined()
 				expect(provider["providerSettingsManager"].activateProfile).toHaveBeenCalledTimes(2)
-				// Aborted first activation wrote nothing; only second profile is set.
-				expect(setValueSpy).not.toHaveBeenCalledWith("currentApiConfigName", "first-profile")
+				expect(setValueSpy).toHaveBeenCalledWith("currentApiConfigName", "first-profile")
 				expect(setValueSpy).toHaveBeenCalledWith("currentApiConfigName", "second-profile")
-				expect(logSpy).toHaveBeenCalledWith("Provider profile mutation timed out; aborting in-flight mutation")
+				// The final shared selection is the second profile: no late write puts
+				// the first profile back on top.
+				expect(provider.contextProxy.getValue("currentApiConfigName")).toBe("second-profile")
+				expect(logSpy).toHaveBeenCalledWith(
+					"Provider profile mutation timed out; waiting for it to finish before the next mutation",
+				)
 			} finally {
 				vi.useRealTimers()
 			}
@@ -1200,6 +1265,88 @@ describe("ClineProvider - API Handler Rebuild Guard", () => {
 		test("returns undefined when no model ID is present", () => {
 			expect(getModelId({ apiProvider: providerIdentifiers.anthropic })).toBeUndefined()
 			expect(getModelId({})).toBeUndefined()
+		})
+	})
+
+	describe("profile create claims across views", () => {
+		// The claim bookkeeping is module state inside ClineProvider, so each scenario uses
+		// its own profile name and drives the private snapshot/restore pair directly.
+		const failingCreate = () => {
+			const manager = provider["providerSettingsManager"]
+			manager["hasConfig"] = vi.fn().mockResolvedValue(false)
+			const deleteConfig = vi.fn().mockResolvedValue(undefined)
+			manager["deleteConfig"] = deleteConfig
+			return { deleteConfig }
+		}
+
+		test("keeps a created record when another view is still creating the same name", async () => {
+			const { deleteConfig } = failingCreate()
+
+			const first = await provider["_snapshotProviderManagerState"]("concurrent-claim")
+			const second = await provider["_snapshotProviderManagerState"]("concurrent-claim")
+			const third = await provider["_snapshotProviderManagerState"]("concurrent-claim")
+			expect(first.claimedCreate).toBe(true)
+
+			await provider["_restoreProviderManagerRecord"]("concurrent-claim", first)
+			expect(deleteConfig).not.toHaveBeenCalled()
+
+			await provider["_restoreProviderManagerRecord"]("concurrent-claim", second)
+			expect(deleteConfig).not.toHaveBeenCalled()
+
+			// The last claimant failing owns the record: it is the one deletion this
+			// sequence is allowed to make.
+			await provider["_restoreProviderManagerRecord"]("concurrent-claim", third)
+			expect(deleteConfig).toHaveBeenCalledTimes(1)
+		})
+
+		test("deletes the record a lone failed create made", async () => {
+			const { deleteConfig } = failingCreate()
+
+			const only = await provider["_snapshotProviderManagerState"]("lone-claim")
+			await provider["_restoreProviderManagerRecord"]("lone-claim", only)
+
+			expect(only.claimedCreate).toBe(true)
+			expect(deleteConfig).toHaveBeenCalledTimes(1)
+		})
+
+		test("keeps the record a concurrent successful save of the same name wrote", async () => {
+			const { deleteConfig } = failingCreate()
+			const manager = provider["providerSettingsManager"]
+
+			const first = await provider["_snapshotProviderManagerState"]("sibling-claim")
+			await provider.upsertProviderProfile(
+				"sibling-claim",
+				{
+					apiProvider: providerIdentifiers.openrouter,
+					openRouterModelId: "openai/gpt-4",
+				},
+				false,
+			)
+			await provider["_restoreProviderManagerRecord"]("sibling-claim", first)
+
+			// The successful save spent the shared claim: the earlier view's rollback
+			// must see the record as belonging to that save and leave it in place.
+			expect(manager.saveConfig).toHaveBeenCalledWith(
+				"sibling-claim",
+				expect.objectContaining({ openRouterModelId: "openai/gpt-4" }),
+			)
+			expect(deleteConfig).not.toHaveBeenCalled()
+		})
+
+		test("deletes again when the next create of the same name fails", async () => {
+			const { deleteConfig } = failingCreate()
+
+			await provider["_restoreProviderManagerRecord"](
+				"cycled-claim",
+				await provider["_snapshotProviderManagerState"]("cycled-claim"),
+			)
+			expect(deleteConfig).toHaveBeenCalledTimes(1)
+
+			await provider["_restoreProviderManagerRecord"](
+				"cycled-claim",
+				await provider["_snapshotProviderManagerState"]("cycled-claim"),
+			)
+			expect(deleteConfig).toHaveBeenCalledTimes(2)
 		})
 	})
 })
