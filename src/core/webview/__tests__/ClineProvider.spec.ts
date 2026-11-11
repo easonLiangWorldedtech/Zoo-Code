@@ -12,6 +12,7 @@ import pWaitFor from "p-wait-for"
 import {
 	type ProviderSettingsEntry,
 	type ProviderSettings,
+	type ModeConfig,
 	type ClineMessage,
 	type ExtensionMessage,
 	type ExtensionState,
@@ -7525,14 +7526,10 @@ describe("ClineProvider", () => {
 			"storage unavailable",
 		)
 
-		// taskHistory is a pass-through key: ContextProxy writes it straight to the Memento and
-		// never advances its write generation, so a guard that demands one leaves the durable
-		// history at the value the failed attempt wrote.
-		// taskHistory is a pass-through key: ContextProxy writes it straight to the Memento and
-		// never advances its write generation, so a guard that still demands one for it leaves
-		// the durable history at the value the failed attempt wrote while every other key is
-		// restored. The write sequence is the observable that separates a restored key from
-		// one the rollback never touched.
+		// taskHistory is a pass-through key: ContextProxy hands it straight to the Memento. Now that
+		// the counter also advances for that write, this key is rolled back like any other, and the
+		// sequence below - the failed write, then the restore - is the observable that separates a
+		// restored key from one a rollback left alone.
 		expect(globalStore.mock.calls.filter(([key]) => key === "taskHistory").map(([, value]) => value)).toEqual([
 			secondHistory,
 			firstHistory,
@@ -7647,6 +7644,119 @@ describe("ClineProvider", () => {
 		} finally {
 			modesModule.getModeBySlug.mockReturnValue(originalMode)
 		}
+		await provider.dispose()
+	})
+
+	// createTask registers a custom mode before applying the rest of the configuration because setValues
+	// validates the mode against the registered list. Supplying a new custom mode and its slug in one
+	// configuration is the only way the webview can start a task in a mode that did not exist yet.
+	it("seeds a new task with a custom mode supplied in the same configuration", async () => {
+		const contextProxy = new ContextProxy(mockContext)
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			contextProxy,
+			new WebviewFocusTracker(),
+		)
+		// The double answers the resolver from what it has actually registered, so the slug becomes
+		// resolvable only once registration has run - which is the ordering this test pins.
+		const registered: ModeConfig[] = []
+		;(provider as MemberSwapTarget).customModesManager = {
+			getCustomModes: vi.fn().mockImplementation(async () => [...registered]),
+			updateCustomMode: vi.fn().mockImplementation(async (_slug: string, mode: ModeConfig) => {
+				registered.push(mode)
+			}),
+			dispose: vi.fn(),
+		}
+		// The file-level modes mock resolves every slug; replace it with what the real resolver answers
+		// from a list - a slug resolves only if some mode in that list carries it. The cast is here
+		// because a ModeConfig carries more fields than the stub fills in.
+		const modesModule = vi.mocked(await import("../../../shared/modes"))
+		const originalMode = modesModule.getModeBySlug("code")
+		modesModule.getModeBySlug.mockImplementation(((slug: string, customModes?: ModeConfig[]) =>
+			customModes?.find((mode: ModeConfig) => mode.slug === slug)) as typeof modesModule.getModeBySlug)
+		try {
+			const reviewer: ModeConfig = {
+				slug: "reviewer",
+				name: "Reviewer",
+				roleDefinition: "Reviews the diff.",
+				groups: [],
+			}
+			await provider.createTask(
+				"review the change",
+				undefined,
+				undefined,
+				{},
+				{
+					customModes: [reviewer],
+					mode: "reviewer",
+				},
+			)
+			// The slug survived the configuration instead of being dropped by the validation inside
+			// setValues, so the mode a task started from this configuration is seeded from - getState() is
+			// where createTask reads it - is the new custom mode and not the default. Task is a double in
+			// this file, so what the task itself ends up holding is asserted where the real task runs; the
+			// value below is what fails if the registration moves after setValues.
+			expect(contextProxy.getValue("mode")).toBe("reviewer")
+			expect((await provider.getState()).mode).toBe("reviewer")
+			expect(registered.map((mode) => mode.slug)).toContain("reviewer")
+		} finally {
+			modesModule.getModeBySlug.mockReturnValue(originalMode)
+		}
+		await provider.dispose()
+	})
+
+	// The import flow itself is tested in core/config/__tests__/importExport.spec.ts (an import that
+	// carries a mode, and one that omits it). This is the provider side: which pins an imported mode
+	// supersedes, that a load already in flight cannot bring the pin back, that the mode the view now
+	// reports is what a task it starts is seeded from, and that the record no longer carries the old one,
+	// which is what keeps a reload from restoring it.
+	it("supersedes a view's mode pin when an import brings a different mode, and keeps its profile pin", async () => {
+		const contextProxy = new ContextProxy(mockContext)
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			contextProxy,
+			new WebviewFocusTracker(),
+		)
+		await contextProxy.setValue("mode", "code")
+		await provider["setViewStateId"]("import-view")
+		// The view chose a mode and a profile of its own; both live in its buffer and its record.
+		await provider.saveViewState("mode", "code")
+		await provider.saveViewState("currentApiConfigName", "my-profile")
+		await contextProxy.setValues({
+			currentApiConfigName: "shared-profile",
+			listApiConfigMeta: [{ name: "shared-profile", id: "shared-id" }],
+		})
+		const entryOf = () => contextProxy.getValue("viewStates")?.["import-view"]
+		expect(entryOf()?.mode).toBe("code")
+		expect(entryOf()?.currentApiConfigName).toBe("my-profile")
+		expect((await provider.getState()).mode).toBe("code")
+
+		// The import lands its mode in the shared store, where the view's own pin still outranks it. A load
+		// started before the import and finishing after it must not resurrect the pin.
+		await contextProxy.setValue("mode", "architect")
+		const loadInFlight = provider["loadViewState"]()
+		await provider.invalidateModePinsForImportedMode("architect")
+		await loadInFlight
+
+		// The imported mode is what the view reports, and therefore what a task it starts is seeded from.
+		expect((await provider.getState()).mode).toBe("architect")
+		expect(provider["viewLocalState"]).not.toHaveProperty("mode")
+		// The record no longer carries a mode, so a reload has nothing to restore. The profile pin the
+		// import said nothing about survives in the buffer and in the record alike.
+		expect(entryOf()?.mode).toBeUndefined()
+		expect(entryOf()?.currentApiConfigName).toBe("my-profile")
+		expect(provider["viewLocalState"].currentApiConfigName).toBe("my-profile")
+
+		// A pin that already names the imported mode is this view's own choice, and stays.
+		await provider.saveViewState("mode", "architect")
+		await provider.invalidateModePinsForImportedMode("architect")
+		expect(provider["viewLocalState"].mode).toBe("architect")
+		expect(entryOf()?.mode).toBe("architect")
+
 		await provider.dispose()
 	})
 
@@ -10294,7 +10404,9 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 				)
 			})
 
-			it("logs and posts state when profile persistence fails", async () => {
+			// The read is what fails here: the callback reads the state before it writes the profile, and a
+			// failing read never reaches the write at all. The write-failure case is the test below.
+			it("logs and posts state when the state read fails", async () => {
 				vi.spyOn(provider, "getState").mockRejectedValue(new Error("state unavailable"))
 				vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
 				;(provider as MemberSwapTarget).providerSettingsManager = {
@@ -10306,8 +10418,37 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 				expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
 					expect.stringContaining("[handleZooCodeCallback] Failed to save zoo-gateway profile"),
 				)
-				// State must still be refreshed even when profile persistence fails.
+				// State must still be refreshed even when the read fails.
 				expect(provider.postStateToWebview).toHaveBeenCalled()
+			})
+			// The read worked and the write is what failed; upsertProviderProfile reports it itself, and the
+			// callback still refreshes state afterwards rather than leaving the webview on old settings.
+			it("logs the failed profile write and still posts state when the read succeeds", async () => {
+				vi.spyOn(provider, "getState").mockResolvedValue({
+					apiConfiguration: { zooGatewayModelId: "anthropic/claude-sonnet-4" },
+				} as never)
+				vi.spyOn(provider.contextProxy, "getProviderSettings").mockReturnValue({
+					apiProvider: providerIdentifiers.anthropic,
+				} as never)
+				vi.spyOn(provider.contextProxy, "getValues").mockReturnValue({
+					currentApiConfigName: "Anthropic",
+				} as never)
+				vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
+				const logSpy = vi.spyOn(provider, "log")
+				const showErrorMessageSpy = vi.spyOn(vscode.window, "showErrorMessage").mockResolvedValue(undefined)
+				;(provider as MemberSwapTarget).providerSettingsManager = {
+					listConfig: vi.fn().mockResolvedValue([]),
+					saveConfig: vi.fn().mockRejectedValue(new Error("settings store unavailable")),
+				}
+
+				await provider.handleZooCodeCallback("zoo_ext_token")
+
+				expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Error create new api configuration"))
+				expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("settings store unavailable"))
+				expect(showErrorMessageSpy).toHaveBeenCalledWith(expect.stringContaining("errors.create_api_config"))
+				expect(provider.postStateToWebview).toHaveBeenCalled()
+
+				showErrorMessageSpy.mockRestore()
 			})
 			it("updates every zoo-gateway profile and activates only the active one", async () => {
 				vi.spyOn(provider, "getState").mockResolvedValue({

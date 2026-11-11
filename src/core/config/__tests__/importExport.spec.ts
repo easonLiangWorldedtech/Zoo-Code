@@ -682,6 +682,7 @@ describe("importExport", () => {
 
 			// Create a mock provider for the test
 			const mockProvider = {
+				invalidateModePinsForImportedMode: vi.fn().mockResolvedValue(undefined),
 				settingsImportedAt: 0,
 				postStateToWebview: vi.fn().mockResolvedValue(undefined),
 				postStateToWebviewWithoutTaskHistory: vi.fn().mockResolvedValue(undefined),
@@ -929,8 +930,7 @@ describe("importExport", () => {
 
 				// Should NOT have called import since there were no valid profiles
 				expect(mockProviderSettingsManager.import).not.toHaveBeenCalled()
-			})
-
+			}) // A settings import writes its mode into the shared store, but a view's own pinned mode outranks			// the shared one, so the pins the import supersedes have to be gone before the imported state is			// posted - otherwise the webview is told about a mode every view still overrides.			it("supersedes the mode pins an imported mode replaces, before posting the imported state", async () => {				const filePath = "/mock/path/settings.json"				;(vscode.window.showOpenDialog as Mock).mockResolvedValue([{ fsPath: filePath }])				;(fs.access as Mock).mockResolvedValue(undefined)				;(fs.readFile as Mock).mockResolvedValue(					JSON.stringify({						providerProfiles: {							currentApiConfigName: "imported-profile",							apiConfigs: {								"imported-profile": {									apiProvider: providerIdentifiers.openai,									apiKey: "imported-key",									id: "imported-id",								},							},						},						globalSettings: { mode: "architect" },					}),				)				mockProviderSettingsManager.export.mockResolvedValue({					currentApiConfigName: "default",					apiConfigs: { default: { apiProvider: providerIdentifiers.anthropic, id: "default-id" } },				})				mockProviderSettingsManager.listConfig.mockResolvedValue([					{ name: "imported-profile", id: "imported-id", apiProvider: providerIdentifiers.openai },				])							const order: string[] = []				const mockProvider = {					invalidateModePinsForImportedMode: vi.fn().mockImplementation(async () => {						order.push("invalidate")					}),					settingsImportedAt: undefined as number | undefined,					postStateToWebview: vi.fn().mockImplementation(async () => {						order.push("post")					}),				}							await importSettingsWithFeedback(					{						providerSettingsManager: mockProviderSettingsManager,						contextProxy: mockContextProxy,						customModesManager: mockCustomModesManager,						provider: mockProvider,					},					filePath,				)							expect(mockProvider.invalidateModePinsForImportedMode).toHaveBeenCalledWith("architect")				expect(mockProvider.postStateToWebview).toHaveBeenCalled()				expect(order).toEqual(["invalidate", "post"])			})					// An import that supplies no mode supersedes nothing: a view keeps the mode it pinned, and a			// blanket clear here would discard selections the import never mentioned.			it("leaves the mode pins alone when the imported settings carry no mode", async () => {				const filePath = "/mock/path/settings.json"				;(vscode.window.showOpenDialog as Mock).mockResolvedValue([{ fsPath: filePath }])				;(fs.access as Mock).mockResolvedValue(undefined)				;(fs.readFile as Mock).mockResolvedValue(					JSON.stringify({						providerProfiles: {							currentApiConfigName: "imported-profile",							apiConfigs: {								"imported-profile": {									apiProvider: providerIdentifiers.openai,									apiKey: "imported-key",									id: "imported-id",								},							},						},						globalSettings: { autoApprovalEnabled: true },					}),				)				mockProviderSettingsManager.export.mockResolvedValue({					currentApiConfigName: "default",					apiConfigs: { default: { apiProvider: providerIdentifiers.anthropic, id: "default-id" } },				})				mockProviderSettingsManager.listConfig.mockResolvedValue([					{ name: "imported-profile", id: "imported-id", apiProvider: providerIdentifiers.openai },				])							const mockProvider = {					invalidateModePinsForImportedMode: vi.fn().mockResolvedValue(undefined),					settingsImportedAt: undefined as number | undefined,					postStateToWebview: vi.fn().mockResolvedValue(undefined),				}							await importSettingsWithFeedback(					{						providerSettingsManager: mockProviderSettingsManager,						contextProxy: mockContextProxy,						customModesManager: mockCustomModesManager,						provider: mockProvider,					},					filePath,				)							expect(mockProvider.invalidateModePinsForImportedMode).not.toHaveBeenCalled()				expect(mockContextProxy.setValues).toHaveBeenCalledWith({ autoApprovalEnabled: true })				expect(mockProvider.postStateToWebview).toHaveBeenCalled()			})
 			it("should show warning notification when importing with warnings via importSettingsWithFeedback", async () => {
 				const filePath = "/mock/path/settings.json"
 				const mockFileContent = JSON.stringify({
@@ -965,6 +965,7 @@ describe("importExport", () => {
 
 				const seenImportedAt: Array<number | undefined> = []
 				const mockProvider = {
+					invalidateModePinsForImportedMode: vi.fn().mockResolvedValue(undefined),
 					settingsImportedAt: undefined as number | undefined,
 					postStateToWebview: vi.fn().mockImplementation(async () => {
 						seenImportedAt.push(mockProvider.settingsImportedAt)
@@ -1041,6 +1042,7 @@ describe("importExport", () => {
 
 				const seenImportedAt: Array<number | undefined> = []
 				const mockProvider = {
+					invalidateModePinsForImportedMode: vi.fn().mockResolvedValue(undefined),
 					settingsImportedAt: undefined as number | undefined,
 					postStateToWebview: vi.fn().mockImplementation(async () => {
 						seenImportedAt.push(mockProvider.settingsImportedAt)
@@ -1312,6 +1314,7 @@ describe("importExport", () => {
 				])
 
 				const mockProvider = {
+					invalidateModePinsForImportedMode: vi.fn().mockResolvedValue(undefined),
 					settingsImportedAt: 0,
 					postStateToWebview: vi.fn().mockResolvedValue(undefined),
 				}
@@ -1581,6 +1584,7 @@ describe("importExport", () => {
 				])
 
 				const mockProvider = {
+					invalidateModePinsForImportedMode: vi.fn().mockResolvedValue(undefined),
 					settingsImportedAt: 0,
 					postStateToWebview: vi.fn().mockResolvedValue(undefined),
 				}

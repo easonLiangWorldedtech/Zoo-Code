@@ -37,6 +37,8 @@ type ImportWithProviderOptions = ImportOptions & {
 	provider: {
 		settingsImportedAt?: number
 		postStateToWebview: () => Promise<void>
+		/** Drop the mode pins this imported mode supersedes; see the provider method of the same name. */
+		invalidateModePinsForImportedMode: (importedMode: NonNullable<GlobalSettings["mode"]>) => Promise<void>
 	}
 }
 
@@ -394,6 +396,16 @@ export const importSettingsWithFeedback = async (
 	}
 
 	if (result.success) {
+		// The import wrote its mode into the shared store. A view's own pinned mode outranks the shared
+		// one in the state every consumer reads, so the pins the import supersedes are dropped before the
+		// state is posted - otherwise each view keeps serving, and re-pinning after a reload, the mode it
+		// had before the import. An import that carries no mode supersedes nothing.
+		const importedSettings = "globalSettings" in result ? result.globalSettings : undefined
+
+		if (importedSettings?.mode !== undefined) {
+			await provider.invalidateModePinsForImportedMode(importedSettings.mode)
+		}
+
 		provider.settingsImportedAt = Date.now()
 		await provider.postStateToWebview()
 		provider.settingsImportedAt = undefined

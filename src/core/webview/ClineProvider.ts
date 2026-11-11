@@ -4745,6 +4745,38 @@ export class ClineProvider
 		this.viewLocalState = {}
 	}
 
+	/**
+	 * The mode a settings import carries lands in the shared store, but a view's own pinned mode outranks
+	 * the shared one in getState(), so an import used to leave every view serving - and re-pinning after a
+	 * reload - the mode it had before the import. Only the pins an import supersedes are dropped: the
+	 * buffer entry, the durable entry behind it, and any mode load still in flight for that view. The
+	 * profile pin and the rest of the buffer stay put, because an import carries no per-view selection
+	 * state at all: the importer skips the persisted view states outright.
+	 */
+	public async invalidateModePinsForImportedMode(importedMode: Mode): Promise<void> {
+		for (const instance of [this, ...ClineProvider.getAllInstances().filter((other) => other !== this)]) {
+			if (instance.viewLocalState.mode === importedMode) {
+				continue
+			}
+
+			// Raising the generation is what discards a mode load that is already in flight for this view:
+			// the load re-checks the generation before applying anything it read, which is the same
+			// mechanism a newer write uses to supersede an older one.
+			instance.viewLocalStateGeneration += 1
+			delete instance.viewLocalState.mode
+
+			try {
+				// Sequential on purpose: these writes go through one queue per view, and two entries of the
+				// same view racing would let a stale snapshot land last.
+				await instance.savePersistedViewState({ mode: undefined })
+			} catch (error) {
+				this.log(
+					`[invalidateModePinsForImportedMode] Could not clear a view's persisted mode: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			}
+		}
+	}
+
 	// dev
 
 	async resetState() {
