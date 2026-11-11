@@ -7832,18 +7832,18 @@ describe("ClineProvider", () => {
 			).rejects.toThrow("view record failed")
 
 			await vi.waitFor(() => expect(contextProxy.getValue("apiKey")).toBe("attempted-key"))
-			// Another view saves its own key while this view's record is still in flight.
-			await sibling.setValue("apiKey", "newer-key")
+			// Another view saves the same token while this view's record is still in flight. The stored value
+			// is then indistinguishable from the one this attempt wrote, so the value alone cannot tell
+			// "nobody has touched it since" from "someone wrote it again after me" - only the write generation
+			// can, which is why it has to cover secrets the way it covers cached state.
+			await sibling.setValue("apiKey", "attempted-key")
 			failViewRecord(new Error("view record failed"))
 			await rejected
 
-			// Restoring the prior secret here would undo that newer write for every view that reads shared
-			// state, so the generation check has to cover secrets the way it covers cached state.
-			expect(await mockContext.secrets.get("apiKey")).toBe("newer-key")
-			expect(contextProxy.getValue("apiKey")).toBe("newer-key")
+			expect(await mockContext.secrets.get("apiKey")).toBe("attempted-key")
+			expect(contextProxy.getValue("apiKey")).toBe("attempted-key")
 			// The name this attempt wrote, and no one else touched, is still restored.
 			expect(contextProxy.getValue("currentApiConfigName")).toBe(priorName)
-
 			await provider.dispose()
 			await sibling.dispose()
 		})
