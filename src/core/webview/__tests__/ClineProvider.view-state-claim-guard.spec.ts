@@ -269,4 +269,17 @@ describe("ClineProvider - view-state claim guard", () => {
 		expect(appended.some((line: string) => line.includes("shared-claimed-view-state-id"))).toBe(true)
 		await other.dispose()
 	})
+	test("a live second instance holding a different id does not block this registration", async () => {
+		// Negative control for the claimant search at ClineProvider.ts line 1198. Stryker reports a
+		// surviving ConditionalExpression there with replacement true, which makes any other live
+		// provider count as the claimant regardless of which id it holds. The guard must refuse only
+		// the id that other instance actually holds, so an unrelated live instance must not turn a
+		// free id into a refusal.
+		const other = makeOther()
+		await other.setViewStateId("unrelated-view-state-id")
+		const mine = await provider.setViewStateId("guard-different-id-case")
+		expect(mine.adopted).toBe(true)
+		expect(mine).not.toEqual({ adopted: false, claim: "none" })
+		await other.dispose()
+	})
 })
