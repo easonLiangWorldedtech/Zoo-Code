@@ -76,7 +76,9 @@ export class ContextProxy {
 	private readonly originalContext: vscode.ExtensionContext
 
 	private stateCache: GlobalState
-	private stateWriteGenerations = new Map<GlobalStateKey, number>()
+	// Counted for every write path - cached global state, secrets, and pass-through keys - so a
+	// caller rolling one write back can tell whether a newer setter has had its own turn.
+	private stateWriteGenerations = new Map<string, number>()
 
 	private secretCache: SecretState
 	private _isInitialized = false
@@ -410,6 +412,9 @@ export class ContextProxy {
 
 	updateGlobalState<K extends GlobalStateKey>(key: K, value: GlobalState[K]) {
 		if (isPassThroughStateKey(key)) {
+			// Still a write of the key: a caller rolling an older one back has to see that this one
+			// happened after it, even though nothing about it is cached here.
+			this.stateWriteGenerations.set(key, (this.stateWriteGenerations.get(key) ?? 0) + 1)
 			return this.originalContext.globalState.update(key, value)
 		}
 
@@ -440,7 +445,7 @@ export class ContextProxy {
 	}
 
 	/** Current per-key write generation, used by callers whose rollback must not clobber a newer write. */
-	public getStateWriteGeneration<K extends GlobalStateKey>(key: K): number {
+	public getStateWriteGeneration(key: string): number {
 		return this.stateWriteGenerations.get(key) ?? 0
 	}
 
@@ -469,6 +474,9 @@ export class ContextProxy {
 		const owner = {}
 		this.secretWriteOwner.set(key, owner)
 		this.secretWriteCount.set(key, (this.secretWriteCount.get(key) ?? 0) + 1)
+		// Counted alongside global state so a caller rolling a write of this key back can see that a
+		// newer secret write happened, which is the same question it asks about cached state.
+		this.stateWriteGenerations.set(key, (this.stateWriteGenerations.get(key) ?? 0) + 1)
 		this.secretCache[key] = value
 
 		// Write directly to context. If the write rejects, the cache is read back from the secret storage while this

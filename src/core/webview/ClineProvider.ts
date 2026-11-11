@@ -75,7 +75,7 @@ import {
 	modelIdKeys,
 	providerIdentifiers,
 	PROVIDER_SETTINGS_KEYS,
-	isSecretStateKey,
+	SECRET_STATE_KEYS,
 } from "@roo-code/types"
 import { RateLimitClock, createRateLimitClock } from "../task/RateLimitClock"
 import { TaskRegistry } from "../task/TaskRegistry"
@@ -132,7 +132,7 @@ import { t } from "../../i18n"
 import { buildApiHandler } from "../../api"
 import { forceFullModelDetailsLoad, hasLoadedFullDetails } from "../../api/providers/fetchers/lmstudio"
 
-import { ContextProxy, isPassThroughStateKey } from "../config/ContextProxy"
+import { ContextProxy } from "../config/ContextProxy"
 import { withoutInvalidDisplaySettings } from "../config/displaySettings"
 import { ProviderSettingsManager, ProviderSettingsNotFoundError } from "../config/ProviderSettingsManager"
 import { CustomModesManager } from "../config/CustomModesManager"
@@ -253,6 +253,20 @@ function removeTaskEventListeners(listeners: WeakMap<Task, Array<() => void>>, t
 		cleanupFunctions.forEach((cleanup) => cleanup())
 		listeners.delete(task)
 	}
+}
+
+/**
+ * The credentials a provider configuration carries are secret keys one level deeper than the
+ * top-level keys the public settings reader filters, so they are dropped before the configuration
+ * leaves through `getValues()`. Everything else in the configuration stays: consumers read the
+ * provider, the model, and the rest of the non-secret settings out of the same object.
+ */
+function withoutSecretSettings(settings: ProviderSettings): ProviderSettings {
+	const publicSettings: Record<string, unknown> = { ...settings }
+	for (const secretKey of SECRET_STATE_KEYS) {
+		delete publicSettings[secretKey]
+	}
+	return publicSettings as ProviderSettings
 }
 
 export class ClineProvider
@@ -4296,6 +4310,21 @@ export class ClineProvider
 		const stateValues = this.contextProxy.getValues()
 		const customModes = await this.customModesManager.getCustomModes()
 
+		// A custom mode can be deleted while a view is still pinned to it, and nothing else revalidates
+		// the pin: read against the mode list as it stands now, so a mode that no longer exists stops
+		// being reported and stops seeding new tasks, while a pin to a mode that is still there is
+		// left exactly as it is.
+		const pinnedMode = this.viewLocalState.mode
+		let mode = stateValues.mode ?? defaultModeSlug
+		if (pinnedMode) {
+			if (getModeBySlug(pinnedMode, customModes)) {
+				mode = pinnedMode
+			} else {
+				this.log(`[getState] Dropping this view's pin to "${pinnedMode}": no mode carries that slug anymore`)
+				delete this.viewLocalState.mode
+			}
+		}
+
 		// Determine apiProvider with the same logic as before, while filtering retired providers.
 		const apiProvider: ProviderName =
 			stateValues.apiProvider && !isRetiredProvider(stateValues.apiProvider)
@@ -4410,10 +4439,11 @@ export class ClineProvider
 			terminalZshP10k: stateValues.terminalZshP10k ?? false,
 			terminalZdotdir: stateValues.terminalZdotdir ?? false,
 			terminalProfile: stateValues.terminalProfile,
-			// A per-view restored or edited mode lives in this view's buffer, and getState() is
-			// what task creation and getStateToPostToWebview read: the shared store only carries the
-			// mode the last committing view chose.
-			mode: this.viewLocalState.mode ?? stateValues.mode ?? defaultModeSlug,
+			// A per-view restored or edited mode lives in this view's buffer and is validated against
+			// the refreshed mode list above; getState() is what task creation and
+			// getStateToPostToWebview read, and the shared store only carries the mode the last
+			// committing view chose.
+			mode,
 			language: stateValues.language ?? formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,
 			mcpServers: this.mcpHub?.getAllServers() ?? [],
@@ -4556,7 +4586,7 @@ export class ClineProvider
 
 	public async setValue<K extends keyof RooCodeSettings>(key: K, value: RooCodeSettings[K]) {
 		const previousSharedValues = { [key]: this.contextProxy.getValue(key) } as RooCodeSettings
-		const writeGeneration = this.contextProxy.getStateWriteGeneration(key as never)
+		const writeGeneration = this.contextProxy.getStateWriteGeneration(key)
 		await this.contextProxy.setValue(key, value)
 		try {
 			await this._saveViewLocalStateFromMutation({ [key]: value })
@@ -4579,7 +4609,18 @@ export class ClineProvider
 	}
 
 	public getValues() {
-		return { ...this.contextProxy.getValues(), ...this.viewLocalState }
+		const values = { ...this.contextProxy.getValues(), ...this.viewLocalState }
+
+		if (!values.apiConfiguration) {
+			return values
+		}
+
+		// The only consumer of this reader is the extension host's public settings API (its
+		// getConfiguration), whose secret filter looks at top-level keys. A view's own buffer carries a
+		// whole provider configuration - the activation and restoration paths write it - and
+		// apiConfiguration is not a top-level secret key, so its nested credentials used to go out
+		// unfiltered. The extension host keeps reading its own settings through ContextProxy.
+		return { ...values, apiConfiguration: withoutSecretSettings(values.apiConfiguration) }
 	}
 
 	public async setValues(values: RooCodeSettings) {
@@ -4606,7 +4647,7 @@ export class ClineProvider
 			Object.keys(sanitizedValues).map((key) => [
 				key,
 				// This write produces the next generation for the key.
-				this.contextProxy.getStateWriteGeneration(key as never) + 1,
+				this.contextProxy.getStateWriteGeneration(key) + 1,
 			]),
 		) as Record<string, number>
 		try {
@@ -6496,7 +6537,8 @@ export class ClineProvider
 	/**
 	 * Restore shared values captured before a setter wrote them, used when the paired
 	 * per-view persistence failed so the shared store cannot move ahead of the per-view
-	 * record. A failed rollback is logged; the original failure is what callers see.
+	 * record. ContextProxy now counts a generation for every write path - cached state, secrets
+	 * and pass-through keys alike - so no class of key is exempt from the newer-write check below.
 	 */
 	private async _restoreSharedValuesAfterFailedViewWrite(
 		previous: RooCodeSettings,
@@ -6511,16 +6553,9 @@ export class ClineProvider
 
 		for (const key of Object.keys(attempted) as (keyof RooCodeSettings)[]) {
 			const generation = generations[key]
-			// ContextProxy does not count every key: secrets go through storeSecret and pass-through
-			// keys straight to the Memento, and neither advances the per-key write generation, so the
-			// expectation this setter recorded for them (generation 1 against a stored 0) can never
-			// match and would exempt those keys from the rollback of their own failed attempt.
-			const uncountedHere = isSecretStateKey(key) || isPassThroughStateKey(key)
 			if (
 				this.contextProxy.getValue(key) === attempted[key] &&
-				(generation === undefined ||
-					uncountedHere ||
-					this.contextProxy.getStateWriteGeneration(key as never) === generation)
+				(generation === undefined || this.contextProxy.getStateWriteGeneration(key) === generation)
 			) {
 				;(rollback as Record<string, unknown>)[key] = previous[key]
 			}
