@@ -143,6 +143,12 @@ vi.mock("../../../shared/modes", () => ({
 			roleDefinition: "You are an architect",
 			groups: ["read", "edit"],
 		},
+		{
+			slug: "debug",
+			name: "Debug Mode",
+			roleDefinition: "You are a debug assistant",
+			groups: ["read"],
+		},
 	],
 	getModeBySlug: vi.fn().mockReturnValue({
 		slug: "code",
@@ -209,6 +215,27 @@ vi.mock("@roo-code/telemetry", () => ({
 		},
 	},
 }))
+
+/**
+ * The file-level modes mock resolves every slug, and one test below pins the lookup to undefined for
+ * its deleted-mode scenario. Re-arming before each test keeps every describe answering the question it
+ * means to ask - does this code accept a slug that some mode actually carries - instead of inheriting
+ * whichever stub the previous test happened to leave behind.
+ */
+async function armStandardModeLookup(): Promise<void> {
+	const standardModes: ModeConfig[] = [
+		{ slug: "code", name: "Code Mode", roleDefinition: "You are a code assistant", groups: ["read"] },
+		{ slug: "architect", name: "Architect Mode", roleDefinition: "You are an architect", groups: ["read"] },
+		{ slug: "debug", name: "Debug Mode", roleDefinition: "You are a debug assistant", groups: ["read"] },
+	]
+	const { getModeBySlug } = await import("../../../shared/modes")
+	vi.mocked(getModeBySlug).mockImplementation((slug: string, customModes?: ModeConfig[]) => {
+		return (
+			customModes?.find((mode: ModeConfig) => mode.slug === slug) ??
+			standardModes.find((mode) => mode.slug === slug)
+		)
+	})
+}
 
 describe("ClineProvider - Sticky Mode", () => {
 	let provider: ClineProvider
@@ -324,6 +351,8 @@ describe("ClineProvider - Sticky Mode", () => {
 			readResource: vi.fn().mockResolvedValue({ contents: [] }),
 			getAllServers: vi.fn().mockReturnValue([]),
 		})
+
+		await armStandardModeLookup()
 	})
 
 	describe("handleModeSwitch", () => {
@@ -921,7 +950,8 @@ describe("ClineProvider - Sticky Mode", () => {
 				mode: "deleted-mode", // Mode that doesn't exist
 			}
 
-			// Mock getModeBySlug to return undefined for deleted mode
+			// The modes mock is file-wide and this scenario needs the lookup to answer that the mode is gone.
+			// The describe-level beforeEach re-arms the lookup, so the override stops leaking.
 			const { getModeBySlug } = await import("../../../shared/modes")
 			vi.mocked(getModeBySlug).mockReturnValue(undefined)
 
@@ -1069,8 +1099,6 @@ describe("ClineProvider - Sticky Mode", () => {
 		it("should handle invalid mode gracefully", async () => {
 			await provider.resolveWebviewView(mockWebviewView)
 
-			// The provider actually does switch to invalid modes
-			// This test should verify that behavior
 			const mockTask = {
 				taskId: "test-task-id",
 				_taskMode: "code",
@@ -1087,11 +1115,19 @@ describe("ClineProvider - Sticky Mode", () => {
 			// Clear previous calls
 			vi.mocked(mockContext.globalState.update).mockClear()
 
-			// Try to switch to invalid mode - it will actually switch
+			// A slug no mode carries must not be switched to at all: not written to the shared store, not
+			// emitted to the task, and not pinned to the view. The file-level mock resolves every slug, so
+			// the lookup is narrowed to the slugs this scenario is about - the answer a real resolver gives.
+			// The cast is here because a ModeConfig carries more fields than the stub fills in.
+			const { getModeBySlug } = await import("../../../shared/modes")
+			vi.mocked(getModeBySlug).mockImplementation(((slug: string) =>
+				slug === "code" ? { slug } : undefined) as typeof getModeBySlug)
+			const logSpy = vi.spyOn(provider, "log")
+
 			await provider.handleModeSwitch("invalid-mode" as any)
 
-			// The mode WILL be updated to invalid-mode (this is the actual behavior)
-			expect(mockContext.globalState.update).toHaveBeenCalledWith("mode", "invalid-mode")
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith("mode", "invalid-mode")
+			expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Ignoring invalid mode "invalid-mode"'))
 		})
 
 		it("should handle errors during mode switch gracefully", async () => {
@@ -1436,20 +1472,7 @@ describe("ClineProvider - Sticky Mode", () => {
 
 	describe("webviewDidLaunch identity round trip", () => {
 		beforeEach(async () => {
-			// An earlier test pins getModeBySlug to undefined for its deleted-custom-mode scenario and
-			// nothing restores it, while loadViewState validates every persisted mode through that
-			// lookup. Re-arm it here or these assertions would only prove that the stub was off.
-			const { getModeBySlug } = await import("../../../shared/modes")
-			const standardModes: ModeConfig[] = [
-				{ slug: "code", name: "Code Mode", roleDefinition: "You are a code assistant", groups: ["read"] },
-				{ slug: "architect", name: "Architect Mode", roleDefinition: "You are an architect", groups: ["read"] },
-			]
-			vi.mocked(getModeBySlug).mockImplementation((slug: string, customModes?: ModeConfig[]) => {
-				return (
-					customModes?.find((mode: ModeConfig) => mode.slug === slug) ??
-					standardModes.find((mode) => mode.slug === slug)
-				)
-			})
+			await armStandardModeLookup()
 		})
 		const newProvider = (proxy: ContextProxy) =>
 			new ClineProvider(mockContext, mockOutputChannel, "sidebar", proxy, new WebviewFocusTracker())

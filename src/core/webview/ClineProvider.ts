@@ -2615,6 +2615,14 @@ export class ClineProvider
 	): Promise<void> {
 		const task = targetTask
 
+		if (!(await this.isWritableModeSlug(newMode))) {
+			// A slug that no mode carries would otherwise be written into the task history, emitted to the
+			// task as a completed switch, held in the task's own mode field, and pinned to this view by the
+			// setter below. Refusing it here means none of that happens and there is nothing to undo.
+			this.log(`[handleModeSwitch] Ignoring invalid mode "${newMode}"`)
+			return
+		}
+
 		if (task) {
 			TelemetryService.instance.captureModeSwitch(task.taskId, newMode)
 
@@ -4598,7 +4606,21 @@ export class ClineProvider
 		return this.contextProxy.getValue(key)
 	}
 
+	/** A slug is writable as a mode only if some mode - built-in or custom - carries it right now. */
+	private async isWritableModeSlug(slug: unknown): Promise<boolean> {
+		return typeof slug === "string" && !!getModeBySlug(slug, await this.customModesManager.getCustomModes())
+	}
+
 	public async setValue<K extends keyof RooCodeSettings>(key: K, value: RooCodeSettings[K]) {
+		if (key === "mode" && value !== undefined && !(await this.isWritableModeSlug(value))) {
+			// The mode-switch message reaches this setter without validation, and this is the path that pins
+			// the slug to the view: an unknown slug would be pinned, posted to the webview as this view's
+			// mode, and read back by the next task creation. setValues() already refuses one; the rule is
+			// the same here, and it runs before anything is written so there is nothing to undo. An
+			// explicit undefined is a mode clear, which stays allowed.
+			this.log(`[ClineProvider#setValue] Ignoring invalid mode "${String(value)}"`)
+			return
+		}
 		const previousSharedValues = { [key]: this.contextProxy.getValue(key) } as RooCodeSettings
 		const writeGeneration = this.contextProxy.getStateWriteGeneration(key)
 		await this.contextProxy.setValue(key, value)

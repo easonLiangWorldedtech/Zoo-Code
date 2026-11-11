@@ -7064,6 +7064,45 @@ describe("ClineProvider", () => {
 		})
 	})
 
+	// The single-key setter is the path a mode switch takes, and it is also what pins the slug to the
+	// view, so an unknown slug has to be refused there before anything moves.
+	it("should reject an unknown mode on the single-key setter before pinning it", async () => {
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			new ContextProxy(mockContext),
+			new WebviewFocusTracker(),
+		)
+		const logSpy = vi.spyOn(provider, "log")
+		await provider.contextProxy.setValue("mode", "architect")
+		await provider["setViewStateId"]("single-mode-view")
+		await provider.saveViewState("mode", "code")
+		// The file-level modes mock resolves every slug; narrow it to the two slugs used here.
+		const modesModule = vi.mocked(await import("../../../shared/modes"))
+		const originalMode = modesModule.getModeBySlug("code")
+		modesModule.getModeBySlug.mockImplementation(((slug: string) =>
+			slug === "code" || slug === "architect" ? { slug } : undefined) as typeof modesModule.getModeBySlug)
+		try {
+			await provider.setValue("mode", "bogus-mode")
+			expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Ignoring invalid mode "bogus-mode"'))
+			// The pin holds what it held and the shared store did not move.
+			expect(provider["viewLocalState"].mode).toBe("code")
+			expect(mockContext.globalState.get("mode")).toBe("architect")
+			expect(provider.contextProxy.getValue("viewStates")?.["single-mode-view"]?.mode).toBe("code")
+			// A slug that some mode carries still writes through, and an explicit clear still clears.
+			await provider.setValue("mode", "architect")
+			expect(provider["viewLocalState"].mode).toBe("architect")
+			expect(mockContext.globalState.get("mode")).toBe("architect")
+			await provider.setValue("mode", undefined)
+			expect(provider["viewLocalState"]).not.toHaveProperty("mode")
+			expect(mockContext.globalState.get("mode")).toBeUndefined()
+		} finally {
+			modesModule.getModeBySlug.mockReturnValue(originalMode)
+		}
+		await provider.dispose()
+	})
+
 	it("should persist known modes and reject unknown or non-string modes", async () => {
 		const provider = new ClineProvider(
 			mockContext,
