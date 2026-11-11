@@ -1267,4 +1267,86 @@ describe("ClineProvider - API Handler Rebuild Guard", () => {
 			expect(getModelId({})).toBeUndefined()
 		})
 	})
+
+	describe("profile create claims across views", () => {
+		// The claim bookkeeping is module state inside ClineProvider, so each scenario uses
+		// its own profile name and drives the private snapshot/restore pair directly.
+		const failingCreate = () => {
+			const manager = provider["providerSettingsManager"]
+			manager["hasConfig"] = vi.fn().mockResolvedValue(false)
+			const deleteConfig = vi.fn().mockResolvedValue(undefined)
+			manager["deleteConfig"] = deleteConfig
+			return { deleteConfig }
+		}
+
+		test("keeps a created record when another view is still creating the same name", async () => {
+			const { deleteConfig } = failingCreate()
+
+			const first = await provider["_snapshotProviderManagerState"]("concurrent-claim")
+			const second = await provider["_snapshotProviderManagerState"]("concurrent-claim")
+			const third = await provider["_snapshotProviderManagerState"]("concurrent-claim")
+			expect(first.claimedCreate).toBe(true)
+
+			await provider["_restoreProviderManagerRecord"]("concurrent-claim", first)
+			expect(deleteConfig).not.toHaveBeenCalled()
+
+			await provider["_restoreProviderManagerRecord"]("concurrent-claim", second)
+			expect(deleteConfig).not.toHaveBeenCalled()
+
+			// The last claimant failing owns the record: it is the one deletion this
+			// sequence is allowed to make.
+			await provider["_restoreProviderManagerRecord"]("concurrent-claim", third)
+			expect(deleteConfig).toHaveBeenCalledTimes(1)
+		})
+
+		test("deletes the record a lone failed create made", async () => {
+			const { deleteConfig } = failingCreate()
+
+			const only = await provider["_snapshotProviderManagerState"]("lone-claim")
+			await provider["_restoreProviderManagerRecord"]("lone-claim", only)
+
+			expect(only.claimedCreate).toBe(true)
+			expect(deleteConfig).toHaveBeenCalledTimes(1)
+		})
+
+		test("keeps the record a concurrent successful save of the same name wrote", async () => {
+			const { deleteConfig } = failingCreate()
+			const manager = provider["providerSettingsManager"]
+
+			const first = await provider["_snapshotProviderManagerState"]("sibling-claim")
+			await provider.upsertProviderProfile(
+				"sibling-claim",
+				{
+					apiProvider: providerIdentifiers.openrouter,
+					openRouterModelId: "openai/gpt-4",
+				},
+				false,
+			)
+			await provider["_restoreProviderManagerRecord"]("sibling-claim", first)
+
+			// The successful save spent the shared claim: the earlier view's rollback
+			// must see the record as belonging to that save and leave it in place.
+			expect(manager.saveConfig).toHaveBeenCalledWith(
+				"sibling-claim",
+				expect.objectContaining({ openRouterModelId: "openai/gpt-4" }),
+			)
+			expect(deleteConfig).not.toHaveBeenCalled()
+		})
+
+		test("deletes again when the next create of the same name fails", async () => {
+			const { deleteConfig } = failingCreate()
+
+			await provider["_restoreProviderManagerRecord"](
+				"cycled-claim",
+				await provider["_snapshotProviderManagerState"]("cycled-claim"),
+			)
+			expect(deleteConfig).toHaveBeenCalledTimes(1)
+
+			await provider["_restoreProviderManagerRecord"](
+				"cycled-claim",
+				await provider["_snapshotProviderManagerState"]("cycled-claim"),
+			)
+			expect(deleteConfig).toHaveBeenCalledTimes(2)
+		})
+	})
 })
