@@ -309,4 +309,53 @@ describe("ClineProvider - view-state claim guard", () => {
 		expect(typeof stored.claimToken).toBe("string")
 		expect(stored.claimToken && stored.claimToken.length > 0).toBe(true)
 	})
+	test("a key bound while the re-bind was queued is refused with its reason", async () => {
+		// ClineProvider.ts line 1230 reports a re-bind that found the key already bound by a concurrent
+		// registration, and replacing that test with false adopts a key another webview now owns. The
+		// entry is read once without a claim token, which sends the re-bind off, and then read again
+		// with a token, which is what a competing registration leaves behind. The scripted double is a
+		// double assertion because the harness adds positional arguments that the public VS Code type
+		// of globalState.get omits.
+		const logged: string[] = []
+		const previousAppend = mockOutputChannel.appendLine
+		mockOutputChannel.appendLine = (value: string) => {
+			logged.push(String(value))
+			previousAppend(value)
+		}
+		const entryWithoutToken = { "concurrent-bind-id": { updatedAt: 1 } }
+		const entryWithToken = { "concurrent-bind-id": { claimToken: "concurrent-winner-token", updatedAt: 2 } }
+		const originalGet = mockContext.globalState.get as unknown as (key: string, ...rest: unknown[]) => unknown
+		let viewStatesReads = 0
+		const scriptedGet = (key: string, ...rest: unknown[]) => {
+			if (key === "viewStates") {
+				viewStatesReads = viewStatesReads + 1
+				return viewStatesReads === 1 ? entryWithoutToken : entryWithToken
+			}
+			return originalGet(key, ...rest)
+		}
+		mockContext.globalState.get = scriptedGet as unknown as typeof mockContext.globalState.get
+		const result = await provider.setViewStateId("concurrent-bind-id")
+		expect(result).toEqual({ adopted: false, claim: "none" })
+		expect(logged.join("\n")).toContain("bound concurrently by another registration.")
+	})
+
+	test("an entry bound by a claim this view did not present is refused with its reason", async () => {
+		// ClineProvider.ts line 1243 fails closed when the entry carries a stored claim this launch did
+		// not present and line 1248 states the reason. An earlier case for this path asserted the
+		// adoption flag alone and was dropped; the reason string is what the surviving StringLiteral
+		// mutant needs, because replacing it with an empty template keeps the refusal and drops the
+		// explanation a maintainer would have to reconstruct from the code.
+		const logged: string[] = []
+		const previousAppend = mockOutputChannel.appendLine
+		mockOutputChannel.appendLine = (value: string) => {
+			logged.push(String(value))
+			previousAppend(value)
+		}
+		mockContext.globalState.update("viewStates", {
+			"foreign-claim-id": { claimToken: "foreign-token", updatedAt: 1 },
+		})
+		const mine = await provider.setViewStateId("foreign-claim-id", "a-different-token")
+		expect(mine).toEqual({ adopted: false, claim: "none" })
+		expect(logged.join("\n")).toContain("claim missing or mismatched.")
+	})
 })
