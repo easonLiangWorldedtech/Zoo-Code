@@ -282,4 +282,31 @@ describe("ClineProvider - view-state claim guard", () => {
 		expect(mine).not.toEqual({ adopted: false, claim: "none" })
 		await other.dispose()
 	})
+
+	test("an adopting registration reports the delivery value rather than only adopting", async () => {
+		// ClineProvider.ts line 1218 initialises the delivery value and Stryker reports a surviving
+		// StringLiteral there with replacement empty string, so an assertion on adopted alone cannot
+		// tell the sentinel from an empty value. The delivery channel this unit hands to its caller is
+		// the claim field, and a registration that adopts without handing a claim to a renderer must
+		// report the sentinel exactly.
+		const adopted = await provider.setViewStateId("delivery-sentinel-id", "delivery-sentinel-claim")
+		expect(adopted.adopted).toBe(true)
+		expect(adopted.claim).toBe("none")
+		expect(adopted).toEqual({ adopted: true, claim: "none" })
+	})
+
+	test("a persisted entry with no stored claim token gets a fresh binding", async () => {
+		// Negative control for the sibling mutants at lines 1220 and 1223: replacing the entry test or
+		// the stored-claim test with false skips the re-bind entirely, which leaves a pre-claim entry
+		// unbound and lets its unattributable selections survive under a key this view now owns. The
+		// observable is the entry itself, so the assertion reads the store rather than the result.
+		mockContext.globalState.update("viewStates", { "unbound-entry-id": {} })
+		const result = await provider.setViewStateId("unbound-entry-id")
+		expect(result.adopted).toBe(true)
+		const stored = (mockContext.globalState.get("viewStates") as Record<string, { claimToken?: string }>)[
+			"unbound-entry-id"
+		]
+		expect(typeof stored.claimToken).toBe("string")
+		expect(stored.claimToken && stored.claimToken.length > 0).toBe(true)
+	})
 })
