@@ -128,6 +128,7 @@ const mockClineProvider = {
 	},
 	log: vi.fn(),
 	postStateToWebview: vi.fn(),
+	setViewStateId: vi.fn().mockResolvedValue(undefined),
 	resolveWebviewThemeFixtureProbe: vi.fn(),
 	getCurrentTask: vi.fn(),
 	getTaskWithId: vi.fn(),
@@ -2940,6 +2941,64 @@ describe("webviewMessageHandler - telemetrySetting", () => {
 		expect(mockClineProvider.log).toHaveBeenCalledWith(
 			expect.stringContaining("Error initializing telemetry state on launch"),
 		)
+	})
+
+	// Review finding: a reload recreates the view on both sides, and the host binds per-view state
+	// to the id the webview presents. The registration has to land before the first state post,
+	// or getState() resolves mode and profile from the buffer of a view that is not registered yet
+	// and the recreated provider serves the shared values.
+	it("re-binds the view identity a launch carries before posting state", async () => {
+		vi.mocked(mockClineProvider.contextProxy.getValue).mockReturnValue("unset")
+		vi.mocked(mockClineProvider.customModesManager.getCustomModes).mockResolvedValue([])
+		const providerForLaunch = mockClineProvider as unknown as {
+			getMcpHub: ReturnType<typeof vi.fn>
+			providerSettingsManager: { listConfig: ReturnType<typeof vi.fn> }
+			getStateToPostToWebview: ReturnType<typeof vi.fn>
+			setViewStateId: ReturnType<typeof vi.fn>
+		}
+		providerForLaunch.getMcpHub = vi.fn().mockReturnValue(undefined)
+		providerForLaunch.providerSettingsManager = { listConfig: vi.fn().mockResolvedValue(undefined) }
+		providerForLaunch.getStateToPostToWebview = vi.fn().mockResolvedValue({ telemetrySetting: "unset" })
+		providerForLaunch.setViewStateId = vi.fn().mockResolvedValue(undefined)
+		vi.mocked(mockClineProvider.postStateToWebview).mockClear()
+
+		await webviewMessageHandler(mockClineProvider, {
+			type: "webviewDidLaunch",
+			viewStateId: "stable-id-carried-across-the-reload",
+			viewStateClaim: "host-minted-claim",
+		} as Parameters<typeof webviewMessageHandler>[1])
+
+		expect(providerForLaunch.setViewStateId).toHaveBeenCalledWith(
+			"stable-id-carried-across-the-reload",
+			"host-minted-claim",
+		)
+		const [registrationOrder] = providerForLaunch.setViewStateId.mock.invocationCallOrder
+		const [stateOrder] = vi.mocked(mockClineProvider.postStateToWebview).mock.invocationCallOrder
+		expect(registrationOrder).toBeLessThan(stateOrder)
+	})
+
+	it("still posts state for a launch from a webview that carries no identity", async () => {
+		vi.mocked(mockClineProvider.contextProxy.getValue).mockReturnValue("unset")
+		vi.mocked(mockClineProvider.customModesManager.getCustomModes).mockResolvedValue([])
+		const providerForLaunch = mockClineProvider as unknown as {
+			getMcpHub: ReturnType<typeof vi.fn>
+			providerSettingsManager: { listConfig: ReturnType<typeof vi.fn> }
+			getStateToPostToWebview: ReturnType<typeof vi.fn>
+			setViewStateId: ReturnType<typeof vi.fn>
+		}
+		providerForLaunch.getMcpHub = vi.fn().mockReturnValue(undefined)
+		providerForLaunch.providerSettingsManager = { listConfig: vi.fn().mockResolvedValue(undefined) }
+		providerForLaunch.getStateToPostToWebview = vi.fn().mockResolvedValue({ telemetrySetting: "unset" })
+		const setViewStateId = vi.fn().mockResolvedValue(undefined)
+		providerForLaunch.setViewStateId = setViewStateId
+		vi.mocked(mockClineProvider.postStateToWebview).mockClear()
+
+		await webviewMessageHandler(mockClineProvider, { type: "webviewDidLaunch" })
+
+		// An older webview sends the launch with no identity: the host must still post state, and
+		// the registration must be a no-op rather than a guess at which key this view owns.
+		expect(setViewStateId).toHaveBeenCalledWith(undefined, undefined)
+		expect(mockClineProvider.postStateToWebview).toHaveBeenCalled()
 	})
 
 	// CodeRabbit finding: webviewDidLaunch's queued telemetry update called

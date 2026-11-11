@@ -444,6 +444,37 @@ describe("ContextProxy", () => {
 		})
 	})
 
+	describe("getStateWriteGeneration", () => {
+		it("counts the writes that reach storage through the secret and pass-through paths", async () => {
+			await proxy.setValue("apiKey", "first-key")
+			const afterFirst = proxy.getStateWriteGeneration("apiKey")
+
+			await proxy.setValue("apiKey", "second-key")
+
+			// A secret is stored through `secrets` rather than the cached Memento, but it is still a write
+			// of the key, and a caller rolling an older write of it back has to see this one.
+			expect(proxy.getStateWriteGeneration("apiKey")).toBe(afterFirst + 1)
+
+			const beforeHistory = proxy.getStateWriteGeneration("taskHistory")
+			await proxy.setValue("taskHistory", [
+				{
+					id: "task-1",
+					number: 1,
+					ts: Date.now(),
+					task: "one",
+					mode: "code",
+					tokensIn: 0,
+					tokensOut: 0,
+					totalCost: 0,
+				},
+			])
+
+			// A pass-through key bypasses the cache on its way to the Memento; skipping the count here
+			// would let an older failed write be rolled back over a newer one.
+			expect(proxy.getStateWriteGeneration("taskHistory")).toBe(beforeHistory + 1)
+		})
+	})
+
 	describe("setValues", () => {
 		it("should process multiple values correctly", async () => {
 			// Spy on setValue

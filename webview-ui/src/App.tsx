@@ -8,6 +8,7 @@ import TranslationProvider from "./i18n/TranslationContext"
 import { MarketplaceViewStateManager } from "./components/marketplace/MarketplaceViewStateManager"
 
 import { vscode } from "./utils/vscode"
+import { getViewStateIdentity } from "./utils/viewStateIdentity"
 import { telemetryClient } from "./utils/TelemetryClient"
 import { initializeSourceMaps, exposeSourceMapsForDebugging } from "./utils/sourceMapInitializer"
 import { ExtensionStateContextProvider, useExtensionState } from "./context/ExtensionStateContext"
@@ -206,8 +207,16 @@ const App = () => {
 		}
 	}, [telemetrySetting, telemetryKey, machineId, vscodeTelemetryEnabled, didHydrateState])
 
-	// Tell the extension that we are ready to receive messages.
-	useEffect(() => vscode.postMessage({ type: "webviewDidLaunch" }), [])
+	// Tell the extension that we are ready to receive messages, carrying the per-view identity this
+	// webview held before the reload so the host can re-bind it before posting any state.
+	useEffect(() => {
+		const identity = getViewStateIdentity()
+		vscode.postMessage({
+			type: "webviewDidLaunch",
+			viewStateId: identity.viewStateId,
+			viewStateClaim: identity.viewStateClaim,
+		})
+	}, [])
 
 	// Heartbeat so the extension watchdog can detect a crashed webview renderer
 	// process (gray screen) and reload the view.

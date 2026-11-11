@@ -819,6 +819,58 @@ describe("ClineProvider - API Handler Rebuild Guard", () => {
 	})
 
 	describe("activateProviderProfile", () => {
+		test("writes the configuration of a profile before the selection that names it", async () => {
+			const selectionWrite = vi.spyOn(provider, "setValue")
+			const settingsWrite = vi.spyOn(provider.contextProxy, "setProviderSettings")
+			const sharedWrite = vi.spyOn(provider.contextProxy, "setValue")
+
+			await provider.activateProviderProfile({ name: "test-config" })
+
+			// One profile switch writes the list, the configuration under the name, and only then the name
+			// itself. Handed to Promise.all, the name went first: a later failure rolled the name back while
+			// the configuration had already landed, or landed after the rollback, so the view ended up naming
+			// one profile and serving another's settings.
+			const listIndex = sharedWrite.mock.calls.findIndex((call) => call[0] === "listApiConfigMeta")
+			expect(listIndex).toBeGreaterThanOrEqual(0)
+			expect(sharedWrite.mock.invocationCallOrder[listIndex]).toBeLessThan(
+				settingsWrite.mock.invocationCallOrder[0],
+			)
+			expect(settingsWrite.mock.invocationCallOrder[0]).toBeLessThan(selectionWrite.mock.invocationCallOrder[0])
+		})
+
+		test("undoes the writes a failed activation made rather than leaving them half-applied", async () => {
+			const manager = provider["providerSettingsManager"]
+			vi.mocked(manager.activateProfile).mockResolvedValueOnce({
+				name: "other-profile",
+				id: "other-id",
+				apiProvider: providerIdentifiers.openrouter,
+				openRouterModelId: "openai/gpt-4.1-mini",
+			})
+			const before = {
+				sharedName: provider.contextProxy.getValue("currentApiConfigName"),
+				list: provider.contextProxy.getValue("listApiConfigMeta"),
+				settings: provider.contextProxy.getProviderSettings(),
+				overlayName: provider["viewLocalState"].currentApiConfigName,
+				overlaySettings: provider["viewLocalState"].apiConfiguration,
+			}
+			vi.spyOn(provider.contextProxy, "setProviderSettings").mockImplementationOnce(async () => {
+				throw new Error("settings write failed")
+			})
+
+			await expect(provider.activateProviderProfile({ name: "other-profile" })).rejects.toThrow(
+				"settings write failed",
+			)
+
+			// The configuration write is the step that used to run beside the guarded selection write, so
+			// under the parallel version this view kept the old profile's name while its shared store and
+			// its own buffer carried the new profile's configuration.
+			expect(provider.contextProxy.getValue("currentApiConfigName")).toEqual(before.sharedName)
+			expect(provider.contextProxy.getValue("listApiConfigMeta")).toEqual(before.list)
+			expect(provider.contextProxy.getProviderSettings()).toEqual(before.settings)
+			expect(provider["viewLocalState"].currentApiConfigName).toEqual(before.overlayName)
+			expect(provider["viewLocalState"].apiConfiguration).toEqual(before.overlaySettings)
+		})
+
 		test("serializes provider profile mutations without interleaving", async () => {
 			const events: string[] = []
 			let resolveFirst!: () => void

@@ -12,6 +12,7 @@ import pWaitFor from "p-wait-for"
 import {
 	type ProviderSettingsEntry,
 	type ProviderSettings,
+	type ModeConfig,
 	type ClineMessage,
 	type ExtensionMessage,
 	type ExtensionState,
@@ -5690,6 +5691,127 @@ describe("ClineProvider", () => {
 			await pinned.dispose()
 		})
 
+		it("leaves the selection on the deleted profile when the settings under it cannot be replaced, and reports it", async () => {
+			const contextProxy = new ContextProxy(mockContext)
+			const deleter = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				contextProxy,
+				new WebviewFocusTracker(),
+			)
+			const profileToDelete: ProviderSettingsEntry = { name: "deleted", id: "deleted-id" }
+			const deletedSettings = { apiProvider: providerIdentifiers.openrouter, openRouterModelId: "deleted-model" }
+
+			await contextProxy.setValue("listApiConfigMeta", [
+				{ name: "deleted", id: "deleted-id" },
+				{ name: "survivor", id: "survivor-id" },
+			])
+			await contextProxy.setValue("currentApiConfigName", "deleted")
+			await contextProxy.setProviderSettings(deletedSettings)
+			await deleter.saveViewState("currentApiConfigName", "deleted")
+			await deleter["_saveViewLocalStateFromMutation"]({ apiConfiguration: deletedSettings })
+
+			vi.spyOn(deleter["providerSettingsManager"], "deleteConfig").mockResolvedValue(undefined)
+			vi.spyOn(deleter["providerSettingsManager"], "activateProfile").mockResolvedValue({
+				name: "survivor",
+				id: "survivor-id",
+				apiProvider: providerIdentifiers.anthropic,
+			})
+			vi.spyOn(deleter["providerSettingsManager"], "getProfile").mockResolvedValue({
+				name: "survivor",
+				id: "survivor-id",
+				apiProvider: providerIdentifiers.anthropic,
+				apiKey: "survivor-key",
+			})
+			vi.spyOn(contextProxy, "setProviderSettings").mockRejectedValueOnce(new Error("settings store unavailable"))
+
+			await expect(deleter.deleteProviderProfile(profileToDelete)).rejects.toThrow(
+				/was deleted but this view's selection/,
+			)
+
+			// The selection and the configuration under it move together or not at all. With the settings
+			// write failing, this view keeps the deleted profile's own name rather than taking the survivor's
+			// name over the deleted profile's configuration; its overlay is dropped so the deleted profile's
+			// configuration is not left parked under it, and the half-done repair is reported rather than
+			// passing as success.
+			expect(deleter["viewLocalState"].currentApiConfigName).toBe("deleted")
+			expect(deleter["viewLocalState"]).not.toHaveProperty("apiConfiguration")
+			expect(contextProxy.getValue("currentApiConfigName")).toBe("deleted")
+			expect(contextProxy.getProviderSettings()).toEqual(deletedSettings)
+
+			await deleter.dispose()
+		})
+
+		it("keeps re-pointing the remaining views when one re-point fails, and names the views left behind", async () => {
+			const contextProxy = new ContextProxy(mockContext)
+			const deleter = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				contextProxy,
+				new WebviewFocusTracker(),
+			)
+			const sibling = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"editor",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+			const profileToDelete: ProviderSettingsEntry = { name: "deleted", id: "deleted-id" }
+			const deletedSettings = { apiProvider: providerIdentifiers.openrouter, openRouterModelId: "deleted-model" }
+
+			await contextProxy.setValue("listApiConfigMeta", [
+				{ name: "deleted", id: "deleted-id" },
+				{ name: "survivor", id: "survivor-id" },
+			])
+			await contextProxy.setValue("currentApiConfigName", "deleted")
+			await contextProxy.setProviderSettings(deletedSettings)
+			for (const view of [deleter, sibling]) {
+				await view.saveViewState("currentApiConfigName", "deleted")
+				await view["_saveViewLocalStateFromMutation"]({ apiConfiguration: deletedSettings })
+			}
+
+			vi.spyOn(deleter["providerSettingsManager"], "deleteConfig").mockResolvedValue(undefined)
+			vi.spyOn(deleter["providerSettingsManager"], "activateProfile").mockResolvedValue({
+				name: "survivor",
+				id: "survivor-id",
+				apiProvider: providerIdentifiers.anthropic,
+			})
+			vi.spyOn(deleter["providerSettingsManager"], "getProfile").mockResolvedValue({
+				name: "survivor",
+				id: "survivor-id",
+				apiProvider: providerIdentifiers.anthropic,
+				apiKey: "survivor-key",
+			})
+			// One view's failed write used to abort the sweep: the views after it kept the deleted profile's
+			// name and configuration and nobody reported it.
+			// spyOn needs a method key, and a private method is not reachable through keyof from
+			// outside the class, so the shape has to be spelled out here.
+			const siblingStore = vi.spyOn(
+				sibling as unknown as {
+					_saveViewLocalStateFromMutation: (values: Record<string, unknown>) => Promise<void>
+				},
+				"_saveViewLocalStateFromMutation",
+			)
+			siblingStore.mockRejectedValueOnce(new Error("view store unavailable"))
+
+			const failure = await deleter.deleteProviderProfile(profileToDelete).then(
+				() => undefined,
+				(error: unknown) => (error instanceof Error ? error.message : String(error)),
+			)
+
+			expect(failure).toContain("were left pointing at it")
+			expect(failure).toContain(sibling.viewId)
+			expect(deleter["viewLocalState"].currentApiConfigName).toBe("survivor")
+			expect(sibling["viewLocalState"].currentApiConfigName).toBe("deleted")
+			expect(contextProxy.getValue("currentApiConfigName")).toBe("survivor")
+
+			await deleter.dispose()
+			await sibling.dispose()
+		})
+
 		it("rebuilds a live task that still runs on the deleted profile, in this view and in a sibling view", async () => {
 			const contextProxy = new ContextProxy(mockContext)
 			const deleter = new ClineProvider(
@@ -6831,6 +6953,18 @@ describe("ClineProvider", () => {
 			// next view adopts it; the durable entry it wrote stays in storage.
 			await writer.dispose()
 
+			// A different profile sits in the shared store: it is the profile the last view to commit
+			// chose, and this view has to report the one its own record pins it to, not that one.
+			await provider.contextProxy.setValue("listApiConfigMeta", [
+				{ name: "my-profile", id: "my-profile-id" },
+				{ name: "shared-profile", id: "shared-profile-id" },
+			])
+			await provider.contextProxy.setValue("currentApiConfigName", "shared-profile")
+			await provider.contextProxy.setProviderSettings({
+				apiProvider: providerIdentifiers.anthropic,
+				apiModelId: "claude-sonnet",
+			})
+
 			await provider.contextProxy.setValue(
 				"viewStates",
 				mockContext.globalState.get<RooCodeSettings["viewStates"]>("viewStates"),
@@ -6844,6 +6978,20 @@ describe("ClineProvider", () => {
 			})
 			expect(getProfileSpy).toHaveBeenCalledWith({ name: "my-profile" })
 			expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Loaded state for viewId"))
+
+			// getState() is what task creation and getStateToPostToWebview read: the restored name and the
+			// configuration that belongs to it have to arrive together, because reporting this view's
+			// profile over the shared profile's settings would seed a task on the wrong provider.
+			const state = await provider.getState()
+			expect(state.currentApiConfigName).toBe("my-profile")
+			expect(state.apiConfiguration).toMatchObject({
+				apiProvider: providerIdentifiers.openrouter,
+				openRouterModelId: "model-x",
+			})
+			const posted = await provider.getStateToPostToWebview()
+			expect(posted.currentApiConfigName).toBe("my-profile")
+			expect(posted.apiConfiguration).toMatchObject({ apiProvider: providerIdentifiers.openrouter })
+
 			await provider.dispose()
 		})
 
@@ -6915,6 +7063,45 @@ describe("ClineProvider", () => {
 			mockContext.globalState.update = originalUpdate
 			await provider.dispose()
 		})
+	})
+
+	// The single-key setter is the path a mode switch takes, and it is also what pins the slug to the
+	// view, so an unknown slug has to be refused there before anything moves.
+	it("should reject an unknown mode on the single-key setter before pinning it", async () => {
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			new ContextProxy(mockContext),
+			new WebviewFocusTracker(),
+		)
+		const logSpy = vi.spyOn(provider, "log")
+		await provider.contextProxy.setValue("mode", "architect")
+		await provider["setViewStateId"]("single-mode-view")
+		await provider.saveViewState("mode", "code")
+		// The file-level modes mock resolves every slug; narrow it to the two slugs used here.
+		const modesModule = vi.mocked(await import("../../../shared/modes"))
+		const originalMode = modesModule.getModeBySlug("code")
+		modesModule.getModeBySlug.mockImplementation(((slug: string) =>
+			slug === "code" || slug === "architect" ? { slug } : undefined) as typeof modesModule.getModeBySlug)
+		try {
+			await provider.setValue("mode", "bogus-mode")
+			expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Ignoring invalid mode "bogus-mode"'))
+			// The pin holds what it held and the shared store did not move.
+			expect(provider["viewLocalState"].mode).toBe("code")
+			expect(mockContext.globalState.get("mode")).toBe("architect")
+			expect(provider.contextProxy.getValue("viewStates")?.["single-mode-view"]?.mode).toBe("code")
+			// A slug that some mode carries still writes through, and an explicit clear still clears.
+			await provider.setValue("mode", "architect")
+			expect(provider["viewLocalState"].mode).toBe("architect")
+			expect(mockContext.globalState.get("mode")).toBe("architect")
+			await provider.setValue("mode", undefined)
+			expect(provider["viewLocalState"]).not.toHaveProperty("mode")
+			expect(mockContext.globalState.get("mode")).toBeUndefined()
+		} finally {
+			modesModule.getModeBySlug.mockReturnValue(originalMode)
+		}
+		await provider.dispose()
 	})
 
 	it("should persist known modes and reject unknown or non-string modes", async () => {
@@ -7339,14 +7526,10 @@ describe("ClineProvider", () => {
 			"storage unavailable",
 		)
 
-		// taskHistory is a pass-through key: ContextProxy writes it straight to the Memento and
-		// never advances its write generation, so a guard that demands one leaves the durable
-		// history at the value the failed attempt wrote.
-		// taskHistory is a pass-through key: ContextProxy writes it straight to the Memento and
-		// never advances its write generation, so a guard that still demands one for it leaves
-		// the durable history at the value the failed attempt wrote while every other key is
-		// restored. The write sequence is the observable that separates a restored key from
-		// one the rollback never touched.
+		// taskHistory is a pass-through key: ContextProxy hands it straight to the Memento. Now that
+		// the counter also advances for that write, this key is rolled back like any other, and the
+		// sequence below - the failed write, then the restore - is the observable that separates a
+		// restored key from one a rollback left alone.
 		expect(globalStore.mock.calls.filter(([key]) => key === "taskHistory").map(([, value]) => value)).toEqual([
 			secondHistory,
 			firstHistory,
@@ -7377,6 +7560,293 @@ describe("ClineProvider", () => {
 		expect((await provider.getState()).mode).toBe("code")
 
 		await provider.dispose()
+	})
+
+	// The pinned mode is validated against the mode list as getState() reads it, so a custom mode
+	// deleted while the view is open stops being reported instead of seeding tasks with a mode nobody
+	// has.
+	it("should keep this view's mode pin when the refreshed list still carries the custom mode", async () => {
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			new ContextProxy(mockContext),
+			new WebviewFocusTracker(),
+		)
+		await provider.contextProxy.setValue("mode", "architect")
+		await provider["setViewStateId"]("pinned-mode-view")
+		await provider.saveViewState("mode", "reviewer")
+		;(provider as MemberSwapTarget).customModesManager = {
+			getCustomModes: vi
+				.fn()
+				.mockResolvedValue([
+					{ slug: "reviewer", name: "Reviewer", roleDefinition: "Reviews the diff.", groups: [] },
+				]),
+			dispose: vi.fn(),
+		}
+		// The file-level modes mock resolves every slug; narrow it to the one the list now holds.
+		const modesModule = vi.mocked(await import("../../../shared/modes"))
+		const originalMode = modesModule.getModeBySlug("code")
+		modesModule.getModeBySlug.mockImplementation(((slug: string) =>
+			slug === "reviewer" ? { slug } : undefined) as typeof modesModule.getModeBySlug)
+		try {
+			// The shared store holds the mode the last committing view chose; this view's pin wins while
+			// the mode still exists.
+			expect((await provider.getState()).mode).toBe("reviewer")
+			expect(provider["viewLocalState"].mode).toBe("reviewer")
+		} finally {
+			modesModule.getModeBySlug.mockReturnValue(originalMode)
+		}
+		await provider.dispose()
+	})
+
+	it("should drop this view's mode pin when another view deletes the custom mode it pinned", async () => {
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			new ContextProxy(mockContext),
+			new WebviewFocusTracker(),
+		)
+		const logSpy = vi.spyOn(provider, "log")
+		await provider.contextProxy.setValue("mode", "architect")
+		await provider["setViewStateId"]("deleted-mode-view")
+		const reviewerOnly = {
+			getCustomModes: vi
+				.fn()
+				.mockResolvedValue([
+					{ slug: "reviewer", name: "Reviewer", roleDefinition: "Reviews the diff.", groups: [] },
+				]),
+			dispose: vi.fn(),
+		}
+		;(provider as MemberSwapTarget).customModesManager = reviewerOnly
+		await provider.saveViewState("mode", "reviewer")
+		// The other view deletes the mode file: the list this view reads no longer carries it.
+		;(provider as MemberSwapTarget).customModesManager = {
+			getCustomModes: vi.fn().mockResolvedValue([]),
+			dispose: vi.fn(),
+		}
+		// The file-level modes mock resolves every slug; narrow it to what the list now holds.
+		const modesModule = vi.mocked(await import("../../../shared/modes"))
+		const originalMode = modesModule.getModeBySlug("code")
+		modesModule.getModeBySlug.mockImplementation(((slug: string) =>
+			slug === "reviewer" ? undefined : originalMode) as typeof modesModule.getModeBySlug)
+		try {
+			expect((await provider.getState()).mode).toBe("architect")
+			expect(provider["viewLocalState"]).not.toHaveProperty("mode")
+			expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Dropping this view\'s pin to "reviewer"'))
+			// With no shared mode either, the default takes over rather than the mode that is gone.
+			await provider.contextProxy.setValue("mode", undefined)
+			expect((await provider.getState()).mode).toBe(defaultModeSlug)
+			// The durable record still names the deleted mode, and a reload drops it the same way
+			// loadViewState already does for a persisted slug the list no longer carries.
+			expect(provider.contextProxy.getValue("viewStates")?.["deleted-mode-view"]?.mode).toBe("reviewer")
+		} finally {
+			modesModule.getModeBySlug.mockReturnValue(originalMode)
+		}
+		await provider.dispose()
+	})
+
+	// createTask registers a custom mode before applying the rest of the configuration because setValues
+	// validates the mode against the registered list. Supplying a new custom mode and its slug in one
+	// configuration is the only way the webview can start a task in a mode that did not exist yet.
+	it("seeds a new task with a custom mode supplied in the same configuration", async () => {
+		const contextProxy = new ContextProxy(mockContext)
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			contextProxy,
+			new WebviewFocusTracker(),
+		)
+		// The double answers the resolver from what it has actually registered, so the slug becomes
+		// resolvable only once registration has run - which is the ordering this test pins.
+		const registered: ModeConfig[] = []
+		;(provider as MemberSwapTarget).customModesManager = {
+			getCustomModes: vi.fn().mockImplementation(async () => [...registered]),
+			updateCustomMode: vi.fn().mockImplementation(async (_slug: string, mode: ModeConfig) => {
+				registered.push(mode)
+			}),
+			dispose: vi.fn(),
+		}
+		// The file-level modes mock resolves every slug; replace it with what the real resolver answers
+		// from a list - a slug resolves only if some mode in that list carries it. The cast is here
+		// because a ModeConfig carries more fields than the stub fills in.
+		const modesModule = vi.mocked(await import("../../../shared/modes"))
+		const originalMode = modesModule.getModeBySlug("code")
+		modesModule.getModeBySlug.mockImplementation(((slug: string, customModes?: ModeConfig[]) =>
+			customModes?.find((mode: ModeConfig) => mode.slug === slug)) as typeof modesModule.getModeBySlug)
+		try {
+			const reviewer: ModeConfig = {
+				slug: "reviewer",
+				name: "Reviewer",
+				roleDefinition: "Reviews the diff.",
+				groups: [],
+			}
+			await provider.createTask(
+				"review the change",
+				undefined,
+				undefined,
+				{},
+				{
+					customModes: [reviewer],
+					mode: "reviewer",
+				},
+			)
+			// The slug survived the configuration instead of being dropped by the validation inside
+			// setValues, so the mode a task started from this configuration is seeded from - getState() is
+			// where createTask reads it - is the new custom mode and not the default. Task is a double in
+			// this file, so what the task itself ends up holding is asserted where the real task runs; the
+			// value below is what fails if the registration moves after setValues.
+			expect(contextProxy.getValue("mode")).toBe("reviewer")
+			expect((await provider.getState()).mode).toBe("reviewer")
+			expect(registered.map((mode) => mode.slug)).toContain("reviewer")
+		} finally {
+			modesModule.getModeBySlug.mockReturnValue(originalMode)
+		}
+		await provider.dispose()
+	})
+
+	// The import flow itself is tested in core/config/__tests__/importExport.spec.ts (an import that
+	// carries a mode, and one that omits it). This is the provider side: which pins an imported mode
+	// supersedes, that a load already in flight cannot bring the pin back, that the mode the view now
+	// reports is what a task it starts is seeded from, and that the record no longer carries the old one,
+	// which is what keeps a reload from restoring it.
+	it("supersedes a view's mode pin when an import brings a different mode, and keeps its profile pin", async () => {
+		const contextProxy = new ContextProxy(mockContext)
+		const provider = new ClineProvider(
+			mockContext,
+			mockOutputChannel,
+			"sidebar",
+			contextProxy,
+			new WebviewFocusTracker(),
+		)
+		await contextProxy.setValue("mode", "code")
+		await provider["setViewStateId"]("import-view")
+		// The view chose a mode and a profile of its own; both live in its buffer and its record.
+		await provider.saveViewState("mode", "code")
+		await provider.saveViewState("currentApiConfigName", "my-profile")
+		await contextProxy.setValues({
+			currentApiConfigName: "shared-profile",
+			listApiConfigMeta: [{ name: "shared-profile", id: "shared-id" }],
+		})
+		const entryOf = () => contextProxy.getValue("viewStates")?.["import-view"]
+		expect(entryOf()?.mode).toBe("code")
+		expect(entryOf()?.currentApiConfigName).toBe("my-profile")
+		expect((await provider.getState()).mode).toBe("code")
+
+		// The import lands its mode in the shared store, where the view's own pin still outranks it. A load
+		// started before the import and finishing after it must not resurrect the pin.
+		await contextProxy.setValue("mode", "architect")
+		const loadInFlight = provider["loadViewState"]()
+		await provider.invalidateModePinsForImportedMode("architect")
+		await loadInFlight
+
+		// The imported mode is what the view reports, and therefore what a task it starts is seeded from.
+		expect((await provider.getState()).mode).toBe("architect")
+		expect(provider["viewLocalState"]).not.toHaveProperty("mode")
+		// The record no longer carries a mode, so a reload has nothing to restore. The profile pin the
+		// import said nothing about survives in the buffer and in the record alike.
+		expect(entryOf()?.mode).toBeUndefined()
+		expect(entryOf()?.currentApiConfigName).toBe("my-profile")
+		expect(provider["viewLocalState"].currentApiConfigName).toBe("my-profile")
+
+		// A pin that already names the imported mode is this view's own choice, and stays.
+		await provider.saveViewState("mode", "architect")
+		await provider.invalidateModePinsForImportedMode("architect")
+		expect(provider["viewLocalState"].mode).toBe("architect")
+		expect(entryOf()?.mode).toBe("architect")
+
+		await provider.dispose()
+	})
+
+	// The public settings reader is what src/extension/api.ts hands to getConfiguration(), and that
+	// reader's secret filter inspects top-level keys only.
+	describe("getValues", () => {
+		it("withholds the credentials nested in a view's provider configuration", async () => {
+			const contextProxy = new ContextProxy(mockContext)
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				contextProxy,
+				new WebviewFocusTracker(),
+			)
+			const settings = { apiProvider: providerIdentifiers.anthropic, apiKey: "secret-anthropic-key" }
+
+			await contextProxy.setValue("listApiConfigMeta", [{ name: "pinned", id: "pinned-id" }])
+			await contextProxy.setProviderSettings(settings)
+			// The buffer a completed profile load leaves behind: this view serves this configuration.
+			await provider["_saveViewLocalStateFromMutation"]({ apiConfiguration: settings })
+
+			const publicValues = provider.getValues()
+
+			// apiConfiguration is not a top-level secret key, so the apiKey nested inside it used to leave
+			// through the public API with the rest of the configuration.
+			expect(publicValues.apiConfiguration).not.toHaveProperty("apiKey")
+			expect(publicValues.apiConfiguration).toMatchObject({ apiProvider: providerIdentifiers.anthropic })
+			// The extension host itself keeps reading its own credentials.
+			expect(contextProxy.getProviderSettings()).toMatchObject({ apiKey: "secret-anthropic-key" })
+
+			await provider.dispose()
+		})
+	})
+
+	describe("setValues rollback", () => {
+		it("leaves a secret a newer setter wrote alone, and restores the value nobody else touched", async () => {
+			const contextProxy = new ContextProxy(mockContext)
+			const provider = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				contextProxy,
+				new WebviewFocusTracker(),
+			)
+			const sibling = new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"editor",
+				contextProxy,
+				new WebviewFocusTracker(),
+			)
+			await contextProxy.setValue("apiKey", "first-key")
+			const priorName = contextProxy.getValue("currentApiConfigName")
+
+			let failViewRecord!: (error: unknown) => void
+			// The durable per-view record is what fails here; the shared writes have already landed by the
+			// time this rejects.
+			vi.spyOn(
+				provider as unknown as {
+					_saveViewLocalStateFromMutation: (values: Record<string, unknown>) => Promise<void>
+				},
+				"_saveViewLocalStateFromMutation",
+			).mockImplementationOnce(
+				() =>
+					new Promise<void>((_, reject) => {
+						failViewRecord = reject
+					}),
+			)
+
+			const rejected = expect(
+				provider.setValues({ currentApiConfigName: "profile-b", apiKey: "attempted-key" }),
+			).rejects.toThrow("view record failed")
+
+			await vi.waitFor(() => expect(contextProxy.getValue("apiKey")).toBe("attempted-key"))
+			// Another view saves the same token while this view's record is still in flight. The stored value
+			// is then indistinguishable from the one this attempt wrote, so the value alone cannot tell
+			// "nobody has touched it since" from "someone wrote it again after me" - only the write generation
+			// can, which is why it has to cover secrets the way it covers cached state.
+			await sibling.setValue("apiKey", "attempted-key")
+			failViewRecord(new Error("view record failed"))
+			await rejected
+
+			expect(await mockContext.secrets.get("apiKey")).toBe("attempted-key")
+			expect(contextProxy.getValue("apiKey")).toBe("attempted-key")
+			// The name this attempt wrote, and no one else touched, is still restored.
+			expect(contextProxy.getValue("currentApiConfigName")).toBe(priorName)
+			await provider.dispose()
+			await sibling.dispose()
+		})
 	})
 
 	describe("viewId uniqueness", () => {
@@ -9934,7 +10404,9 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 				)
 			})
 
-			it("logs and posts state when profile persistence fails", async () => {
+			// The read is what fails here: the callback reads the state before it writes the profile, and a
+			// failing read never reaches the write at all. The write-failure case is the test below.
+			it("logs and posts state when the state read fails", async () => {
 				vi.spyOn(provider, "getState").mockRejectedValue(new Error("state unavailable"))
 				vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
 				;(provider as MemberSwapTarget).providerSettingsManager = {
@@ -9946,8 +10418,37 @@ describe("ClineProvider - Comprehensive Edit/Delete Edge Cases", () => {
 				expect(mockOutputChannel.appendLine).toHaveBeenCalledWith(
 					expect.stringContaining("[handleZooCodeCallback] Failed to save zoo-gateway profile"),
 				)
-				// State must still be refreshed even when profile persistence fails.
+				// State must still be refreshed even when the read fails.
 				expect(provider.postStateToWebview).toHaveBeenCalled()
+			})
+			// The read worked and the write is what failed; upsertProviderProfile reports it itself, and the
+			// callback still refreshes state afterwards rather than leaving the webview on old settings.
+			it("logs the failed profile write and still posts state when the read succeeds", async () => {
+				vi.spyOn(provider, "getState").mockResolvedValue({
+					apiConfiguration: { zooGatewayModelId: "anthropic/claude-sonnet-4" },
+				} as never)
+				vi.spyOn(provider.contextProxy, "getProviderSettings").mockReturnValue({
+					apiProvider: providerIdentifiers.anthropic,
+				} as never)
+				vi.spyOn(provider.contextProxy, "getValues").mockReturnValue({
+					currentApiConfigName: "Anthropic",
+				} as never)
+				vi.spyOn(provider, "postStateToWebview").mockResolvedValue(undefined)
+				const logSpy = vi.spyOn(provider, "log")
+				const showErrorMessageSpy = vi.spyOn(vscode.window, "showErrorMessage").mockResolvedValue(undefined)
+				;(provider as MemberSwapTarget).providerSettingsManager = {
+					listConfig: vi.fn().mockResolvedValue([]),
+					saveConfig: vi.fn().mockRejectedValue(new Error("settings store unavailable")),
+				}
+
+				await provider.handleZooCodeCallback("zoo_ext_token")
+
+				expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Error create new api configuration"))
+				expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("settings store unavailable"))
+				expect(showErrorMessageSpy).toHaveBeenCalledWith(expect.stringContaining("errors.create_api_config"))
+				expect(provider.postStateToWebview).toHaveBeenCalled()
+
+				showErrorMessageSpy.mockRestore()
 			})
 			it("updates every zoo-gateway profile and activates only the active one", async () => {
 				vi.spyOn(provider, "getState").mockResolvedValue({

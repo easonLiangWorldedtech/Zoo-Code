@@ -7,7 +7,7 @@ import { TelemetryService } from "@roo-code/telemetry"
 import { ClineProvider } from "../ClineProvider"
 import { ContextProxy } from "../../config/ContextProxy"
 import { Task } from "../../task/Task"
-import type { HistoryItem } from "@roo-code/types"
+import type { HistoryItem, ModeConfig } from "@roo-code/types"
 import { providerIdentifiers } from "@roo-code/types/provider-identifiers"
 
 vi.mock("vscode", () => ({
@@ -143,6 +143,12 @@ vi.mock("../../../shared/modes", () => ({
 			roleDefinition: "You are an architect",
 			groups: ["read", "edit"],
 		},
+		{
+			slug: "debug",
+			name: "Debug Mode",
+			roleDefinition: "You are a debug assistant",
+			groups: ["read"],
+		},
 	],
 	getModeBySlug: vi.fn().mockReturnValue({
 		slug: "code",
@@ -209,6 +215,27 @@ vi.mock("@roo-code/telemetry", () => ({
 		},
 	},
 }))
+
+/**
+ * The file-level modes mock resolves every slug, and one test below pins the lookup to undefined for
+ * its deleted-mode scenario. Re-arming before each test keeps every describe answering the question it
+ * means to ask - does this code accept a slug that some mode actually carries - instead of inheriting
+ * whichever stub the previous test happened to leave behind.
+ */
+async function armStandardModeLookup(): Promise<void> {
+	const standardModes: ModeConfig[] = [
+		{ slug: "code", name: "Code Mode", roleDefinition: "You are a code assistant", groups: ["read"] },
+		{ slug: "architect", name: "Architect Mode", roleDefinition: "You are an architect", groups: ["read"] },
+		{ slug: "debug", name: "Debug Mode", roleDefinition: "You are a debug assistant", groups: ["read"] },
+	]
+	const { getModeBySlug } = await import("../../../shared/modes")
+	vi.mocked(getModeBySlug).mockImplementation((slug: string, customModes?: ModeConfig[]) => {
+		return (
+			customModes?.find((mode: ModeConfig) => mode.slug === slug) ??
+			standardModes.find((mode) => mode.slug === slug)
+		)
+	})
+}
 
 describe("ClineProvider - Sticky Mode", () => {
 	let provider: ClineProvider
@@ -324,6 +351,8 @@ describe("ClineProvider - Sticky Mode", () => {
 			readResource: vi.fn().mockResolvedValue({ contents: [] }),
 			getAllServers: vi.fn().mockReturnValue([]),
 		})
+
+		await armStandardModeLookup()
 	})
 
 	describe("handleModeSwitch", () => {
@@ -921,7 +950,8 @@ describe("ClineProvider - Sticky Mode", () => {
 				mode: "deleted-mode", // Mode that doesn't exist
 			}
 
-			// Mock getModeBySlug to return undefined for deleted mode
+			// The modes mock is file-wide and this scenario needs the lookup to answer that the mode is gone.
+			// The describe-level beforeEach re-arms the lookup, so the override stops leaking.
 			const { getModeBySlug } = await import("../../../shared/modes")
 			vi.mocked(getModeBySlug).mockReturnValue(undefined)
 
@@ -1069,8 +1099,6 @@ describe("ClineProvider - Sticky Mode", () => {
 		it("should handle invalid mode gracefully", async () => {
 			await provider.resolveWebviewView(mockWebviewView)
 
-			// The provider actually does switch to invalid modes
-			// This test should verify that behavior
 			const mockTask = {
 				taskId: "test-task-id",
 				_taskMode: "code",
@@ -1087,11 +1115,19 @@ describe("ClineProvider - Sticky Mode", () => {
 			// Clear previous calls
 			vi.mocked(mockContext.globalState.update).mockClear()
 
-			// Try to switch to invalid mode - it will actually switch
+			// A slug no mode carries must not be switched to at all: not written to the shared store, not
+			// emitted to the task, and not pinned to the view. The file-level mock resolves every slug, so
+			// the lookup is narrowed to the slugs this scenario is about - the answer a real resolver gives.
+			// The cast is here because a ModeConfig carries more fields than the stub fills in.
+			const { getModeBySlug } = await import("../../../shared/modes")
+			vi.mocked(getModeBySlug).mockImplementation(((slug: string) =>
+				slug === "code" ? { slug } : undefined) as typeof getModeBySlug)
+			const logSpy = vi.spyOn(provider, "log")
+
 			await provider.handleModeSwitch("invalid-mode" as any)
 
-			// The mode WILL be updated to invalid-mode (this is the actual behavior)
-			expect(mockContext.globalState.update).toHaveBeenCalledWith("mode", "invalid-mode")
+			expect(mockContext.globalState.update).not.toHaveBeenCalledWith("mode", "invalid-mode")
+			expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('Ignoring invalid mode "invalid-mode"'))
 		})
 
 		it("should handle errors during mode switch gracefully", async () => {
@@ -1430,6 +1466,119 @@ describe("ClineProvider - Sticky Mode", () => {
 				expect(other["viewStateId"]).toBe("claimed-by-other-view")
 			} finally {
 				await other.dispose()
+			}
+		})
+	})
+
+	describe("webviewDidLaunch identity round trip", () => {
+		beforeEach(async () => {
+			await armStandardModeLookup()
+		})
+		const newProvider = (proxy: ContextProxy) =>
+			new ClineProvider(mockContext, mockOutputChannel, "sidebar", proxy, new WebviewFocusTracker())
+
+		it("restores each view's own mode when both providers are recreated", async () => {
+			// Two views choose different modes under their own durable keys, then both providers are
+			// recreated - the reload path - each presenting the id and the claim its webview stored.
+			// Before this round trip nothing carried the id out of the webview, so a recreated
+			// provider fell back to the shared mode that both views had overwritten. One proxy per
+			// scenario, as in the app: the revived providers have to read the same cache the writes
+			// landed in, or nothing here would prove that anything was restored.
+			const proxy = new ContextProxy(mockContext)
+			const alpha = newProvider(proxy)
+			const beta = newProvider(proxy)
+			let alphaClaim: string | undefined
+			let betaClaim: string | undefined
+
+			try {
+				await alpha.setViewStateId("round-trip-alpha")
+				await beta.setViewStateId("round-trip-beta")
+				await alpha.saveViewState("mode", "architect")
+				await beta.saveViewState("mode", "code")
+				await proxy.setValue("mode", "orchestrator")
+
+				const states = alpha["getPersistedViewStates"]({ fresh: true })
+				alphaClaim = states["round-trip-alpha"]?.claimToken
+				betaClaim = states["round-trip-beta"]?.claimToken
+				expect(typeof alphaClaim).toBe("string")
+				expect(typeof betaClaim).toBe("string")
+			} finally {
+				await alpha.dispose()
+				await beta.dispose()
+			}
+
+			const revivedAlpha = newProvider(proxy)
+			const revivedBeta = newProvider(proxy)
+			try {
+				await revivedAlpha.setViewStateId("round-trip-alpha", alphaClaim)
+				await revivedBeta.setViewStateId("round-trip-beta", betaClaim)
+
+				// Each view reads back the mode it chose: not the shared one, and not each other's.
+				expect((await revivedAlpha.getState()).mode).toBe("architect")
+				expect((await revivedBeta.getState()).mode).toBe("code")
+				// The shared selection is untouched by either view's own choice.
+				expect(await proxy.getValue("mode")).toBe("orchestrator")
+			} finally {
+				await revivedAlpha.dispose()
+				await revivedBeta.dispose()
+			}
+		})
+
+		it("refuses a recreated registration whose claim does not match, without touching the entry", async () => {
+			const proxy = new ContextProxy(mockContext)
+			const owner = newProvider(proxy)
+			let ownerClaim: string | undefined
+			try {
+				await owner.setViewStateId("mismatched-claim-view")
+				await owner.saveViewState("mode", "architect")
+				ownerClaim = owner["getPersistedViewStates"]({ fresh: true })["mismatched-claim-view"]?.claimToken
+			} finally {
+				await owner.dispose()
+			}
+
+			const impostor = newProvider(proxy)
+			try {
+				await impostor.setViewStateId("mismatched-claim-view", `${ownerClaim}-but-wrong`)
+
+				// Fail closed: the id stays temporary, so none of the owner's state is loaded...
+				expect(impostor["viewStateId"]).toBe(impostor.viewId)
+				expect(impostor["viewLocalState"].mode).toBeUndefined()
+				// ...and the owner's entry survives unchanged for the view that holds the claim.
+				const states = impostor["getPersistedViewStates"]({ fresh: true })
+				expect(states["mismatched-claim-view"].mode).toBe("architect")
+				expect(states["mismatched-claim-view"].claimToken).toBe(ownerClaim)
+			} finally {
+				await impostor.dispose()
+			}
+		})
+
+		it("re-mints and delivers a claim when the durable entry lost its token", async () => {
+			const proxy = new ContextProxy(mockContext)
+			await proxy.setValue("viewStates", { "claimless-view": { mode: "plan", updatedAt: 1 } })
+
+			const fresh = newProvider(proxy)
+			try {
+				// The claim is delivered to a webview, so this view needs one before it registers.
+				await fresh.resolveWebviewView(mockWebviewView)
+				await fresh.setViewStateId("claimless-view", "a-stale-token-from-a-previous-session")
+
+				// A claim-less entry cannot be attributed to any webview, so its selections are dropped
+				// rather than loaded, and the fresh token goes to the view that just adopted the key.
+				expect(fresh["viewStateId"]).toBe("claimless-view")
+				expect(fresh["viewLocalState"].mode).toBeUndefined()
+				const states = fresh["getPersistedViewStates"]({ fresh: true })
+				expect(states["claimless-view"].mode).toBeUndefined()
+				expect(typeof states["claimless-view"].claimToken).toBe("string")
+
+				expect(mockPostMessage).toHaveBeenCalledWith(
+					expect.objectContaining({
+						type: "viewStateClaim",
+						viewStateId: "claimless-view",
+						viewStateClaim: states["claimless-view"].claimToken,
+					}),
+				)
+			} finally {
+				await fresh.dispose()
 			}
 		})
 	})
