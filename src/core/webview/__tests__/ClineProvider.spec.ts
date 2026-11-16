@@ -4665,6 +4665,8 @@ describe("ClineProvider", () => {
 			activateProfile: vi.fn().mockResolvedValue(profile),
 			listConfig: vi.fn().mockResolvedValue([profile]),
 			setModeConfig: vi.fn(),
+			// The activation snapshot reads the prior record and the previous per-mode mapping.
+			getProfile: vi.fn().mockResolvedValue(profile),
 			getModeConfigId: vi.fn().mockResolvedValue(undefined),
 		} as any
 
@@ -4692,6 +4694,8 @@ describe("ClineProvider", () => {
 			activateProfile: vi.fn().mockResolvedValue(profile),
 			listConfig: vi.fn().mockResolvedValue([profile]),
 			setModeConfig: vi.fn(),
+			// The activation snapshot reads the prior record and the previous per-mode mapping.
+			getProfile: vi.fn().mockResolvedValue(profile),
 			getModeConfigId: vi.fn().mockResolvedValue(undefined),
 		} as any
 
