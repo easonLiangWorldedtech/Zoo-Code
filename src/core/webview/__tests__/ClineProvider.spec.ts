@@ -4864,14 +4864,24 @@ describe("ClineProvider", () => {
 		await provider.resolveWebviewView(mockWebviewView)
 		const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as any).mock.calls[0][0]
 
+		const savedForReadBack4: Record<string, Record<string, unknown>> = {}
 		;(provider as any).providerSettingsManager = {
 			listConfig: vi
 				.fn()
 				.mockResolvedValue([
 					{ name: "test-config", id: "test-id", apiProvider: providerIdentifiers.anthropic },
 				]),
-			saveConfig: vi.fn().mockResolvedValue("test-id"),
+			saveConfig: vi.fn(async (name: string, settings: Record<string, unknown>) => {
+				savedForReadBack4[name] = settings
+				return "test-id"
+			}),
+			getProfile: vi.fn(async ({ name }: { name: string }) => ({
+				name,
+				id: "test-id",
+				...savedForReadBack4[name],
+			})),
 			setModeConfig: vi.fn(),
+			getModeConfigId: vi.fn().mockResolvedValue(undefined),
 		} as any
 
 		// Update API configuration
@@ -5638,14 +5648,24 @@ describe("ClineProvider", () => {
 			await provider.resolveWebviewView(mockWebviewView)
 			const messageHandler = (mockWebviewView.webview.onDidReceiveMessage as any).mock.calls[0][0]
 
+			const savedForReadBack5: Record<string, Record<string, unknown>> = {}
 			;(provider as any).providerSettingsManager = {
 				setModeConfig: vi.fn(),
-				saveConfig: vi.fn().mockResolvedValue(undefined),
+				saveConfig: vi.fn(async (name: string, settings: Record<string, unknown>) => {
+					savedForReadBack5[name] = settings
+					return undefined
+				}),
+				getProfile: vi.fn(async ({ name }: { name: string }) => ({
+					name,
+					id: undefined,
+					...savedForReadBack5[name],
+				})),
 				listConfig: vi
 					.fn()
 					.mockResolvedValue([
 						{ name: "test-config", id: "test-id", apiProvider: providerIdentifiers.anthropic },
 					]),
+				getModeConfigId: vi.fn().mockResolvedValue(undefined),
 			} as any
 
 			const testApiConfig = {
@@ -5683,14 +5703,24 @@ describe("ClineProvider", () => {
 			;(buildApiHandler as any).mockImplementationOnce(() => {
 				throw new Error("API handler error")
 			})
+			const savedForReadBack6: Record<string, Record<string, unknown>> = {}
 			;(provider as any).providerSettingsManager = {
 				setModeConfig: vi.fn(),
-				saveConfig: vi.fn().mockResolvedValue(undefined),
+				saveConfig: vi.fn(async (name: string, settings: Record<string, unknown>) => {
+					savedForReadBack6[name] = settings
+					return undefined
+				}),
+				getProfile: vi.fn(async ({ name }: { name: string }) => ({
+					name,
+					id: undefined,
+					...savedForReadBack6[name],
+				})),
 				listConfig: vi
 					.fn()
 					.mockResolvedValue([
 						{ name: "test-config", id: "test-id", apiProvider: providerIdentifiers.anthropic },
 					]),
+				getModeConfigId: vi.fn().mockResolvedValue(undefined),
 			} as any
 
 			// Setup Task instance with auto-mock from the top of the file
