@@ -6220,6 +6220,129 @@ describe("ClineProvider", () => {
 			await provider.dispose()
 		})
 	})
+
+	describe("view state restoration retry", () => {
+		const createProvider = () =>
+			new ClineProvider(
+				mockContext,
+				mockOutputChannel,
+				"sidebar",
+				new ContextProxy(mockContext),
+				new WebviewFocusTracker(),
+			)
+
+		it("reloads the selections of a view whose load failed when the same id is registered again", async () => {
+			const provider = createProvider()
+			await provider.contextProxy.setValue("viewStates", {
+				"retry-view": {
+					claimToken: "host-token",
+					mode: "architect",
+					currentApiConfigName: "cfg-a",
+					updatedAt: 1,
+				},
+			})
+			const getCustomModesSpy = vi
+				.spyOn(provider["customModesManager"], "getCustomModes")
+				.mockRejectedValue(new Error("custom modes read failed"))
+
+			await provider["setViewStateId"]("retry-view", "host-token")
+
+			// The id stays adopted: only the load aborted, and the entry is already stored under
+			// the stable name, so rolling back here would strand it under the temporary id.
+			expect(provider["viewStateId"]).toBe("retry-view")
+			expect(provider["viewLocalState"]).toStrictEqual({})
+			expect(provider["pendingViewStateRestorations"].has("retry-view")).toBe(true)
+
+			getCustomModesSpy.mockResolvedValue([])
+
+			// Same id, restoration still pending: the registration runs again, claim check included.
+			await provider["setViewStateId"]("retry-view", "host-token")
+
+			expect(provider["viewLocalState"].mode).toBe("architect")
+			expect(provider["viewLocalState"].currentApiConfigName).toBe("cfg-a")
+			expect(provider["pendingViewStateRestorations"].has("retry-view")).toBe(false)
+
+			getCustomModesSpy.mockRestore()
+			await provider.dispose()
+		})
+
+		it("keeps the same-id guard closed once a restoration completed", async () => {
+			const provider = createProvider()
+			await provider.contextProxy.setValue("viewStates", {
+				"loaded-view": { claimToken: "host-token", mode: "architect", updatedAt: 1 },
+			})
+
+			await provider["setViewStateId"]("loaded-view", "host-token")
+
+			expect(provider["viewLocalState"].mode).toBe("architect")
+
+			// Change what is persisted behind this view's back; a completed restoration is not
+			// re-run by a repeated registration, so the buffer keeps the loaded selection.
+			await provider.contextProxy.setValue("viewStates", {
+				"loaded-view": { claimToken: "host-token", mode: "code", updatedAt: 2 },
+			})
+			await provider["setViewStateId"]("loaded-view", "host-token")
+
+			expect(provider["viewLocalState"].mode).toBe("architect")
+			expect(provider["pendingViewStateRestorations"].size).toBe(0)
+
+			await provider.dispose()
+		})
+		it("applies the restored view fields to both the consumer state and the posted webview state", async () => {
+			const provider = createProvider()
+			// The shared values the restored view has to override on both read paths.
+			await provider.contextProxy.setValues({ mode: "code", currentApiConfigName: "shared-cfg" })
+			await provider.contextProxy.setValue("viewStates", {
+				"overlay-view": {
+					claimToken: "host-token",
+					mode: "architect",
+					currentApiConfigName: "profile-a",
+					updatedAt: 1,
+				},
+			})
+			const profile: ProviderSettingsEntry = {
+				name: "profile-a",
+				id: "profile-a-id",
+				apiProvider: providerIdentifiers.anthropic,
+			}
+			const getProfileSpy = vi.spyOn(provider["providerSettingsManager"], "getProfile").mockResolvedValue(profile)
+
+			await provider["setViewStateId"]("overlay-view", "host-token")
+
+			expect(provider["viewLocalState"].mode).toBe("architect")
+			// The restoration is only real once the consumers see it: getState is the extension
+			// host's read path and getStateToPostToWebview is what the renderer paints, and the
+			// same three fields are read from the same overlay on both.
+			const state = await provider.getState()
+			expect(state.mode).toBe("architect")
+			expect(state.currentApiConfigName).toBe("profile-a")
+			expect(state.apiConfiguration).toMatchObject({ apiProvider: providerIdentifiers.anthropic })
+			// The profile's own name is settings metadata, not part of its apiConfiguration.
+			expect(state.apiConfiguration).not.toHaveProperty("name")
+
+			const posted = await provider.getStateToPostToWebview()
+			expect(posted.mode).toBe("architect")
+			expect(posted.currentApiConfigName).toBe("profile-a")
+			expect(posted.apiConfiguration).toMatchObject({ apiProvider: providerIdentifiers.anthropic })
+
+			getProfileSpy.mockRestore()
+			await provider.dispose()
+		})
+
+		it("keeps the shared values when a view holds no restored or buffered field", async () => {
+			const provider = createProvider()
+			await provider.contextProxy.setValues({ mode: "code", currentApiConfigName: "shared-cfg" })
+
+			// With an empty buffer the overlay is inert: the shared settings still answer.
+			const state = await provider.getState()
+			expect(state.mode).toBe("code")
+			expect(state.currentApiConfigName).toBe("shared-cfg")
+
+			const posted = await provider.getStateToPostToWebview()
+			expect(posted.mode).toBe("code")
+			expect(posted.currentApiConfigName).toBe("shared-cfg")
+		})
+	})
 })
 
 describe("webviewMessageHandler no-floating-promises coverage", () => {

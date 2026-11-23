@@ -1908,6 +1908,11 @@ export class ClineProvider
 			this.webviewDisposables,
 		)
 
+		// Queued claims are deliberately not posted here. The renderer attaches its message listener
+		// only when it launches, and the Webview API allows a message posted before that to be lost
+		// while postMessage still resolves true. The webviewDidLaunch handler flushes the queue once
+		// a listener exists to receive it.
+
 		if (inTabMode) {
 			setPanel(webviewView, "tab")
 		} else if ("onDidChangeVisibility" in webviewView) {
@@ -2165,7 +2170,6 @@ export class ClineProvider
 		)
 		return run
 	}
-
 	private async createTaskWithHistoryItemUnlocked(
 		historyItem: HistoryItem & { rootTask?: Task; parentTask?: Task },
 		options?: { startTask?: boolean },
@@ -2771,7 +2775,6 @@ export class ClineProvider
 			this.handleModeSwitchUnlocked(newMode, targetTask, signal),
 		)
 	}
-
 	private async handleModeSwitchUnlocked(
 		newMode: Mode,
 		targetTask: Task | null | undefined,
@@ -3045,7 +3048,6 @@ export class ClineProvider
 			)
 		}
 	}
-
 	private async persistProviderProfile(
 		name: string,
 		providerSettings: ProviderSettings,
@@ -3106,7 +3108,6 @@ export class ClineProvider
 		await this.postStateToWebview()
 		return id
 	}
-
 	async deleteProviderProfile(profileToDelete: ProviderSettingsEntry) {
 		const globalSettings = this.contextProxy.getValues()
 		let profileToActivate: string | undefined = globalSettings.currentApiConfigName
@@ -3174,7 +3175,6 @@ export class ClineProvider
 			this.activateProviderProfileUnlocked(args, options, signal),
 		)
 	}
-
 	private async activateProviderProfileUnlocked(
 		args: { name: string } | { id: string },
 		options?: {
@@ -3306,9 +3306,6 @@ export class ClineProvider
 
 		await this.upsertProviderProfile(currentApiConfigName, newConfiguration)
 	}
-
-	// Zoo Code Auth
-
 	async handleZooCodeCallback(token: string) {
 		// Auth mutation (token storage, subscription check, success toast) was already
 		// performed by handleAuthCallback() in handleUri.ts before this method was called.
@@ -4232,8 +4229,18 @@ export class ClineProvider
 		const taskSyncEnabled: boolean = false
 
 		// Return the same structure as before.
+		// The three fields a view owns come from this view's own buffer first: the
+		// restored record's values and this view's edits belong to it, and the shared
+		// settings are the fallback for a field this view does not hold. apiConfiguration
+		// merges on top of the shared settings because a view's buffer can hold a partial
+		// profile update rather than a whole profile.
+		const viewLocalState = this.viewLocalState
+		const viewLocalApiConfiguration = viewLocalState.apiConfiguration
+			? { ...providerSettings, ...viewLocalState.apiConfiguration }
+			: providerSettings
+
 		return {
-			apiConfiguration: providerSettings,
+			apiConfiguration: viewLocalApiConfiguration,
 			lastShownAnnouncementId: stateValues.lastShownAnnouncementId,
 			customInstructions: stateValues.customInstructions,
 			apiModelId: stateValues.apiModelId,
@@ -4282,11 +4289,11 @@ export class ClineProvider
 			terminalZshP10k: stateValues.terminalZshP10k ?? false,
 			terminalZdotdir: stateValues.terminalZdotdir ?? false,
 			terminalProfile: stateValues.terminalProfile,
-			mode: stateValues.mode ?? defaultModeSlug,
+			mode: viewLocalState.mode ?? stateValues.mode ?? defaultModeSlug,
 			language: stateValues.language ?? formatLanguage(vscode.env.language),
 			mcpEnabled: stateValues.mcpEnabled ?? true,
 			mcpServers: this.mcpHub?.getAllServers() ?? [],
-			currentApiConfigName: stateValues.currentApiConfigName ?? "default",
+			currentApiConfigName: viewLocalState.currentApiConfigName ?? stateValues.currentApiConfigName ?? "default",
 			listApiConfigMeta: stateValues.listApiConfigMeta ?? [],
 			pinnedApiConfigs: stateValues.pinnedApiConfigs ?? {},
 			modeApiConfigs: stateValues.modeApiConfigs ?? ({} as Record<Mode, string>),
@@ -4422,7 +4429,6 @@ export class ClineProvider
 	private getGlobalState<K extends keyof GlobalState>(key: K) {
 		return this.contextProxy.getValue(key)
 	}
-
 	public async setValue<K extends keyof RooCodeSettings>(key: K, value: RooCodeSettings[K]) {
 		await this.contextProxy.setValue(key, value)
 	}
@@ -4430,19 +4436,14 @@ export class ClineProvider
 	public getValue<K extends keyof RooCodeSettings>(key: K) {
 		return this.contextProxy.getValue(key)
 	}
-
 	public getValues() {
 		return this.contextProxy.getValues()
 	}
-
 	public async setValues(values: RooCodeSettings) {
 		await this.contextProxy.setValues(
 			withoutInvalidDisplaySettings(values, (key) => this.log(`[setValues] Ignored an invalid value for ${key}`)),
 		)
 	}
-
-	// dev
-
 	async resetState() {
 		const answer = await vscode.window.showInformationMessage(
 			t("common:confirmation.reset_state"),
@@ -4674,6 +4675,10 @@ export class ClineProvider
 			) {
 				return
 			}
+			// Assigning new HTML discards the live document and its message listener, so the launched
+			// flag goes down with it; the regenerated renderer re-arms it from its own
+			// `webviewDidLaunch`, and any claim queued in between reaches it then.
+			this.isViewLaunched = false
 			view.webview.html = html
 			this.resetWebviewHeartbeatGrace()
 			const revision = this.webviewHeartbeatRevision
