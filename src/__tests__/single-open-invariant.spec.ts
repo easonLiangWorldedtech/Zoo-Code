@@ -171,6 +171,7 @@ describe("Single-open-task invariant", () => {
 			getCurrentTask: vi.fn(() => undefined), // ensure not rehydrating
 			taskHistoryStore: { get: vi.fn(() => undefined) },
 			markDelegatedChildInterrupted: vi.fn().mockResolvedValue(undefined),
+			backfillTaskDepth: vi.fn().mockResolvedValue(undefined),
 			get evictCurrentTask() {
 				return privateClineProvider.evictCurrentTask.bind(this)
 			},
@@ -270,6 +271,7 @@ describe("Single-open-task invariant", () => {
 			taskScheduler: { schedule: schedulespy },
 			taskEventListeners: new WeakMap(),
 			performPreparationTasks: vi.fn().mockResolvedValue(undefined),
+			backfillTaskDepth: vi.fn().mockResolvedValue(undefined),
 			context: { extension: { packageJSON: {} }, globalStorageUri: { fsPath: "/tmp" } },
 			contextProxy: {
 				extensionUri: {},
@@ -342,6 +344,7 @@ describe("Single-open-task invariant", () => {
 			taskScheduler: { schedule: schedulespy },
 			taskEventListeners: new WeakMap(),
 			performPreparationTasks: vi.fn().mockResolvedValue(undefined),
+			backfillTaskDepth: vi.fn().mockResolvedValue(undefined),
 			context: { extension: { packageJSON: {} }, globalStorageUri: { fsPath: "/tmp" } },
 			contextProxy: {
 				extensionUri: {},
